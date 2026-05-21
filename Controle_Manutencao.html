@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔧 Controle de Preventivas — Troca de Óleo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Calibri, Arial, sans-serif; background: #e8eaf0; font-size: 13px; }
+
+.header-principal {
+  background: #1B3A6D; color: #fff;
+  padding: 8px 16px 6px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.header-principal h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; text-align: center; }
+.header-principal .data-hoje { font-size: 13px; color: #93C5FD; position: absolute; right: 16px; }
+
+.resumo-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr 1fr 1fr 1fr;
+  gap: 0; border-bottom: 2px solid #aaa;
+}
+.resumo-bloco {
+  padding: 8px 14px; color: #fff;
+  display: flex; flex-direction: column; gap: 2px;
+  cursor: pointer; transition: filter .15s;
+}
+.resumo-bloco:hover { filter: brightness(1.1); }
+.resumo-bloco .num { font-size: 32px; font-weight: 700; line-height: 1; }
+.resumo-bloco .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; opacity: .9; }
+.resumo-bloco .sub { font-size: 10px; opacity: .7; }
+.rb-frota { 
+    background: linear-gradient(135deg, #1D4ED8, #3B82F6);
+}
+.rb-motor-ok { background: #16A34A; }
+.rb-motor-venc { background: #DC2626; }
+.rb-cambio-ok  { background: #0D9488; }
+.rb-cambio-venc{ background: #D97706; }
+
+.barra-det {
+  background: #404040; color: #fff;
+  padding: 5px 14px; font-weight: 700; font-size: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 6px;
+}
+.toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.toolbar input, .toolbar select {
+  padding: 3px 8px; border-radius: 4px; border: none;
+  font-size: 12px; background: #fff; color: #333; outline: none;
+}
+.toolbar button {
+  padding: 3px 10px; border-radius: 4px; border: none;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  background: #16A34A; color: #fff;
+}
+.toolbar .btn-csv { background: #1B3A6D; }
+
+.tabela-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1400px; }
+
+thead tr.grp th {
+  text-align: center; padding: 5px 4px;
+  font-size: 12px; font-weight: 700;
+  border-right: 2px solid rgba(255,255,255,.3);
+}
+thead tr.cols th {
+  padding: 4px 5px; text-align: center;
+  font-size: 11px; font-weight: 700; line-height: 1.3;
+  border: 1px solid rgba(255,255,255,.2);
+  cursor: pointer; white-space: pre-line; user-select: none;
+}
+thead tr.cols th:hover { filter: brightness(1.15); }
+
+.col-v { background: #2765E9; color: #fff; }
+.col-m { background: #16A34A; color: #fff; }
+.col-c { background: #0D9488; color: #fff; }
+.col-r { background: #D97706; color: #fff; }
+.col-a { background: #f9f9f9; color: #333; }
+
+tbody tr { border-bottom: 1px solid #dde; }
+tbody tr:nth-child(even) { background: #f5f7ff; }
+tbody tr:nth-child(odd)  { background: #fff; }
+tbody tr:hover { background: #e8f4ff !important; }
+tbody tr.linha-vencida { background: #FFF5F5 !important; }
+tbody tr.linha-vencida:hover { background: #FEE2E2 !important; }
+
+tbody td {
+  padding: 5px 6px; border-right: 1px solid #dde;
+  text-align: center; white-space: nowrap;
+}
+tbody td.td-placa { font-weight: 700; font-size: 13px; color: #1B3A6D; text-align: left; padding-left: 10px; }
+tbody td.td-tipo  { text-align: left; }
+
+.st { padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; display: inline-block; }
+.st-ok       { background: #DCFCE7; color: #166534; }
+.st-proximo  { background: #FEF3C7; color: #92400E; }
+.st-vencido  { background: #FEE2E2; color: #991B1B; }
+.st-sem-dado { background: #F3F4F6; color: #6B7280; }
+
+.alerta-vencido { color: #DC2626; font-weight: 700; }
+.alerta-proximo { color: #D97706; font-weight: 700; }
+.km-ok  { color: #16A34A; font-weight: 600; }
+.km-neg { color: #DC2626; font-weight: 700; }
+.km-prox{ color: #D97706; font-weight: 700; }
+
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.55); z-index: 999;
+  align-items: center; justify-content: center;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 10px; padding: 28px;
+  width: 94%; max-width: 540px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.3);
+  animation: pop .18s ease;
+}
+@keyframes pop { from{transform:scale(.94);opacity:0} to{transform:scale(1);opacity:1} }
+.modal h2 { font-size: 16px; font-weight: 700; color: #1B3A6D; margin-bottom: 18px; }
+.fg { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fg .full { grid-column: 1/-1; }
+.fg label { display: block; font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase; margin-bottom: 3px; }
+.fg input, .fg select {
+  width: 100%; padding: 7px 10px; border: 1.5px solid #ccc;
+  border-radius: 6px; font-size: 13px; outline: none;
+}
+.fg input:focus, .fg select:focus { border-color: #2765E9; }
+.fg .hint { font-size: 10px; color: #999; margin-top: 2px; }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.modal-btns button { padding: 8px 20px; border-radius: 6px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-salvar { background: #16A34A; color: #fff; }
+.btn-cancel { background: #f0f0f0; color: #555; }
+
+.paginacao { display: flex; gap: 4px; padding: 8px 14px; flex-wrap: wrap; background: #f5f7ff; border-top: 1px solid #dde; }
+.paginacao button { padding: 3px 10px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 12px; }
+.paginacao button.active { background: #1B3A6D; color: #fff; border-color: #1B3A6D; font-weight: 700; }
+.vazio { text-align: center; padding: 32px; color: #999; font-size: 14px; }
+td.td-acoes { white-space: nowrap; text-align: center; }
+td.td-acoes button { padding: 2px 8px; border: none; border-radius: 3px; font-size: 11px; cursor: pointer; margin: 0 2px; font-weight: 700; }
+.btn-edit { background: #EFF6FF; color: #1D4ED8; }
+.btn-del  { background: #FEF2F2; color: #DC2626; }
+
+/* ================= RESPONSIVO MODERNO ================= */
+
+/* Fonte mais suave estilo Apple */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* GRID RESPONSIVO */
+.resumo-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+/* HEADER FLEXÍVEL */
+.header-principal {
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+.header-principal .data-hoje {
+  position: static;
+}
+
+/* TOOLBAR RESPONSIVA */
+.toolbar {
+  width: 100%;
+  justify-content: center;
+}
+
+/* BOTÕES MAIS BONITOS */
+.toolbar button {
+  transition: all .2s ease;
+}
+.toolbar button:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+/* INPUTS MELHORADOS */
+.toolbar input,
+.toolbar select {
+  min-height: 32px;
+}
+
+/* TABELA RESPONSIVA */
+.tabela-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* SCROLL SUAVE */
+.tabela-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+.tabela-wrap::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+/* CARDS */
+.resumo-bloco {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* MODAL */
+.modal {
+  width: 95%;
+  max-width: 520px;
+}
+
+/* FORM */
+.fg {
+  grid-template-columns: 1fr;
+}
+
+/* GRÁFICOS */
+#graficos-section {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  #graficos-section {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1200px) {
+  #graficos-section {
+    grid-template-columns: 220px 220px 1fr;
+  }
+}
+
+/* TABELA */
+table {
+  font-size: 11px;
+}
+
+@media (min-width: 1024px) {
+  table {
+    font-size: 12px;
+  }
+}
+
+/* INPUTS */
+tbody input {
+  width: 100%;
+  min-width: 70px;
+}
+
+/* BOTÕES */
+td.td-acoes button {
+  padding: 4px 6px;
+  font-size: 10px;
+}
+
+/* PAGINAÇÃO */
+.paginacao {
+  justify-content: center;
+}
+
+/* MOBILE */
+@media (max-width: 600px) {
+
+  .header-principal h1 {
+    font-size: 14px;
+  }
+
+  .resumo-bloco .num {
+    font-size: 22px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar input,
+  .toolbar select,
+  .toolbar button {
+    width: 100%;
+  }
+
+  .barra-det {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+}
+
+
+/* ── NAVEGAÇÃO PRINCIPAL ── */
+.nav-abas { display:flex; background:#0f3a2a; padding:0 10px; gap:2px; border-bottom:3px solid #1a7a45; }
+.nav-aba { padding:10px 22px; cursor:pointer; font-size:13px; font-weight:700; color:#8ab; background:transparent; border:none; border-bottom:3px solid transparent; margin-bottom:-3px; transition:all .15s; white-space:nowrap; }
+.nav-aba.active { color:#fff; border-bottom-color:#2ea55f; background:rgba(255,255,255,.06); }
+.nav-aba:hover:not(.active) { color:#cde; background:rgba(255,255,255,.04); }
+.pagina { display:none; }
+.pagina.active { display:block; }
+
+/* ── CHECKLIST ── */
+#pag-checklist { background:#f0f2f0; }
+.check-totais { background:#7030A0; color:#fff; display:flex; align-items:center; gap:24px; padding:7px 14px; font-size:13px; font-weight:700; flex-wrap:wrap; }
+.check-totais button { padding:4px 12px; border:none; border-radius:3px; font-weight:700; font-size:12px; cursor:pointer; }
+table.tbl-check { width:100%; border-collapse:collapse; font-size:12px; min-width:1200px; }
+table.tbl-check thead th { padding:6px 8px; border:1px solid rgba(255,255,255,.3); font-size:11px; font-weight:700; text-align:center; line-height:1.3; }
+.th-azul { background:#16365C; color:#fff; }
+.th-roxo { background:#7030A0; color:#fff; }
+.th-cinza { background:#404040; color:#fff; }
+table.tbl-check tbody td { padding:4px 7px; border:1px solid #D0D7E5; vertical-align:middle; }
+table.tbl-check tbody tr:nth-child(even) { background:#EAF0FB; }
+table.tbl-check tbody tr:nth-child(odd)  { background:#FFFFFF; }
+table.tbl-check tbody tr:hover { filter:brightness(.97); }
+#save-ind-global { margin-left:auto; align-self:center; font-size:11px; padding-right:10px; }
+
+
+/* ===== PREMIUM UI UPGRADE ===== */
+:root{
+  --bg:#0f172a;
+  --card:#ffffff;
+  --line:#dbe4f0;
+  --primary:#2563eb;
+  --primary-dark:#1d4ed8;
+  --success:#16a34a;
+  --warning:#d97706;
+  --danger:#dc2626;
+  --text:#0f172a;
+  --muted:#64748b;
+  --shadow:0 10px 30px rgba(15,23,42,.08);
+  --radius:18px;
+}
+
+body{
+  background:
+    radial-gradient(circle at top left, rgba(37,99,235,.08), transparent 30%),
+    radial-gradient(circle at top right, rgba(22,163,74,.06), transparent 25%),
+    #eef3f9 !important;
+  color:var(--text);
+  padding:18px;
+}
+
+
+
+.nav-abas{
+  border-radius:22px 22px 0 0;
+  background:linear-gradient(135deg,#0f172a,#1e293b);
+  padding:10px 14px;
+}
+
+.nav-aba{
+  border-radius:12px 12px 0 0;
+  font-size:13px;
+  letter-spacing:.4px;
+}
+
+.nav-aba.active{
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+  border-bottom-color:transparent;
+  box-shadow:0 6px 18px rgba(37,99,235,.35);
+}
+
+.header-principal{
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
+    linear-gradient(135deg,#0f172a,#1e3a8a);
+  padding:24px 28px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+
+.header-principal h1{
+  font-size:28px;
+  letter-spacing:.6px;
+}
+
+.header-principal .data-hoje{
+  color:#bfdbfe;
+  font-weight:600;
+}
+
+.resumo-grid{
+  gap:14px;
+  padding:18px;
+  border:none;
+  background:transparent;
+}
+
+.resumo-bloco{
+  border-radius:22px;
+  padding:18px;
+  min-height:130px;
+  justify-content:center;
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:var(--shadow);
+  position:relative;
+  overflow:hidden;
+}
+
+.resumo-bloco::before{
+  content:'';
+  position:absolute;
+  top:-50px;
+  right:-40px;
+  width:120px;
+  height:120px;
+  background:rgba(255,255,255,.12);
+  border-radius:50%;
+}
+
+.resumo-bloco .num{
+  font-size:42px;
+}
+
+.resumo-bloco .label{
+  font-size:12px;
+}
+
+.barra-det{
+  background:#ffffff;
+  color:#0f172a;
+  padding:18px;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+
+.toolbar{
+  gap:10px;
+}
+
+.toolbar input,
+.toolbar select{
+  border:1px solid #dbe4f0;
+  border-radius:12px;
+  padding:10px 12px;
+  background:#f8fafc;
+  font-weight:600;
+}
+
+.toolbar button,
+.toolbar label{
+  border-radius:12px !important;
+  padding:10px 16px !important;
+  box-shadow:0 4px 14px rgba(15,23,42,.08);
+}
+
+#graficos-section{
+  padding:20px !important;
+  gap:18px !important;
+  background:transparent !important;
+}
+
+#graficos-section > div{
+  border:none !important;
+  border-radius:22px !important;
+  box-shadow:var(--shadow);
+}
+
+.tabela-wrap{
+  padding:0 18px 18px;
+  background:transparent;
+}
+
+table{
+  border-collapse:separate;
+  border-spacing:0;
+  overflow:hidden;
+  border-radius:22px;
+  background:#fff;
+  box-shadow:var(--shadow);
+}
+
+thead tr.grp th{
+  padding:14px 10px;
+  font-size:12px;
+}
+
+thead tr.cols th{
+  padding:12px 8px;
+  font-size:11px;
+  position:sticky;
+  top:0;
+  z-index:2;
+}
+
+tbody td{
+  padding:10px 8px;
+  border-color:#edf2f7;
+}
+
+tbody tr{
+  transition:all .18s ease;
+}
+
+tbody tr:hover{
+  transform:scale(1.002);
+  box-shadow:inset 0 0 0 9999px rgba(37,99,235,.04);
+}
+
+tbody input{
+  border-radius:10px !important;
+  border:1px solid #dbe4f0 !important;
+  background:#fff !important;
+  transition:all .18s ease;
+}
+
+tbody input:focus{
+  box-shadow:0 0 0 4px rgba(37,99,235,.12);
+}
+
+.st{
+  border-radius:999px;
+  padding:6px 12px;
+  font-size:10px;
+  letter-spacing:.4px;
+}
+
+.modal{
+  border-radius:28px;
+  border:1px solid rgba(255,255,255,.7);
+}
+
+.modal h2{
+  font-size:22px;
+}
+
+.fg input,
+.fg select,
+.fg textarea{
+  border-radius:14px;
+  border:1px solid #dbe4f0;
+  padding:11px 14px;
+  background:#f8fafc;
+}
+
+.modal-btns button{
+  border-radius:14px;
+  padding:12px 20px;
+}
+
+.paginacao{
+  background:transparent;
+  padding:10px 18px 20px;
+}
+
+.paginacao button{
+  border-radius:12px;
+  min-width:40px;
+  height:40px;
+  border:none;
+  box-shadow:0 4px 12px rgba(15,23,42,.08);
+}
+
+.paginacao button.active{
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+}
+
+.check-totais{
+  background:linear-gradient(135deg,#581c87,#7e22ce);
+  padding:18px;
+}
+
+.tbl-check{
+  border-radius:22px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:var(--shadow);
+}
+
+.overlay{
+  backdrop-filter:blur(8px);
+}
+
+@media (max-width:768px){
+  body{
+    padding:8px;
+  }
+
+  
+
+  .header-principal h1{
+    font-size:20px;
+  }
+
+  .resumo-bloco{
+    min-height:110px;
+  }
+
+  .resumo-bloco .num{
+    font-size:30px;
+  }
+
+  .toolbar{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .toolbar > *{
+    width:100%;
+  }
+}
+
+
+/* ===== CHECKLIST LIMPO ===== */
+
+</style>
+</head>
+<body>
+<div class="nav-abas">
+  <div class="nav-aba active" onclick="mudarPagina('oleo')">🛢️ TROCA DE ÓLEO</div>
+  <div class="nav-aba" onclick="mudarPagina('checklist')">📋 CHECKLIST PREVENTIVA</div>
+  <span id="save-ind-global" style="color:#86efac"></span>
+</div>
+<div class="pagina active" id="pag-oleo">
+
+<div class="header-principal">
+  <h1>🔧 &nbsp;CONTROLE DE PREVENTIVAS — TROCA DE ÓLEO</h1>
+  <span class="data-hoje" id="data-hoje"></span>
+</div>
+
+<div class="resumo-grid">
+  <div class="resumo-bloco rb-frota" onclick="filtrarCard('todos')">
+    <div class="num" id="cnt-total">0</div>
+    <div class="label">Frota Total</div>
+    <div class="sub">Veículos Monitorados</div>
+  </div>
+  <div class="resumo-bloco rb-motor-ok" onclick="filtrarCard('motor-ok')">
+    <div class="num" id="cnt-motor-ok">0</div>
+    <div class="label">✅ Troca de Óleo Motor Em Dia</div>
+    <div class="sub" id="pct-motor-ok"></div>
+  </div>
+  <div class="resumo-bloco rb-motor-venc" onclick="filtrarCard('motor-venc')">
+    <div class="num" id="cnt-motor-venc">0</div>
+    <div class="label">⚠️ Troca de Óleo Motor Vencido</div>
+    <div class="sub" id="pct-motor-venc"></div>
+  </div>
+  <div class="resumo-bloco rb-cambio-ok" onclick="filtrarCard('cambio-ok')">
+    <div class="num" id="cnt-cambio-ok">0</div>
+    <div class="label">✅ Troca Câmbio/Diferencial Em Dia</div>
+    <div class="sub" id="pct-cambio-ok"></div>
+  </div>
+  <div class="resumo-bloco rb-cambio-venc" onclick="filtrarCard('cambio-venc')">
+    <div class="num" id="cnt-cambio-venc">0</div>
+    <div class="label">⚠️ Câmbio/Diferencial Vencido</div>
+    <div class="sub" id="pct-cambio-venc"></div>
+  </div>
+</div>
+
+<div class="barra-det">
+  <span>📋 &nbsp;DETALHAMENTO POR VEÍCULO</span>
+  <div class="toolbar">
+    <input type="text" id="busca" placeholder="🔍 Buscar placa..." oninput="renderizar()" style="width:130px">
+    <select id="filtroTipo" onchange="renderizar()"><option value="">Todos os tipos</option></select>
+    <select id="filtroStatus" onchange="renderizar()">
+      <option value="">Todos status</option>
+      <option value="ok">✅ Em Dia</option>
+      <option value="proximo">🟡 Próximo</option>
+      <option value="vencido">🔴 Vencido</option>
+    </select>
+    <button onclick="abrirModal()">➕ Adicionar Veículo</button>
+    <button class="btn-csv" onclick="exportarCSV()">⬇️ CSV</button>
+    <button class="btn-csv" onclick="exportarPDF()" style="background:#B91C1C">📄 Exportar PDF</button>
+    <button class="btn-csv" onclick="resetarDados()" style="background:#7f1d1d" title="Apagar dados salvos e voltar ao estado inicial">🗑️ Resetar</button>
+    <span id="save-indicator" style="font-size:10px;color:#86efac"></span>
+    <label style="padding:3px 10px;border-radius:4px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#7C3AED;color:#fff">
+      📂 Importar Excel (KM)
+      <input type="file" id="inputExcel" accept=".xlsx,.xls" style="display:none" onchange="importarExcel(this)">
+    </label>
+  </div>
+</div>
+
+</div>
+
+<!-- GRÁFICOS -->
+<div id="graficos-section" style="display:grid;grid-template-columns:220px 220px 1fr;gap:12px;padding:12px 14px;background:#f0f2f0;border-bottom:2px solid #dde">
+
+  <!-- Pizza Motor -->
+  <div style="background:#fff;border-radius:10px;border:1.5px solid #dde;padding:14px;text-align:center">
+    <div style="font-size:12px;font-weight:700;color:#1B3A6D;margin-bottom:10px">Status Óleo Motor</div>
+    <canvas id="chartMotor" width="180" height="180" style="max-width:180px"></canvas>
+    <div id="legendaMotor" style="margin-top:10px;font-size:11px;text-align:left"></div>
+  </div>
+
+  <!-- Pizza Câmbio -->
+  <div style="background:#fff;border-radius:10px;border:1.5px solid #dde;padding:14px;text-align:center">
+    <div style="font-size:12px;font-weight:700;color:#1B3A6D;margin-bottom:10px">Status Óleo Câmbio/Diferencial</div>
+    <canvas id="chartCambio" width="180" height="180" style="max-width:180px"></canvas>
+    <div id="legendaCambio" style="margin-top:10px;font-size:11px;text-align:left"></div>
+  </div>
+
+  <!-- Barras Dias -->
+  <div style="background:#fff;border-radius:10px;border:1.5px solid #dde;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:#1B3A6D;margin-bottom:10px">Dias sem revisão por veículo</div>
+    <div style="overflow-y:auto;max-height:260px" id="chartBarras"></div>
+  </div>
+
+</div>
+
+<div class="tabela-wrap">
+<table>
+  <thead>
+    <tr class="grp">
+      <th class="col-v" colspan="5">VEÍCULO</th>
+      <th class="col-m" colspan="5">🛢️ &nbsp;ÓLEO DO MOTOR</th>
+      <th class="col-c" colspan="5">⚙️ &nbsp;ÓLEO CÂMBIO / DIFERENCIAL</th>
+      <th class="col-r" colspan="2">📅 &nbsp;REVISÃO 180d</th>
+      <th class="col-a" colspan="1">⚠️ ALERTA</th>
+      <th style="background:#404040;color:#fff" colspan="1">AÇÕES</th>
+    </tr>
+    <tr class="cols">
+      <th class="col-v" onclick="ord('placa')">PLACA <span id="arr-placa"></span></th>
+      <th class="col-v" onclick="ord('tipo')">TIPO <span id="arr-tipo"></span></th>
+      <th class="col-v" onclick="ord('km_atual')">KM ATUAL <span id="arr-km_atual"></span></th>
+      <th class="col-v" onclick="ord('data_troca')">DIA DA TROCA<br>DE ÓLEO <span id="arr-data_troca"></span></th>
+      <th class="col-v" onclick="ord('dias')">DIAS SEM<br>REVISÃO <span id="arr-dias"></span></th>
+      <th class="col-m" onclick="ord('km_motor')">KM DA ÚLTIMA<br>TROCA MOTOR <span id="arr-km_motor"></span></th>
+      <th class="col-m">INTERV.<br>MOTOR</th>
+      <th class="col-m" onclick="ord('km_prox_motor')">KM PRÓXIMA<br>TROCA MOTOR <span id="arr-km_prox_motor"></span></th>
+      <th class="col-m" onclick="ord('km_falta_motor')">KM<br>FALTA <span id="arr-km_falta_motor"></span></th>
+      <th class="col-m" onclick="ord('cor_motor')">STATUS MOTOR <span id="arr-cor_motor"></span></th>
+      <th class="col-c" onclick="ord('km_cambio')">KM ÚLTIMA<br>TROCA CÂMBIO <span id="arr-km_cambio"></span></th>
+      <th class="col-c">INTERV.<br>CÂMBIO</th>
+      <th class="col-c" onclick="ord('km_prox_cambio')">KM PRÓXIMA<br>TROCA CÂMBIO <span id="arr-km_prox_cambio"></span></th>
+      <th class="col-c" onclick="ord('km_falta_cambio')">KM<br>FALTA <span id="arr-km_falta_cambio"></span></th>
+      <th class="col-c" onclick="ord('cor_cambio')">STATUS CÂMBIO/<br>DIFERENCIAL <span id="arr-cor_cambio"></span></th>
+      <th class="col-r" onclick="ord('data_troca')">ÚLTIMA REVISÃO<br>30K/180d <span id="arr-rev"></span></th>
+      <th class="col-r" onclick="ord('dias')">DIAS SEM<br>PREV. <span id="arr-prev"></span></th>
+      <th class="col-a">⚠️ ALERTA</th>
+      <th style="background:#404040;color:#fff">AÇÕES</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+<div class="vazio" id="vazio" style="display:none">Nenhum veículo encontrado.</div>
+</div>
+<div class="paginacao" id="paginacao"></div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modal-titulo">➕ Cadastrar Novo Veículo</h2>
+    <div class="fg">
+      <div class="full">
+        <label>Placa *</label>
+        <input type="text" id="f-placa" placeholder="Ex: ABC1D23" maxlength="10">
+      </div>
+      <div>
+        <label>Tipo *</label>
+        <select id="f-tipo">
+          <option value="">Selecione...</option>
+          <option>ROLLON</option><option>TRUCK</option>
+          <option>CAVALO MECÂNICO</option><option>COMPACTADOR</option>
+          <option>GARRA</option><option>TANQUE 10</option>
+          <option>TANQUE 15</option><option>BRUCK</option><option>OUTRO</option>
+        </select>
+      </div>
+      <div>
+        <label>Data Última Troca Óleo Motor</label>
+        <input type="date" id="f-data">
+      </div>
+      <div>
+        <label>KM Última Troca Motor</label>
+        <input type="number" id="f-km-motor" value="0" min="0">
+        <div class="hint">0 = ainda não realizada</div>
+      </div>
+      <div>
+        <label>KM Última Troca Câmbio</label>
+        <input type="number" id="f-km-cambio" value="0" min="0">
+        <div class="hint">0 = ainda não realizada</div>
+      </div>
+      <div>
+        <label>Intervalo Motor (km)</label>
+        <input type="number" id="f-interv-m" value="30000" min="1000">
+      </div>
+      <div>
+        <label>Intervalo Câmbio (km)</label>
+        <input type="number" id="f-interv-c" value="90000" min="1000">
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-salvar" onclick="salvar()">✅ Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAÇÃO -->
+<div class="overlay" id="overlay-import">
+  <div class="modal" style="max-width:600px">
+    <h2>📂 Resultado da Importação</h2>
+    <div id="import-resumo" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac;font-size:13px"></div>
+    <div style="max-height:300px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px" id="import-tabela">
+        <thead>
+          <tr style="background:#1B3A6D;color:#fff">
+            <th style="padding:6px 10px;text-align:left">Placa</th>
+            <th style="padding:6px 10px">KM Atualizado</th>
+            <th style="padding:6px 10px">Data</th>
+            <th style="padding:6px 10px">Status</th>
+          </tr>
+        </thead>
+        <tbody id="import-tbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn-cancel" onclick="document.getElementById('overlay-import').classList.remove('open')">Fechar</button>
+      <button class="btn-salvar" id="btn-aplicar" onclick="aplicarImport()">✅ Aplicar KMs</button>
+    </div>
+  </div>
+</div>
+</div>
+
+
+
+<!-- ══════════════════════════════════════════
+     PÁGINA: CHECKLIST PREVENTIVA
+══════════════════════════════════════════ -->
+<div class="pagina" id="pag-checklist" style="padding-top:18px">
+
+  <div class="check-totais">
+    <span>QTD CORRETIVAS CAVALO: <b id="tot-cav">0</b></span>
+    <span>QTD CORRETIVAS REBOQUE: <b id="tot-reb">0</b></span>
+    <span>TOTAL: <b id="tot-ret">0</b></span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button onclick="abrirModalCheck()" style="background:#16A34A;color:#fff">➕ Adicionar</button>
+      <button onclick="exportarPDFCheck()" style="background:#B91C1C;color:#fff">📄 PDF</button>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table class="tbl-check">
+      <thead>
+        <tr>
+          <th class="th-azul" style="min-width:100px">PROGRAMADOR</th>
+          <th class="th-azul" style="min-width:90px">CAVALO</th>
+          <th class="th-azul" style="min-width:130px">TIPO DE VEÍCULO</th>
+          <th class="th-azul" style="min-width:90px">REBOQUE</th>
+          <th class="th-azul" style="min-width:120px">ÚLTIMA PREVENTIVA</th>
+          <th class="th-azul" style="min-width:100px">DATA</th>
+          <th class="th-azul" style="min-width:60px">DIAS</th>
+          <th class="th-azul" style="min-width:200px">OBS PROGRAMAR COM A LOGÍSTICA</th>
+          <th class="th-azul" style="min-width:200px">OBS ITENS PARA COMPRAR</th>
+          <th class="th-roxo" style="min-width:80px">QTD CORRETIVAS<br>CAVALO</th>
+          <th class="th-roxo" style="min-width:80px">QTD CORRETIVAS<br>REBOQUE</th>
+          <th class="th-azul" style="min-width:80px">RETORNO<br>LOGÍSTICA</th>
+          <th class="th-cinza" style="min-width:80px">AÇÕES</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-check"></tbody>
+    </table>
+  </div>
+  <div style="text-align:center;padding:24px;color:#999;display:none" id="vazio-check">Nenhum registro.</div>
+
+</div><!-- /pag-checklist -->
+
+<!-- MODAL CHECKLIST -->
+<div class="overlay" id="overlay-check">
+  <div class="modal">
+    <h2 id="modal-check-titulo">➕ Novo Registro</h2>
+    <div class="fg">
+      <div><label>Programador</label><input type="text" id="c-prog"></div>
+      <div><label>Cavalo (Placa)</label><input type="text" id="c-cavalo"></div>
+      <div><label>Tipo de Veículo</label>
+        <select id="c-tipo"><option value="">Selecione...</option>
+          <option>ROLLON</option><option>BRUCK</option><option>TOCO ROLLON</option>
+          <option>CARRETA TANQUE</option><option>CARRETA BASCULA</option><option>CARRETA</option>
+          <option>TANQUE 10</option><option>TANQUE 15</option><option>GARRA</option>
+          <option>COMPACTADOR</option><option>CAVALO MECÂNICO</option><option>OUTRO</option>
+        </select>
+      </div>
+      <div><label>Reboque (Placa)</label><input type="text" id="c-reboque"></div>
+      <div><label>Última Preventiva</label><input type="date" id="c-ult-prev"></div>
+      <div><label>QTD Corretivas Cavalo</label><input type="number" id="c-corr-cav" value="0" min="0"></div>
+      <div><label>QTD Corretivas Reboque</label><input type="number" id="c-corr-reb" value="0" min="0"></div>
+      <div><label>Retorno Logística</label><input type="text" id="c-retorno"></div>
+      <div class="full"><label>OBS Programar com a Logística</label><textarea id="c-obs-log" rows="2"></textarea></div>
+      <div class="full"><label>OBS Itens para Comprar</label><textarea id="c-obs-comp" rows="2"></textarea></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="fecharModalCheck()">Cancelar</button>
+      <button class="btn-del-modal" id="btn-del-check" style="display:none;background:#DC2626;color:#fff" onclick="excluirCheck()">🗑️ Excluir</button>
+      <button class="btn-salvar" onclick="salvarCheck()">✅ Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VER CORRETIVAS -->
+<div class="overlay" id="overlay-ver-corr">
+  <div class="modal" style="max-width:700px">
+    <h2 id="ver-corr-titulo">🔧 Corretivas Abertas</h2>
+    <div style="overflow-y:auto;max-height:400px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#16365C;color:#fff">
+          <th style="padding:6px 8px;text-align:left">Ordem</th>
+          <th style="padding:6px 8px;text-align:left">Serviço</th>
+          <th style="padding:6px 8px;text-align:left">Data</th>
+          <th style="padding:6px 8px;text-align:left;max-width:200px">Descrição</th>
+        </tr></thead>
+        <tbody id="ver-corr-tbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="document.getElementById('overlay-ver-corr').classList.remove('open')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+let VEICULOS = [
+  {"placa":"TXS9D96","tipo":"ROLLON","km_atual":0,"data_troca":"31/03/2026","dias":44,"km_motor":0,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"SKO4F34","tipo":"ROLLON","km_atual":0,"data_troca":"01/02/2025","dias":467,"km_motor":20120,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TDE5D17","tipo":"ROLLON","km_atual":0,"data_troca":"04/02/2025","dias":464,"km_motor":46800,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TDE5D28","tipo":"ROLLON","km_atual":0,"data_troca":"05/02/2025","dias":463,"km_motor":0,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TDE5D32","tipo":"ROLLON","km_atual":0,"data_troca":"21/04/2026","dias":23,"km_motor":50381,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TDR6A18","tipo":"GARRA","km_atual":0,"data_troca":"31/03/2026","dias":44,"km_motor":44967,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"QUC8450","tipo":"ROLLON","km_atual":0,"data_troca":"08/02/2025","dias":460,"km_motor":161921,"interv_motor":30000,"km_cambio":154658,"interv_cambio":90000},
+  {"placa":"SYB6I94","tipo":"ROLLON","km_atual":0,"data_troca":"27/01/2025","dias":472,"km_motor":57128,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"SYD4A63","tipo":"ROLLON","km_atual":0,"data_troca":"21/04/2026","dias":23,"km_motor":146601,"interv_motor":30000,"km_cambio":130330,"interv_cambio":90000},
+  {"placa":"HMR1E79","tipo":"ROLLON","km_atual":0,"data_troca":"24/07/2025","dias":294,"km_motor":290189,"interv_motor":30000,"km_cambio":275211,"interv_cambio":90000},
+  {"placa":"OPC6694","tipo":"CAVALO MECÂNICO","km_atual":0,"data_troca":"15/05/2025","dias":364,"km_motor":1011893,"interv_motor":30000,"km_cambio":984351,"interv_cambio":90000},
+  {"placa":"OVH4916","tipo":"CAVALO MECÂNICO","km_atual":0,"data_troca":"04/03/2026","dias":71,"km_motor":342022,"interv_motor":30000,"km_cambio":323956,"interv_cambio":90000},
+  {"placa":"QNU5536","tipo":"TANQUE 10","km_atual":0,"data_troca":"09/12/2025","dias":156,"km_motor":160160,"interv_motor":30000,"km_cambio":160160,"interv_cambio":90000},
+  {"placa":"TXP9A41","tipo":"ROLLON","km_atual":0,"data_troca":"10/11/2025","dias":185,"km_motor":31685,"interv_motor":30000,"km_cambio":292025,"interv_cambio":90000},
+  {"placa":"QWZ6759","tipo":"BRUCK","km_atual":0,"data_troca":"06/06/2025","dias":342,"km_motor":279694,"interv_motor":30000,"km_cambio":253838,"interv_cambio":90000},
+  {"placa":"QXC5375","tipo":"COMPACTADOR","km_atual":0,"data_troca":"14/05/2025","dias":365,"km_motor":142378,"interv_motor":30000,"km_cambio":128209,"interv_cambio":90000},
+  {"placa":"QXD7713","tipo":"TRUCK","km_atual":0,"data_troca":"27/09/2025","dias":229,"km_motor":189790,"interv_motor":30000,"km_cambio":163669,"interv_cambio":90000},
+  {"placa":"RMT9J59","tipo":"CAVALO MECÂNICO","km_atual":0,"data_troca":"12/05/2026","dias":2,"km_motor":372727,"interv_motor":30000,"km_cambio":281033,"interv_cambio":90000},
+  {"placa":"RNU6H49","tipo":"CAVALO MECÂNICO","km_atual":0,"data_troca":"23/06/2025","dias":325,"km_motor":351952,"interv_motor":30000,"km_cambio":301036,"interv_cambio":90000},
+  {"placa":"SYB6I93","tipo":"ROLLON","km_atual":0,"data_troca":"09/08/2025","dias":278,"km_motor":89462,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"SYK0G52","tipo":"ROLLON","km_atual":0,"data_troca":"18/07/2025","dias":300,"km_motor":34862,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"SYP4I75","tipo":"CAVALO MECÂNICO","km_atual":0,"data_troca":"13/03/2026","dias":62,"km_motor":82014,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TAZ9C18","tipo":"TRUCK","km_atual":0,"data_troca":"08/08/2025","dias":279,"km_motor":0,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TEE5A91","tipo":"GARRA","km_atual":0,"data_troca":"06/11/2025","dias":189,"km_motor":0,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"TEE4F02","tipo":"TANQUE 15","km_atual":0,"data_troca":"27/06/2025","dias":321,"km_motor":0,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"QOY8618","tipo":"COMPACTADOR","km_atual":0,"data_troca":"08/11/2025","dias":187,"km_motor":206519,"interv_motor":30000,"km_cambio":210914,"interv_cambio":90000},
+  {"placa":"QXJ8577","tipo":"CAVALO MECÂNICO","km_atual":0,"data_troca":"20/01/2026","dias":114,"km_motor":26605,"interv_motor":30000,"km_cambio":252736,"interv_cambio":90000},
+  {"placa":"SYD4A62","tipo":"ROLLON","km_atual":0,"data_troca":"16/08/2025","dias":271,"km_motor":59331,"interv_motor":30000,"km_cambio":0,"interv_cambio":90000},
+  {"placa":"QQB0467","tipo":"GARRA","km_atual":0,"data_troca":"02/10/2025","dias":224,"km_motor":212524,"interv_motor":30000,"km_cambio":212424,"interv_cambio":90000},
+  {"placa":"TXP9A42","tipo":"ROLLON","km_atual":0,"data_troca":"10/11/2025","dias":185,"km_motor":0,"interv_motor":30000,"km_cambio":212424,"interv_cambio":90000},
+  {"placa":"TER4A97","tipo":"ROLLON","km_atual":0,"data_troca":"04/05/2025","dias":375,"km_motor":21252,"interv_motor":30000,"km_cambio":212424,"interv_cambio":90000},
+  {"placa":"TXW0C66","tipo":"ROLLON","km_atual":0,"data_troca":"25/11/2025","dias":170,"km_motor":0,"interv_motor":30000,"km_cambio":212424,"interv_cambio":90000},
+  {"placa":"TXW0C67","tipo":"ROLLON","km_atual":0,"data_troca":"25/11/2025","dias":170,"km_motor":0,"interv_motor":30000,"km_cambio":212424,"interv_cambio":90000}
+];
+
+// ── DATA ATUAL REAL (não fixa) ──
+const HOJE = new Date();
+HOJE.setHours(0,0,0,0);
+
+let pag=1, POR_PAG=20;
+let ordenacao={campo:'dias',dir:-1};
+let cardFiltro='todos', editPlaca=null;
+
+document.getElementById('data-hoje').textContent =
+  '📅 ' + HOJE.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+// ── FIREBASE CONFIG ──
+const FIREBASE_URL = 'https://controle-troca-oleo-default-rtdb.firebaseio.com';
+const DB_PATH = '/frota/veiculos.json';
+
+let _salvarTimer = null;
+
+function mostrarIndicador(msg, cor) {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = cor || '#86efac';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.textContent = ''; }, 5000);
+}
+
+async function salvarDados() {
+  mostrarIndicador('⏳ Salvando...', '#FCD34D');
+  try {
+    const campos = VEICULOS.map(v => ({
+      placa: v.placa, tipo: v.tipo,
+      km_atual: v.km_atual, data_troca: v.data_troca,
+      km_motor: v.km_motor, interv_motor: v.interv_motor,
+      km_cambio: v.km_cambio, interv_cambio: v.interv_cambio,
+    }));
+    const resp = await fetch(FIREBASE_URL + DB_PATH, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(campos)
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const hora = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    mostrarIndicador('☁️ Salvo às ' + hora, '#86efac');
+  } catch(e) {
+    mostrarIndicador('❌ Erro ao salvar', '#FCA5A5');
+    console.error('Firebase save error:', e);
+  }
+}
+
+async function carregarDados() {
+  mostrarIndicador('⏳ Carregando...', '#93C5FD');
+  try {
+    const resp = await fetch(FIREBASE_URL + DB_PATH);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const salvos = await resp.json();
+    if (!salvos || !Array.isArray(salvos) || salvos.length === 0) {
+      mostrarIndicador('', '');
+      return false;
+    }
+    const mapaInicial = {};
+    VEICULOS.forEach(v => mapaInicial[v.placa] = v);
+    const novaLista = salvos.map(s => ({ ...(mapaInicial[s.placa] || {}), ...s }));
+    VEICULOS.length = 0;
+    novaLista.forEach(v => VEICULOS.push(v));
+    mostrarIndicador('', '');
+    return true;
+  } catch(e) {
+    mostrarIndicador('❌ Erro ao carregar', '#FCA5A5');
+    console.error('Firebase load error:', e);
+    return false;
+  }
+}
+
+async function resetarDados() {
+  if (!confirm('⚠️ Isso apagará TODOS os dados no servidor e voltará ao estado original.\n\nTem certeza?')) return;
+  try {
+    await fetch(FIREBASE_URL + DB_PATH, { method: 'DELETE' });
+    location.reload();
+  } catch(e) { alert('Erro ao resetar: ' + e.message); }
+}
+
+// Escuta mudanças em tempo real via Firebase REST (polling leve a cada 15s)
+let _ultimoHash = '';
+async function escutarMudancas() {
+  try {
+    const resp = await fetch(FIREBASE_URL + DB_PATH);
+    if (!resp.ok) return;
+    const txt = await resp.text();
+    if (txt === _ultimoHash) return;
+    _ultimoHash = txt;
+    const salvos = JSON.parse(txt);
+    if (!salvos || !Array.isArray(salvos)) return;
+    const mapaInicial = {};
+    VEICULOS.forEach(v => mapaInicial[v.placa] = v);
+    const novaLista = salvos.map(s => ({ ...(mapaInicial[s.placa] || {}), ...s }));
+    VEICULOS.length = 0;
+    novaLista.forEach(v => { recalcularDias(v); calcStatus(v); VEICULOS.push(v); });
+    renderizar();
+    mostrarIndicador('🔄 Atualizado', '#93C5FD');
+  } catch(e) { /* silencioso */ }
+}
+setInterval(escutarMudancas, 15000);
+
+// ── RECALCULAR DIAS com base na data atual ──
+function recalcularDias(v) {
+  if (!v.data_troca || v.data_troca === '') { v.dias = null; return; }
+  try {
+    const [d, m, a] = v.data_troca.split('/');
+    const dt = new Date(parseInt(a), parseInt(m)-1, parseInt(d));
+    v.dias = Math.floor((HOJE - dt) / 86400000);
+  } catch(e) { v.dias = null; }
+}
+
+function calcStatus(v) {
+  const d=v.dias, km=v.km_atual, im=v.interv_motor, ic=v.interv_cambio;
+
+  // KM PRÓXIMA TROCA MOTOR
+  // Se tem km_motor (última troca) → próxima = km_motor + intervalo
+  // Se não tem km_motor mas tem km_atual → próxima = km_atual + intervalo (a partir de agora)
+  if (v.km_motor) {
+    v.km_prox_motor  = v.km_motor + im;
+    v.km_falta_motor = km ? v.km_prox_motor - km : null;
+  } else if (km) {
+    v.km_prox_motor  = km + im;
+    v.km_falta_motor = im; // falta o intervalo inteiro
+  } else {
+    v.km_prox_motor  = 0;
+    v.km_falta_motor = null;
+  }
+
+  // KM PRÓXIMA TROCA CÂMBIO
+  if (v.km_cambio) {
+    v.km_prox_cambio  = v.km_cambio + ic;
+    v.km_falta_cambio = km ? v.km_prox_cambio - km : null;
+  } else if (km) {
+    v.km_prox_cambio  = km + ic;
+    v.km_falta_cambio = ic;
+  } else {
+    v.km_prox_cambio  = 0;
+    v.km_falta_cambio = null;
+  }
+
+  // STATUS MOTOR
+  if (!v.km_motor && !d)   { v.st_motor='—'; v.cor_motor='sem-dado'; }
+  else if (!v.km_motor) {
+    v.cor_motor = d>180?'vencido':d>150?'proximo':'ok';
+    v.st_motor  = d>180?'REVISÃO POR 180 DIAS':d>150?'PRÓXIMO DO VENCIMENTO':'EM DIA';
+  } else {
+    const f=v.km_falta_motor;
+    if (d>180)                          { v.st_motor='REVISÃO POR 180 DIAS';   v.cor_motor='vencido'; }
+    else if (f!==null && f<0)           { v.st_motor='REVISÃO POR KM';         v.cor_motor='vencido'; }
+    else if ((f!==null&&f<1000)||d>150) { v.st_motor='PRÓXIMO DO VENCIMENTO';  v.cor_motor='proximo'; }
+    else                                { v.st_motor='EM DIA';                 v.cor_motor='ok'; }
+  }
+
+  // STATUS CÂMBIO
+  if (!v.km_cambio && !d)  { v.st_cambio='—'; v.cor_cambio='sem-dado'; }
+  else if (!v.km_cambio) {
+    v.cor_cambio = d>365?'vencido':d>330?'proximo':'ok';
+    v.st_cambio  = d>365?'REVISÃO POR 1 ANO':d>330?'PRÓXIMO DO VENCIMENTO':'EM DIA';
+  } else {
+    const f=v.km_falta_cambio;
+    if (d>365)                          { v.st_cambio='REVISÃO POR 1 ANO';       v.cor_cambio='vencido'; }
+    else if (f!==null && f<0)           { v.st_cambio='REVISÃO POR KM';          v.cor_cambio='vencido'; }
+    else if ((f!==null&&f<5000)||d>330) { v.st_cambio='PRÓXIMO DO VENCIMENTO';   v.cor_cambio='proximo'; }
+    else                                { v.st_cambio='EM DIA';                  v.cor_cambio='ok'; }
+  }
+}
+
+VEICULOS.forEach(calcStatus);
+
+// ── INICIALIZAR COM DADOS SALVOS ──
+// Inicializar: carregar do Firebase, fallback para dados locais
+VEICULOS.forEach(v => { recalcularDias(v); calcStatus(v); });
+popularTipos(); renderizar();
+
+(async () => {
+  const temSalvo = await carregarDados();
+  if (temSalvo) {
+    VEICULOS.forEach(v => { recalcularDias(v); calcStatus(v); });
+    popularTipos(); renderizar();
+  } else {
+    // Primeira vez: salvar dados iniciais no Firebase
+    await salvarDados();
+  }
+  _ultimoHash = JSON.stringify(VEICULOS.map(v => ({
+    placa:v.placa,tipo:v.tipo,km_atual:v.km_atual,data_troca:v.data_troca,
+    km_motor:v.km_motor,interv_motor:v.interv_motor,km_cambio:v.km_cambio,interv_cambio:v.interv_cambio
+  })));
+})();
+
+function filtrados() {
+  const b=document.getElementById('busca').value.toLowerCase();
+  const ft=document.getElementById('filtroTipo').value;
+  const fs=document.getElementById('filtroStatus').value;
+  return VEICULOS.filter(v=>{
+    if (b && !v.placa.toLowerCase().includes(b) && !v.tipo.toLowerCase().includes(b)) return false;
+    if (ft && v.tipo!==ft) return false;
+    if (fs==='ok'      && !(v.cor_motor==='ok'&&v.cor_cambio==='ok')) return false;
+    if (fs==='proximo' && !((v.cor_motor==='proximo'||v.cor_cambio==='proximo')&&v.cor_motor!=='vencido'&&v.cor_cambio!=='vencido')) return false;
+    if (fs==='vencido' && !(v.cor_motor==='vencido'||v.cor_cambio==='vencido')) return false;
+    if (cardFiltro==='motor-ok')    return v.cor_motor==='ok';
+    if (cardFiltro==='motor-venc')  return v.cor_motor==='vencido';
+    if (cardFiltro==='cambio-ok')   return v.cor_cambio==='ok';
+    if (cardFiltro==='cambio-venc') return v.cor_cambio==='vencido';
+    return true;
+  }).sort((a,b)=>{
+    let va=a[ordenacao.campo], vb=b[ordenacao.campo];
+    if(typeof va==='string') va=va.toLowerCase();
+    if(typeof vb==='string') vb=vb.toLowerCase();
+    va=va??-Infinity; vb=vb??-Infinity;
+    return va<vb?-ordenacao.dir:va>vb?ordenacao.dir:0;
+  });
+}
+
+function filtrarCard(c){ cardFiltro=cardFiltro===c?'todos':c; pag=1; renderizar(); }
+function ord(campo){ if(ordenacao.campo===campo)ordenacao.dir*=-1; else{ordenacao.campo=campo;ordenacao.dir=1;} renderizar(); }
+
+function atualizarKm(placa, valor) {
+  atualizarCampo(placa, 'km_atual', valor);
+}
+
+function atualizarCampo(placa, campo, valor) {
+  const v = VEICULOS.find(x => x.placa === placa);
+  if (!v) return;
+  const novoVal = parseInt(valor) || 0;
+  if (novoVal === v[campo]) return;
+  v[campo] = novoVal;
+  recalcularDias(v);
+  calcStatus(v);
+  renderizar();
+  salvarDados();
+}
+
+function fmtKm(v){ return v?v.toLocaleString('pt-BR'):'—'; }
+function stPill(cor,texto){ return `<span class="st st-${cor}">${texto}</span>`; }
+function kmFalta(val){
+  if(val===null||val===undefined) return '<span style="color:#aaa">—</span>';
+  if(val<0)    return `<span class="km-neg">${val.toLocaleString('pt-BR')}</span>`;
+  if(val<1000) return `<span class="km-prox">+${val.toLocaleString('pt-BR')}</span>`;
+  return `<span class="km-ok">+${val.toLocaleString('pt-BR')}</span>`;
+}
+
+function renderizar(){
+  const dados=filtrados();
+  const totalPags=Math.max(1,Math.ceil(dados.length/POR_PAG));
+  if(pag>totalPags) pag=1;
+  const slice=dados.slice((pag-1)*POR_PAG, pag*POR_PAG);
+  document.getElementById('vazio').style.display=slice.length?'none':'';
+  document.getElementById('tbody').innerHTML=slice.map(v=>{
+    const venc=v.cor_motor==='vencido'||v.cor_cambio==='vencido';
+    const diasC=v.dias>180?'#DC2626':v.dias>150?'#D97706':'#16A34A';
+    const alerta = venc
+      ? '<span class="alerta-vencido">🔴 VENCIDO</span>'
+      : (v.cor_motor==='proximo'||v.cor_cambio==='proximo')
+        ? '<span class="alerta-proximo">⚠️ PRÓXIMO</span>'
+        : (v.cor_motor==='sem-dado'&&v.cor_cambio==='sem-dado')
+          ? '<span style="color:#9CA3AF;font-size:11px;font-weight:700">— SEM DADO</span>'
+          : '<span style="color:#16A34A;font-weight:700;font-size:12px">✅ OK</span>';
+    return `<tr class="${venc?'linha-vencida':''}">
+      <td class="td-placa">${v.placa}</td>
+      <td class="td-tipo">${v.tipo||'—'}</td>
+      <td style="padding:2px 4px">
+        <input type="number" value="${v.km_atual||''}" min="0"
+          placeholder="0"
+          title="Digite o KM atual e pressione Enter"
+          style="width:90px;padding:3px 6px;border:1.5px solid #ccc;border-radius:4px;font-size:12px;font-family:Calibri,Arial,sans-serif;text-align:right;color:#1B3A6D;font-weight:700"
+          onchange="atualizarKm('${v.placa}', this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          onfocus="this.style.borderColor='#2765E9';this.style.background='#EFF6FF'"
+          onblur="this.style.borderColor='#ccc';this.style.background='#fff'">
+      </td>
+      <td>${v.data_troca||'—'}</td>
+      <td style="font-weight:700;color:${diasC}">${v.dias!==null?v.dias+'d':'—'}</td>
+      <td style="padding:2px 4px">
+        <input type="number" value="${v.km_motor||''}" min="0"
+          placeholder="—"
+          title="KM da última troca de óleo motor"
+          style="width:88px;padding:3px 6px;border:1.5px solid #ccc;border-radius:4px;font-size:12px;font-family:Calibri,Arial,sans-serif;text-align:right;color:#166534;font-weight:700;background:#fff"
+          onchange="atualizarCampo('${v.placa}','km_motor',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          onfocus="this.style.borderColor='#16A34A';this.style.background='#F0FDF4'"
+          onblur="this.style.borderColor='#ccc';this.style.background='#fff'">
+      </td>
+      <td>${v.interv_motor.toLocaleString('pt-BR')}</td>
+      <td>${fmtKm(v.km_prox_motor)}</td>
+      <td>${kmFalta(v.km_falta_motor)}</td>
+      <td>${stPill(v.cor_motor,v.st_motor)}</td>
+      <td style="padding:2px 4px">
+        <input type="number" value="${v.km_cambio||''}" min="0"
+          placeholder="—"
+          title="KM da última troca de óleo câmbio/diferencial"
+          style="width:88px;padding:3px 6px;border:1.5px solid #ccc;border-radius:4px;font-size:12px;font-family:Calibri,Arial,sans-serif;text-align:right;color:#0D9488;font-weight:700;background:#fff"
+          onchange="atualizarCampo('${v.placa}','km_cambio',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          onfocus="this.style.borderColor='#0D9488';this.style.background='#F0FDFA'"
+          onblur="this.style.borderColor='#ccc';this.style.background='#fff'">
+      </td>
+      <td>${fmtKm(v.km_prox_cambio)}</td>
+      <td>${kmFalta(v.km_falta_cambio)}</td>
+      <td>${stPill(v.cor_cambio,v.st_cambio)}</td>
+      <td>${v.data_troca||'—'}</td>
+      <td style="font-weight:700;color:${diasC}">${v.dias!==null?v.dias+'d':'—'}</td>
+      <td>${alerta}</td>
+      <td class="td-acoes">
+        <button class="btn-edit" onclick="abrirModal('${v.placa}')">✏️ Editar</button>
+        <button class="btn-del"  onclick="excluir('${v.placa}')">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // paginação
+  const pp=document.getElementById('paginacao');
+  pp.innerHTML='';
+  for(let i=1;i<=totalPags;i++){
+    const btn=document.createElement('button');
+    btn.textContent=i; if(i===pag)btn.classList.add('active');
+    btn.onclick=()=>{pag=i;renderizar();}; pp.appendChild(btn);
+  }
+  atualizarResumo(); atualizarSetas(); atualizarGraficos();
+}
+
+// ── GRÁFICOS ──
+function desenharPizza(canvasId, legendaId, dados) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 8;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const cores   = ['#16A34A','#D97706','#DC2626','#9CA3AF'];
+  const rotulos = ['EM DIA','PRÓXIMO','REVISÃO','SEM DADO'];
+  const total   = dados.reduce((a,b) => a+b, 0) || 1;
+
+  let angulo = -Math.PI / 2;
+  dados.forEach((val, i) => {
+    if (val === 0) return;
+    const fatia = (val / total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angulo, angulo + fatia);
+    ctx.closePath();
+    ctx.fillStyle = cores[i];
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    angulo += fatia;
+  });
+
+  // Buraco central (donut)
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.45, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  // Número central
+  ctx.fillStyle = '#1B3A6D';
+  ctx.font = `bold ${r*0.35}px Calibri, Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(total, cx, cy);
+
+  // Legenda
+  const leg = document.getElementById(legendaId);
+  if (leg) {
+    leg.innerHTML = dados.map((v, i) => v > 0 ? `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${cores[i]};flex-shrink:0"></span>
+        <span style="color:#555">${rotulos[i]}: <b>${v}</b></span>
+      </div>` : '').join('');
+  }
+}
+
+function desenharBarras() {
+  const wrap = document.getElementById('chartBarras');
+  if (!wrap) return;
+
+  const comDias = VEICULOS
+    .filter(v => v.dias !== null && v.dias !== undefined)
+    .sort((a, b) => b.dias - a.dias);
+
+  if (comDias.length === 0) { wrap.innerHTML = '<p style="color:#aaa;font-size:12px">Sem dados</p>'; return; }
+
+  const maxDias = comDias[0].dias || 1;
+
+  wrap.innerHTML = comDias.map(v => {
+    const pct = Math.max(2, Math.round((v.dias / maxDias) * 100));
+    const cor = v.cor_motor === 'vencido' ? '#DC2626'
+              : v.cor_motor === 'proximo' ? '#D97706'
+              : '#2563EB';
+    return `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        <div style="width:72px;font-size:10px;font-weight:700;color:#374151;text-align:right;flex-shrink:0">${v.placa}</div>
+        <div style="flex:1;background:#EEF2FF;border-radius:4px;height:16px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${cor};border-radius:4px;transition:width .4s"></div>
+        </div>
+        <div style="width:34px;font-size:10px;font-weight:700;color:#6B7280;text-align:left;flex-shrink:0">${v.dias}d</div>
+      </div>`;
+  }).join('');
+}
+
+function atualizarGraficos() {
+  const ok      = VEICULOS.filter(v => v.cor_motor === 'ok').length;
+  const proximo = VEICULOS.filter(v => v.cor_motor === 'proximo').length;
+  const vencido = VEICULOS.filter(v => v.cor_motor === 'vencido').length;
+  const semDado = VEICULOS.filter(v => v.cor_motor === 'sem-dado').length;
+  desenharPizza('chartMotor', 'legendaMotor', [ok, proximo, vencido, semDado]);
+
+  const okC      = VEICULOS.filter(v => v.cor_cambio === 'ok').length;
+  const proximoC = VEICULOS.filter(v => v.cor_cambio === 'proximo').length;
+  const vencidoC = VEICULOS.filter(v => v.cor_cambio === 'vencido').length;
+  const semDadoC = VEICULOS.filter(v => v.cor_cambio === 'sem-dado').length;
+  desenharPizza('chartCambio', 'legendaCambio', [okC, proximoC, vencidoC, semDadoC]);
+
+  desenharBarras();
+}
+
+function atualizarResumo(){
+  const t=VEICULOS.length;
+  const mok=VEICULOS.filter(v=>v.cor_motor==='ok').length;
+  const mv=VEICULOS.filter(v=>v.cor_motor==='vencido').length;
+  const cok=VEICULOS.filter(v=>v.cor_cambio==='ok').length;
+  const cv=VEICULOS.filter(v=>v.cor_cambio==='vencido').length;
+  const pct=(n,t)=>t?Math.round(n/t*100)+'% da frota':'—';
+  document.getElementById('cnt-total').textContent=t;
+  document.getElementById('cnt-motor-ok').textContent=mok;
+  document.getElementById('cnt-motor-venc').textContent=mv;
+  document.getElementById('cnt-cambio-ok').textContent=cok;
+  document.getElementById('cnt-cambio-venc').textContent=cv;
+  document.getElementById('pct-motor-ok').textContent=pct(mok,t);
+  document.getElementById('pct-motor-venc').textContent=pct(mv,t);
+  document.getElementById('pct-cambio-ok').textContent=pct(cok,t);
+  document.getElementById('pct-cambio-venc').textContent=pct(cv,t);
+}
+
+function atualizarSetas(){
+  document.querySelectorAll('[id^="arr-"]').forEach(e=>e.textContent='');
+  const el=document.getElementById('arr-'+ordenacao.campo);
+  if(el) el.textContent=ordenacao.dir===1?' ▲':' ▼';
+}
+
+function popularTipos(){
+  const tipos=[...new Set(VEICULOS.map(v=>v.tipo).filter(Boolean))].sort();
+  const sel=document.getElementById('filtroTipo');
+  sel.innerHTML='<option value="">Todos os tipos</option>';
+  tipos.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});
+}
+
+function abrirModal(placa=null){
+  editPlaca=placa;
+  document.getElementById('modal-titulo').textContent=placa?'✏️ Editar Veículo':'➕ Cadastrar Novo Veículo';
+  if(placa){
+    const v=VEICULOS.find(x=>x.placa===placa);
+    document.getElementById('f-placa').value=v.placa;
+    document.getElementById('f-placa').readOnly=true;
+    document.getElementById('f-tipo').value=v.tipo;
+    document.getElementById('f-km-motor').value=v.km_motor;
+    document.getElementById('f-km-cambio').value=v.km_cambio;
+    document.getElementById('f-interv-m').value=v.interv_motor;
+    document.getElementById('f-interv-c').value=v.interv_cambio;
+    if(v.data_troca){const[d,m,a]=v.data_troca.split('/');document.getElementById('f-data').value=`${a}-${m}-${d}`;}
+    else document.getElementById('f-data').value='';
+  } else {
+    ['f-placa','f-tipo','f-data'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-placa').readOnly=false;
+    document.getElementById('f-km-motor').value=0;
+    document.getElementById('f-km-cambio').value=0;
+    document.getElementById('f-interv-m').value=30000;
+    document.getElementById('f-interv-c').value=90000;
+  }
+  document.getElementById('overlay').classList.add('open');
+}
+
+function fecharModal(){ document.getElementById('overlay').classList.remove('open'); editPlaca=null; }
+
+function salvar(){
+  const placa=document.getElementById('f-placa').value.trim().toUpperCase();
+  const tipo=document.getElementById('f-tipo').value;
+  if(!placa||!tipo){alert('Preencha PLACA e TIPO!');return;}
+  const dv=document.getElementById('f-data').value;
+  let data_troca='',dias=null;
+  if(dv){const dt=new Date(dv+'T00:00:00');data_troca=dt.toLocaleDateString('pt-BR');dias=Math.floor((HOJE-dt)/86400000);}
+  const kmMotorVal = parseInt(document.getElementById('f-km-motor').value)||0;
+const kmCambioVal = parseInt(document.getElementById('f-km-cambio').value)||0;
+let kmAtualAuto = 0;
+
+if (kmMotorVal > 0) kmAtualAuto = kmMotorVal;
+if (kmCambioVal > 0 && kmCambioVal > kmAtualAuto) kmAtualAuto = kmCambioVal;
+
+const novo={placa,tipo,km_atual:kmAtualAuto,data_troca,dias,
+    km_motor:kmMotorVal,
+    km_cambio:kmCambioVal,
+    interv_motor:parseInt(document.getElementById('f-interv-m').value)||30000,
+    interv_cambio:parseInt(document.getElementById('f-interv-c').value)||90000};
+  calcStatus(novo);
+  if(editPlaca){const i=VEICULOS.findIndex(v=>v.placa===editPlaca);if(i>=0)VEICULOS[i]=novo;}
+  else{if(VEICULOS.find(v=>v.placa===placa)){alert('Placa já cadastrada!');return;}VEICULOS.push(novo);}
+  fecharModal(); popularTipos(); renderizar(); salvarDados();
+}
+
+function excluir(placa){
+  if(!confirm('Excluir o veículo '+placa+'?')) return;
+  VEICULOS=VEICULOS.filter(v=>v.placa!==placa);
+  popularTipos(); renderizar(); salvarDados();
+}
+
+// ── EXPORTAR PDF ──
+async function exportarPDF() {
+  const btn = document.querySelector('button[onclick="exportarPDF()"]');
+  btn.textContent = '⏳ Gerando PDF...';
+  btn.disabled = true;
+
+  try {
+    const { jsPDF } = window.jspdf;
+
+    // 1. Expandir barras (sem scroll) e mostrar todos os veículos
+    const barrasWrap = document.getElementById('chartBarras');
+    const altAnt = barrasWrap.style.maxHeight;
+    barrasWrap.style.maxHeight = 'none';
+    const pagAnt = POR_PAG;
+    POR_PAG = 9999;
+    renderizar();
+    await new Promise(r => setTimeout(r, 500));
+
+    const escala = 2;
+    const opts = { scale: escala, useCORS: true, backgroundColor: '#ffffff', logging: false };
+
+    // 2. Capturar seções individualmente
+    const canvasHeader   = await html2canvas(document.querySelector('.header-principal'), opts);
+    const canvasResumo   = await html2canvas(document.querySelector('.resumo-grid'),      opts);
+    const canvasGraficos = await html2canvas(document.getElementById('graficos-section'), opts);
+    const canvasTabela   = await html2canvas(document.querySelector('.tabela-wrap'),      opts);
+
+    // 3. Restaurar
+    barrasWrap.style.maxHeight = altAnt;
+    POR_PAG = pagAnt;
+    renderizar();
+
+    // 4. PDF paisagem A4
+    const pdf    = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW  = pdf.internal.pageSize.getWidth();   // 297mm
+    const pageH  = pdf.internal.pageSize.getHeight();  // 210mm
+    const margin = 5;
+    const usableW = pageW - margin * 2;
+    const rodape  = 6; // espaço reservado para rodapé
+    let cursorY = margin;
+
+    // Helper: adiciona imagem calculando altura proporcional
+    function addImg(canvas, forcarH) {
+      const propH = (canvas.height / canvas.width) * usableW;
+      const h = forcarH || propH;
+      if (cursorY + h > pageH - rodape) { pdf.addPage(); cursorY = margin; }
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, cursorY, usableW, h);
+      cursorY += h + 1.5;
+      return h;
+    }
+
+    // Helper: adiciona canvas grande fatiado em páginas
+    function addImgMultiPage(canvas) {
+      const imgW = usableW;
+      const totalMMH = (canvas.height / canvas.width) * imgW;
+      const dispAtual = pageH - cursorY - rodape;
+
+      if (totalMMH <= dispAtual) {
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, cursorY, imgW, totalMMH);
+        cursorY += totalMMH;
+        return;
+      }
+
+      // Fatiar
+      let srcY = 0, fatia = 0;
+      while (srcY < canvas.height) {
+        const dispMM  = fatia === 0 ? dispAtual : (pageH - margin - rodape);
+        const altPx   = Math.min(Math.floor((dispMM / imgW) * canvas.width), canvas.height - srcY);
+        if (altPx <= 0) break;
+
+        const sub = document.createElement('canvas');
+        sub.width = canvas.width; sub.height = altPx;
+        sub.getContext('2d').drawImage(canvas, 0, -srcY);
+
+        const sliceH = (altPx / canvas.width) * imgW;
+        if (fatia > 0) { pdf.addPage(); cursorY = margin; }
+        pdf.addImage(sub.toDataURL('image/jpeg', 0.92), 'JPEG', margin, cursorY, imgW, sliceH);
+        cursorY += sliceH;
+        srcY += altPx;
+        fatia++;
+        if (fatia > 60) break;
+      }
+    }
+
+    // ── PÁGINA 1: Cabeçalho + Resumo + Gráficos ──
+    // Calcular alturas reais proporcionais
+    const hHeader  = (canvasHeader.height  / canvasHeader.width)  * usableW;
+    const hResumo  = (canvasResumo.height  / canvasResumo.width)  * usableW;
+    const hGraf    = (canvasGraficos.height/ canvasGraficos.width) * usableW;
+    const totalP1  = hHeader + hResumo + hGraf + 10;
+
+    // Se tudo cabe na página 1 com escala normal → usar escala reduzida se necessário
+    let escalaP1 = 1;
+    const dispP1 = pageH - margin * 2 - rodape;
+    if (totalP1 > dispP1) escalaP1 = dispP1 / totalP1;
+
+    function addImgEscalado(canvas, escala) {
+      const propH = (canvas.height / canvas.width) * usableW * escala;
+      const w = usableW * escala;
+      const x = margin + (usableW - w) / 2;
+      if (cursorY + propH > pageH - rodape) { pdf.addPage(); cursorY = margin; }
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', x, cursorY, w, propH);
+      cursorY += propH + 1.5;
+    }
+
+    addImgEscalado(canvasHeader,   escalaP1);
+    addImgEscalado(canvasResumo,   escalaP1);
+    addImgEscalado(canvasGraficos, escalaP1);
+
+    // ── PÁGINA 2+: Tabela completa ──
+    pdf.addPage();
+    cursorY = margin;
+    // Mini cabeçalho na página da tabela
+    const hHeaderMini = (canvasHeader.height / canvasHeader.width) * usableW * 0.7;
+    pdf.addImage(canvasHeader.toDataURL('image/jpeg', 0.92), 'JPEG', margin, cursorY, usableW * 0.7, hHeaderMini);
+    cursorY += hHeaderMini + 3;
+
+    addImgMultiPage(canvasTabela);
+
+    // ── RODAPÉ em todas as páginas ──
+    const totalPags = pdf.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPags; p++) {
+      pdf.setPage(p);
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(140);
+      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, pageH - 2);
+      pdf.text(`Página ${p} de ${totalPags}`, pageW - margin - 22, pageH - 2);
+    }
+
+    pdf.save(`Controle_Manutencao_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.pdf`);
+
+  } catch(err) {
+    alert('Erro ao gerar PDF: ' + err.message);
+    console.error(err);
+  } finally {
+    btn.textContent = '📄 Exportar PDF';
+    btn.disabled = false;
+  }
+}
+
+
+function exportarCSV(){
+  const cab=['Placa','Tipo','Dias','Data Troca','KM Motor','Interv Motor','Prox Motor','Falta Motor','Status Motor','KM Câmbio','Interv Câmbio','Prox Câmbio','Falta Câmbio','Status Câmbio'];
+  const rows=VEICULOS.map(v=>[v.placa,v.tipo,v.dias??'',v.data_troca,v.km_motor,v.interv_motor,v.km_prox_motor||'',v.km_falta_motor??'',v.st_motor,v.km_cambio,v.interv_cambio,v.km_prox_cambio||'',v.km_falta_cambio??'',v.st_cambio]);
+  const csv=[cab,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download='controle_manutencao.csv'; a.click();
+}
+
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+
+// ── IMPORTAR EXCEL ──
+let kmImportados = {}; // placa -> {km, data}
+
+function importarExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = ''; // reset para permitir reimport
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+
+      // Procurar aba que tenha coluna Placa e Odometro
+      // Tentar PLANILHA 3 primeiro, depois varrer todas
+      let ws = null;
+      const prioridade = ['PLANILHA 3', 'Planilha3', 'Sheet3', 'ABASTECIMENTO', 'HISTORICO'];
+      for (const nome of prioridade) {
+        if (wb.SheetNames.includes(nome)) { ws = wb.Sheets[nome]; break; }
+      }
+      if (!ws) ws = wb.Sheets[wb.SheetNames[0]];
+
+      const dados = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      if (dados.length < 2) {
+        alert('Planilha sem dados suficientes.'); return;
+      }
+
+      // Detectar colunas: Placa e Odômetro pela linha de cabeçalho
+      const header = dados[0].map(h => String(h).toLowerCase().trim());
+      let colPlaca = -1, colKm = -1, colData = -1;
+
+      header.forEach((h, i) => {
+        if (colPlaca < 0 && (h.includes('placa') || h === 'd')) colPlaca = i;
+        if (colKm    < 0 && (h.includes('odometro') || h.includes('odômetro') || h.includes('km') || h === 'n')) colKm = i;
+        if (colData  < 0 && (h.includes('data') || h.includes('hora') || h === 'a')) colData = i;
+      });
+
+      // Fallback: usar posições fixas da PLANILHA 3 (D=3, N=13, A=0)
+      if (colPlaca < 0) colPlaca = 3;
+      if (colKm    < 0) colKm    = 13;
+      if (colData  < 0) colData  = 0;
+
+      // Calcular KM mais recente por placa (pela data mais recente)
+      const kmMap = {}; // placa -> {km, data, dataObj}
+
+      for (let r = 1; r < dados.length; r++) {
+        const row = dados[r];
+        const placa = String(row[colPlaca] || '').trim().toUpperCase();
+        const kmRaw = row[colKm];
+        const dataRaw = row[colData];
+
+        if (!placa || placa === 'PLACA') continue;
+
+        // Normalizar KM
+        let km = 0;
+        if (typeof kmRaw === 'number') km = kmRaw;
+        else if (typeof kmRaw === 'string') km = parseFloat(kmRaw.replace(/\./g,'').replace(',','.')) || 0;
+        if (km <= 0) continue;
+
+        // Normalizar data
+        let dataObj = null;
+        if (dataRaw instanceof Date) dataObj = dataRaw;
+        else if (typeof dataRaw === 'string' && dataRaw.length >= 8) {
+          dataObj = new Date(dataRaw);
+          if (isNaN(dataObj)) dataObj = null;
+        } else if (typeof dataRaw === 'number') {
+          // Excel serial date
+          dataObj = new Date((dataRaw - 25569) * 86400 * 1000);
+        }
+
+        if (!dataObj || isNaN(dataObj)) continue;
+
+        if (!kmMap[placa] || dataObj > kmMap[placa].dataObj) {
+          kmMap[placa] = {
+            km: Math.round(km),
+            dataObj,
+            data: dataObj.toLocaleDateString('pt-BR')
+          };
+        }
+      }
+
+      // Cruzar com veículos cadastrados
+      kmImportados = {};
+      const linhas = [];
+      let encontrados = 0, naoEncontrados = 0;
+
+      for (const v of VEICULOS) {
+        const match = kmMap[v.placa];
+        if (match) {
+          kmImportados[v.placa] = match;
+          encontrados++;
+          linhas.push(`<tr style="background:#f0fdf4">
+            <td style="padding:5px 10px;font-weight:700;color:#1B3A6D">${v.placa}</td>
+            <td style="padding:5px 10px;text-align:center;font-weight:700;color:#16A34A">${match.km.toLocaleString('pt-BR')} km</td>
+            <td style="padding:5px 10px;text-align:center">${match.data}</td>
+            <td style="padding:5px 10px;text-align:center"><span style="background:#DCFCE7;color:#166534;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700">✅ ENCONTRADO</span></td>
+          </tr>`);
+        } else {
+          naoEncontrados++;
+          linhas.push(`<tr>
+            <td style="padding:5px 10px;font-weight:700;color:#6B7280">${v.placa}</td>
+            <td style="padding:5px 10px;text-align:center;color:#aaa">—</td>
+            <td style="padding:5px 10px;text-align:center;color:#aaa">—</td>
+            <td style="padding:5px 10px;text-align:center"><span style="background:#F3F4F6;color:#6B7280;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700">❌ NÃO ENCONTRADO</span></td>
+          </tr>`);
+        }
+      }
+
+      document.getElementById('import-resumo').innerHTML = `
+        <b>📊 Arquivo:</b> ${file.name} &nbsp;|&nbsp;
+        <b>✅ Placas encontradas:</b> ${encontrados} &nbsp;|&nbsp;
+        <b>❌ Não encontradas:</b> ${naoEncontrados}<br>
+        <span style="color:#6B7280;font-size:11px;margin-top:4px;display:block">
+          Aba lida: <b>${ws ? Object.keys(wb.Sheets).find(k => wb.Sheets[k] === ws) : '—'}</b> &nbsp;|&nbsp;
+          Coluna Placa: <b>${String.fromCharCode(65+colPlaca)}</b> &nbsp;|&nbsp;
+          Coluna KM: <b>${String.fromCharCode(65+colKm)}</b>
+        </span>`;
+
+      document.getElementById('import-tbody').innerHTML = linhas.join('');
+      document.getElementById('btn-aplicar').disabled = encontrados === 0;
+      document.getElementById('overlay-import').classList.add('open');
+
+    } catch(err) {
+      alert('Erro ao ler o arquivo Excel: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function aplicarImport() {
+  let atualizados = 0;
+  for (const v of VEICULOS) {
+    if (kmImportados[v.placa]) {
+      v.km_atual = kmImportados[v.placa].km;
+      calcStatus(v);
+      atualizados++;
+    }
+  }
+  document.getElementById('overlay-import').classList.remove('open');
+  kmImportados = {};
+  renderizar(); salvarDados();
+  alert(`✅ KM atualizado para ${atualizados} veículo(s)!`);
+}
+
+document.getElementById('overlay-import').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+;
+
+
+// ════════════════════════════════════════════
+// DADOS E FUNÇÕES DO CHECKLIST PREVENTIVA
+// ════════════════════════════════════════════
+let CHECKLIST = [{"programador": "Franciele", "cavalo": "SYB6I94", "tipo": "ROLLON", "reboque": "PUO0242", "ult_prev": "28/10/2025", "dias": 198, "obs_log": "", "obs_comp": "RETROVISOR LADO DIREITO", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "", "tipo": "", "reboque": "QON8J50", "ult_prev": "04/11/2025", "dias": 192, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "", "tipo": "", "reboque": "HIA5185", "ult_prev": "08/11/2025", "dias": 188, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "", "tipo": "", "reboque": "TDA2F13", "ult_prev": "11/11/2025", "dias": 185, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "", "tipo": "", "reboque": "HBG0509", "ult_prev": "19/12/2025", "dias": 147, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "RNU6H49", "tipo": "CARRETA TANQUE", "reboque": "TDA2F26", "ult_prev": "23/12/2025", "dias": 143, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "FFFFFF00", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "HMR1E79", "tipo": "ROLLON", "reboque": "", "ult_prev": "24/12/2025", "dias": 142, "obs_log": "SEVIÇO DE PINTURA", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "", "tipo": "CARRETA", "reboque": "RMM6I15", "ult_prev": "26/12/2025", "dias": 140, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TDE5D32", "tipo": "ROLLON", "reboque": "RFP6F94", "ult_prev": "29/12/2025", "dias": 137, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "SYB6I93", "tipo": "ROLLON", "reboque": "RGC5B20", "ult_prev": "06/01/2026", "dias": 130, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "SYK0G52", "tipo": "", "reboque": "", "ult_prev": "15/01/2026", "dias": 121, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "RMT9J59", "tipo": "CARRETA BASCULA", "reboque": "NKC9618", "ult_prev": "20/01/2026", "dias": 116, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "QXD7713", "tipo": "BRUCK", "reboque": "", "ult_prev": "20/01/2026", "dias": 116, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "SYD4A62", "tipo": "ROLLON", "reboque": "QPR3586", "ult_prev": "21/01/2026", "dias": 115, "obs_log": "ALINHAR E BALANCEAR", "obs_comp": "COMPRAR RETROVISOR", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "QOY8618", "tipo": "BRUCK", "reboque": "", "ult_prev": "20/02/2026", "dias": 86, "obs_log": "AR CONDICIONADO", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TER4A97", "tipo": "ROLLON", "reboque": "PVJ2229", "ult_prev": "20/02/2026", "dias": 86, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "OVH4916", "tipo": "CARRETA TANQUE", "reboque": "JMO8400", "ult_prev": "21/02/2026", "dias": 85, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "TXW0C66", "tipo": "TOCO ROLLON", "reboque": "", "ult_prev": "25/02/2026", "dias": 81, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "TXW0C67", "tipo": "TOCO ROLLON", "reboque": "", "ult_prev": "09/03/2026", "dias": 67, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "QUC8450", "tipo": "ROLLON", "reboque": "HLO7059", "ult_prev": "09/03/2026", "dias": 67, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TDE5D17", "tipo": "ROLLON", "reboque": "QUI5468", "ult_prev": "09/03/2026", "dias": 67, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "TDE5D28", "tipo": "ROLLON", "reboque": "", "ult_prev": "24/03/2026", "dias": 52, "obs_log": "ALINHAR E BALANCEAR", "obs_comp": "RETROVISOR LADO DIREITO", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TEE4F02", "tipo": "TANQUE 15", "reboque": "", "ult_prev": "25/03/2026", "dias": 51, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "QNU5536", "tipo": "TANQUE 10", "reboque": "", "ult_prev": "26/03/2026", "dias": 50, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "SYP4I75", "tipo": "CARRETA TANQUE", "reboque": "HFD4B76", "ult_prev": "31/03/2026", "dias": 46, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "SKO4F34", "tipo": "ROLLON", "reboque": "", "ult_prev": "30/03/2026", "dias": 46, "obs_log": "AR CONDICIONADO", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TXS9D96", "tipo": "ROLLON", "reboque": "", "ult_prev": "01/04/2026", "dias": 45, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "", "tipo": "", "reboque": "HBG0492", "ult_prev": "01/04/2026", "dias": 45, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "TAZ9C18", "tipo": "ROLLON", "reboque": "", "ult_prev": "02/04/2026", "dias": 44, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "SYD4A63", "tipo": "ROLLON", "reboque": "QUI5454", "ult_prev": "02/04/2026", "dias": 44, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "TXP9A41", "tipo": "ROLLON", "reboque": "OQK8969", "ult_prev": "04/04/2026", "dias": 42, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TXP9A42", "tipo": "ROLLON", "reboque": "", "ult_prev": "04/04/2026", "dias": 42, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TDR6A18", "tipo": "GARRA", "reboque": "", "ult_prev": "14/04/2026", "dias": 32, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "QXJ8577", "tipo": "CARRETA TANQUE", "reboque": "OVH4947", "ult_prev": "08/05/2026", "dias": 8, "obs_log": "", "obs_comp": "PUCHADOR DA PORTA LADO DO MOTORISTA", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "QQB0467", "tipo": "GARRA", "reboque": "", "ult_prev": "11/05/2026", "dias": 5, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "QWZ6759", "tipo": "BRUCK", "reboque": "", "ult_prev": "11/05/2026", "dias": 5, "obs_log": "AR CONDICIONADO", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "OPC6694", "tipo": "CARRETA BASCULA", "reboque": "", "ult_prev": "11/05/2026", "dias": 5, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Franciele", "cavalo": "QXC5375", "tipo": "COMPACTADOR", "reboque": "", "ult_prev": "14/05/2026", "dias": 2, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}, {"programador": "Daniel", "cavalo": "TEE5A91", "tipo": "GARRA", "reboque": "", "ult_prev": "15/05/2026", "dias": 1, "obs_log": "", "obs_comp": "", "troca_oleo": "", "qtd_corr_cav": 0, "qtd_corr_reb": 0, "retorno_log": "", "dias_bg": "", "cavalo_bg": "", "reboque_bg": ""}];
+let CORRETIVAS = [{"finalizado":"Não","ordem":"2416","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"18/07/2025","tipo":"VEICULO","placa":"RNU6H49","servico":"AR CONDICIONADO","km":"368.649,00","horas":"0,00","valor":"0,00","nf":"","descricao":"AR CONDICIONADO NAO FUNCIONA","usuario":"LEANDRO ALVES","data_fin":"","serv_exec":"OBS: ADS COMERCIO DE PECAS AUTOMOTIVAS LTDA;- 01 C","filial":"MATRIZ","fechada":"Não","horas_man":"01:00:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"2.700,00","val_total":"2.700,00"},{"finalizado":"Não","ordem":"2498","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"28/07/2025","tipo":"EQUIPAMENTOS","placa":"SHREDDER-","servico":"SERVICO MECANICO EM EQUIPAMENTOS","km":"0,00","horas":"0,00","valor":"0,00","nf":"","descricao":"FAVOR VERIFICAR O SHREDER VERDE DO BOX","usuario":"ELISANGELA ROSA","data_fin":"","serv_exec":"FOI FEITA A VERIFICACAO DO MESMO","filial":"MATRIZ","fechada":"Não","horas_man":"01:20:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"0,00","val_total":"0,00"},{"finalizado":"Não","ordem":"2502","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"28/07/2025","tipo":"VEICULO","placa":"TDR6A18","servico":"AR CONDICIONADO","km":"18.104,00","horas":"0,00","valor":"0,00","nf":"","descricao":"AR CONDICIONADO DO VEICULO NAO ESTA FUNCIONANDO","usuario":"LEANDRO ALVES","data_fin":"","serv_exec":"","filial":"MATRIZ","fechada":"Não","horas_man":"00:00:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"0,00","val_total":"0,00"},{"finalizado":"Não","ordem":"2915","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"22/08/2025","tipo":"VEICULO","placa":"QXJ8577","servico":"AR CONDICIONADO","km":"307.167,00","horas":"0,00","valor":"0,00","nf":"","descricao":"AR CONDICIONADO PAROU DE FUNCIONAR","usuario":"LEANDRO ALVES","data_fin":"","serv_exec":"","filial":"MATRIZ","fechada":"Não","horas_man":"00:00:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"0,00","val_total":"0,00"},{"finalizado":"Não","ordem":"3163","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"09/09/2025","tipo":"VEICULO","placa":"OPC6694","servico":"SERVICOS EM CAIXA","km":"1.018.325,00","horas":"0,00","valor":"0,00","nf":"","descricao":"CALIBRAR A CAIXA DA VOLVO ESTA PULANDO MARCHA","usuario":"ALAN FERREIRA","data_fin":"","serv_exec":"","filial":"MATRIZ","fechada":"Não","horas_man":"00:00:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"0,00","val_total":"0,00"},{"finalizado":"Não","ordem":"3172","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"09/09/2025","tipo":"VEICULO","placa":"QPQ3D07","servico":"TROCA/ REPARO DE ACESSORIOS DIVERSOS","km":"225.282,00","horas":"0,00","valor":"0,00","nf":"","descricao":"CAMINHAO SEM BUZINA","usuario":"ALAN FERREIRA","data_fin":"","serv_exec":"","filial":"MATRIZ","fechada":"Não","horas_man":"00:00:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"0,00","val_total":"0,00"},{"finalizado":"Não","ordem":"3272","nome":"RPT SOLUCOES AMBIENTAIS EIRELI EPP","data":"12/12/2025","tipo":"VEICULO","placa":"RMG0G59","servico":"SERVICOS NO SISTEMA DE ARREFECIMENTO","km":"114.069,00","horas":"0,00","valor":"0,00","nf":"","descricao":"VEICULO BAIXANDO O NIVEL DO LIQUIDO DE ARREFECIMENTO","usuario":"ALAN FERREIRA","data_fin":"","serv_exec":"","filial":"MATRIZ","fechada":"Não","horas_man":"00:00:00","desc_ativo":"NAO FINALIZADAS","situacao":"CORRETIVA","tipo_man":"","val_pecas":"0,00","val_total":"0,00"}];
+let editCheckIdx = -1;
+
+function mudarPagina(id) {
+  document.querySelectorAll('.nav-aba').forEach((a,i) => {
+    a.classList.toggle('active', ['oleo','checklist'][i] === id);
+  });
+  document.querySelectorAll('.pagina').forEach(p => p.classList.remove('active'));
+  document.getElementById('pag-'+id).classList.add('active');
+}
+
+async function fbGet(path) {
+  try { const r = await fetch(FIREBASE_URL + path); return r.ok ? r.json() : null; } catch(e) { return null; }
+}
+async function fbPut(path, data) {
+  try { await fetch(FIREBASE_URL + path, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); } catch(e) {}
+}
+
+async function salvarFB() {
+  const si = document.getElementById('save-ind-global');
+  if(si){si.textContent='⏳ Salvando...';si.style.color='#FCD34D';}
+  await fbPut('/manutencao/checklist.json', CHECKLIST);
+  await fbPut('/manutencao/corretivas.json', CORRETIVAS);
+  const h = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  if(si){si.textContent='☁️ Salvo às '+h;si.style.color='#86efac';setTimeout(()=>si.textContent='',5000);}
+}
+
+function recalcDias(c) {
+  if (!c.ult_prev) { c.dias=0; return; }
+  try { const[d,m,a]=c.ult_prev.split('/'); const hoje=new Date(); hoje.setHours(0,0,0,0); c.dias=Math.floor((hoje-new Date(+a,+m-1,+d))/86400000); } catch { c.dias=0; }
+}
+
+function contarCorretivas() {
+  const cnt={};
+  (CORRETIVAS||[]).forEach(c=>{ const p=(c.placa||'').trim().toUpperCase(); if(p) cnt[p]=(cnt[p]||0)+1; });
+  CHECKLIST.forEach(c=>{ c.qtd_corr_cav_auto=cnt[(c.cavalo||'').toUpperCase()]||0; c.qtd_corr_reb_auto=cnt[(c.reboque||'').toUpperCase()]||0; });
+}
+
+function renderCheck() {
+  contarCorretivas();
+  const totCav=CHECKLIST.reduce((s,c)=>s+(c.qtd_corr_cav_auto||c.qtd_corr_cav||0),0);
+  const totReb=CHECKLIST.reduce((s,c)=>s+(c.qtd_corr_reb_auto||c.qtd_corr_reb||0),0);
+  const elCav=document.getElementById('tot-cav'); if(elCav)elCav.textContent=totCav;
+  const elReb=document.getElementById('tot-reb'); if(elReb)elReb.textContent=totReb;
+  const elRet=document.getElementById('tot-ret'); if(elRet)elRet.textContent=totCav+totReb;
+  function diasStyle(dias) {
+    if(dias===''||dias===null||dias===undefined) return 'text-align:center';
+    const d=parseInt(dias);
+    if(d<=9)  return 'text-align:center;font-weight:700;background:#C6EFCE;color:#276221';
+    if(d<=14) return 'text-align:center;font-weight:700;background:#FFEB9C;color:#9C5700';
+    return 'text-align:center;font-weight:700;background:#FFC7CE;color:#9C0006';
+  }
+  function diasCellStyle(c) {
+    if(c.dias_bg&&c.dias_bg!=='00000000'&&c.dias_bg!=='FFFFFFFF') {
+      const hex=c.dias_bg.length===8?c.dias_bg.slice(2):c.dias_bg;
+      return `text-align:center;font-weight:700;background:#${hex};color:#333`;
+    }
+    return diasStyle(c.dias);
+  }
+  function qtdBadge(qtd,placa) {
+    const bg=qtd>=4?'#FFC7CE':qtd===3?'#FFEB9C':qtd>0?'#C6EFCE':'#F3F4F6';
+    const fc=qtd>=4?'#9C0006':qtd===3?'#9C5700':qtd>0?'#276221':'#9CA3AF';
+    const click=qtd>0?`onclick="verCorretivas('${placa}')" title="Ver ${qtd} ordem(ns)" style="cursor:pointer"`:'';
+    return `<span ${click} style="background:${bg};color:${fc};font-weight:700;padding:2px 10px;border-radius:10px;display:inline-block">${qtd}</span>`;
+  }
+  function placaBg(bg) {
+    if(!bg||bg==='00000000'||bg==='FFFFFFFF') return '';
+    const hex=bg.length===8?bg.slice(2):bg;
+    return `background:#${hex};`;
+  }
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const vazio=document.getElementById('vazio-check');
+  if(vazio) vazio.style.display=CHECKLIST.length?'none':'';
+  document.getElementById('tbody-check').innerHTML=CHECKLIST.map((c,i)=>{
+    const qtdCav=c.qtd_corr_cav_auto!==undefined?c.qtd_corr_cav_auto:(c.qtd_corr_cav||0);
+    const qtdReb=c.qtd_corr_reb_auto!==undefined?c.qtd_corr_reb_auto:(c.qtd_corr_reb||0);
+    return `<tr>
+      <td>${c.programador||''}</td>
+      <td style="${placaBg(c.cavalo_bg)}font-weight:700;color:#16365C">${c.cavalo||''}</td>
+      <td>${c.tipo||''}</td>
+      <td style="${placaBg(c.reboque_bg)}font-weight:700;color:#16365C">${c.reboque||''}</td>
+      <td>${c.ult_prev||''}</td>
+      <td>${hoje}</td>
+      <td style="${diasCellStyle(c)}">${c.dias!==undefined?c.dias:''}</td>
+      <td style="white-space:normal;max-width:220px">${c.obs_log||''}</td>
+      <td style="white-space:normal;max-width:220px">${c.obs_comp||''}</td>
+      <td style="text-align:center">${qtdBadge(qtdCav,c.cavalo)}</td>
+      <td style="text-align:center">${qtdBadge(qtdReb,c.reboque)}</td>
+      <td style="text-align:center">${c.retorno_log||''}</td>
+      <td style="text-align:center"><button onclick="editarCheck(${i})" style="padding:2px 8px;border:none;border-radius:3px;background:#EFF6FF;color:#1D4ED8;font-weight:700;cursor:pointer;font-size:11px">✏️ Editar</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalCheck(){
+  editCheckIdx=-1; document.getElementById('modal-check-titulo').textContent='➕ Novo Registro';
+  document.getElementById('btn-del-check').style.display='none';
+  ['c-prog','c-cavalo','c-reboque','c-obs-log','c-obs-comp','c-retorno'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-tipo').value=''; document.getElementById('c-ult-prev').value='';
+  document.getElementById('c-corr-cav').value=0; document.getElementById('c-corr-reb').value=0;
+  document.getElementById('overlay-check').classList.add('open');
+}
+function editarCheck(i){
+  editCheckIdx=i; const c=CHECKLIST[i];
+  document.getElementById('modal-check-titulo').textContent='✏️ Editar Registro';
+  document.getElementById('btn-del-check').style.display='';
+  document.getElementById('c-prog').value=c.programador||'';
+  document.getElementById('c-cavalo').value=c.cavalo||'';
+  document.getElementById('c-tipo').value=c.tipo||'';
+  document.getElementById('c-reboque').value=c.reboque||'';
+  document.getElementById('c-obs-log').value=c.obs_log||'';
+  document.getElementById('c-obs-comp').value=c.obs_comp||'';
+  document.getElementById('c-retorno').value=c.retorno_log||'';
+  document.getElementById('c-corr-cav').value=c.qtd_corr_cav||0;
+  document.getElementById('c-corr-reb').value=c.qtd_corr_reb||0;
+  if(c.ult_prev){const[d,m,a]=c.ult_prev.split('/');document.getElementById('c-ult-prev').value=`${a}-${m}-${d}`;}
+  else document.getElementById('c-ult-prev').value='';
+  document.getElementById('overlay-check').classList.add('open');
+}
+function fecharModalCheck(){document.getElementById('overlay-check').classList.remove('open');}
+function salvarCheck(){
+  function toDisp(s){if(!s)return'';const[a,m,d]=s.split('-');return`${d}/${m}/${a}`;}
+  const novo={programador:document.getElementById('c-prog').value.trim(),cavalo:document.getElementById('c-cavalo').value.trim().toUpperCase(),tipo:document.getElementById('c-tipo').value,reboque:document.getElementById('c-reboque').value.trim().toUpperCase(),ult_prev:toDisp(document.getElementById('c-ult-prev').value),obs_log:document.getElementById('c-obs-log').value.trim(),obs_comp:document.getElementById('c-obs-comp').value.trim(),qtd_corr_cav:parseInt(document.getElementById('c-corr-cav').value)||0,qtd_corr_reb:parseInt(document.getElementById('c-corr-reb').value)||0,retorno_log:document.getElementById('c-retorno').value.trim(),dias_bg:'',cavalo_bg:'',reboque_bg:''};
+  recalcDias(novo);
+  if(editCheckIdx>=0) CHECKLIST[editCheckIdx]=novo; else CHECKLIST.push(novo);
+  fecharModalCheck(); renderCheck(); salvarFB();
+}
+function excluirCheck(){if(!confirm('Excluir?'))return;CHECKLIST.splice(editCheckIdx,1);fecharModalCheck();renderCheck();salvarFB();}
+
+function verCorretivas(placa){
+  if(!placa)return; placa=placa.trim().toUpperCase();
+  const ordens=CORRETIVAS.filter(c=>(c.placa||'').trim().toUpperCase()===placa);
+  document.getElementById('ver-corr-titulo').textContent=`🔧 Corretivas — ${placa} (${ordens.length} ordens)`;
+  document.getElementById('ver-corr-tbody').innerHTML=ordens.length===0?'<tr><td colspan="4" style="text-align:center;padding:16px;color:#999">Nenhuma ordem encontrada</td></tr>':ordens.map((o,i)=>`<tr style="background:${i%2===0?'#f9f9f9':'#fff'}"><td style="padding:5px 8px;font-weight:700">${o.ordem}</td><td style="padding:5px 8px">${o.servico}</td><td style="padding:5px 8px">${o.data}</td><td style="padding:5px 8px;white-space:normal;max-width:200px">${o.descricao}</td></tr>`).join('');
+  document.getElementById('overlay-ver-corr').classList.add('open');
+}
+
+async function exportarPDFCheck(){
+  const btn=event.target; btn.textContent='⏳'; btn.disabled=true;
+  try{
+    const {jsPDF}=window.jspdf;
+    const canvas=await html2canvas(document.getElementById('pag-checklist'),{scale:1.5,backgroundColor:'#f0f2f0'});
+    const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight();
+    let srcY=0,pg=0;
+    while(srcY<canvas.height){
+      const px=Math.min(Math.floor(((H-10)/W)*canvas.width),canvas.height-srcY);
+      const s=document.createElement('canvas');s.width=canvas.width;s.height=px;s.getContext('2d').drawImage(canvas,0,-srcY);
+      if(pg>0)pdf.addPage();
+      pdf.addImage(s.toDataURL('image/jpeg',.9),'JPEG',0,5,W,(px/canvas.width)*W);
+      srcY+=px;pg++;if(pg>30)break;
+    }
+    pdf.save('Checklist_Preventiva.pdf');
+  }catch(e){alert('Erro: '+e.message);}
+  finally{btn.textContent='📄 PDF';btn.disabled=false;}
+}
+
+// Inicializar checklist
+document.getElementById('overlay-check').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModalCheck();});
+document.getElementById('overlay-ver-corr').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('open');});
+
+(async function initChecklist() {
+  const dbCheck=await fbGet('/manutencao/checklist.json');
+  if(dbCheck&&Array.isArray(dbCheck)&&dbCheck.length) CHECKLIST=dbCheck;
+  const dbCorr=await fbGet('/manutencao/corretivas.json');
+  if(dbCorr&&Array.isArray(dbCorr)&&dbCorr.length) CORRETIVAS=dbCorr;
+  CHECKLIST.forEach(recalcDias);
+  renderCheck();
+  setInterval(async()=>{
+    const dc=await fbGet('/manutencao/checklist.json');
+    if(dc&&Array.isArray(dc)&&dc.length){CHECKLIST=dc;CHECKLIST.forEach(recalcDias);renderCheck();}
+  },20000);
+})();
+
+</script>
+
+</body>

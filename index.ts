@@ -46,7 +46,26 @@ Deno.serve(async (req: Request) => {
     // Remove o prefixo da função para obter o caminho real dentro do
     // Realtime Database. Ex.: /functions/v1/firebase-relay/manutencao/veiculos.json
     // vira /manutencao/veiculos.json
-    const caminho = url.pathname.replace(/^\/functions\/v1\/firebase-relay/, '') || '/';
+    //
+    // ⚠️ BUG CORRIGIDO: antes isso usava um replace() assumindo que o
+    // caminho SEMPRE vinha com o prefixo fixo "/functions/v1/firebase-relay".
+    // Só que em várias chamadas reais o Supabase entrega o caminho JÁ SEM
+    // esse prefixo (só "/firebase-relay/..."), e nesse caso o replace()
+    // não encontrava nada pra remover — "firebase-relay" ficava preso no
+    // meio do caminho, e a escrita ia para um nó ERRADO do Firebase (ex.:
+    // /firebase-relay/manutencao/veiculos.json em vez de
+    // /manutencao/veiculos.json). O Firebase aceitava normalmente (por
+    // isso a resposta sempre vinha "200 OK" com os dados ecoados de
+    // volta, parecendo sucesso), só que os dados nunca apareciam no
+    // caminho que o resto do app lê de verdade — dando a impressão de
+    // "salvou mas sumiu depois". Agora procuramos o nome da função em
+    // qualquer posição do caminho e usamos só o que vem DEPOIS dele,
+    // não importa se veio com ou sem o prefixo "/functions/v1/".
+    const NOME_FUNCAO = 'firebase-relay';
+    const partes = url.pathname.split('/').filter(Boolean);
+    const idxFuncao = partes.indexOf(NOME_FUNCAO);
+    const resto = idxFuncao >= 0 ? partes.slice(idxFuncao + 1) : partes;
+    const caminho = '/' + resto.join('/');
     const urlFirebase = FIREBASE_BASE + caminho + url.search;
 
     const headersFirebase: Record<string, string> = { 'Content-Type': 'application/json' };

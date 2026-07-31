@@ -24,6 +24,10 @@
 // @ts-ignore — import via especificador "npm:" (suportado nativamente pelo
 // runtime de Edge Functions do Supabase, que é baseado em Deno)
 import webpush from "npm:web-push@3.6.7";
+// @ts-ignore — geração do PDF do Checklist Preventiva (anexado no e-mail)
+import { jsPDF } from "npm:jspdf@2.5.1";
+// @ts-ignore
+import autoTable from "npm:jspdf-autotable@5.0.8";
 
 const FIREBASE_URL = Deno.env.get("FIREBASE_URL") ?? "https://controle-troca-oleo-default-rtdb.firebaseio.com";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
@@ -77,16 +81,23 @@ async function fbDelete(path: string): Promise<void> {
 }
 
 // Manda um e-mail (via Resend) com a lista completa de avisos para cada
-// destinatário cadastrado no app. Não lança erro para fora — se falhar,
-// só registra no log, sem derrubar o resto da função (push continua
+// destinatário cadastrado no app, opcionalmente com PDFs anexados (ex.:
+// checklist por programador). Não lança erro para fora — se falhar, só
+// registra no log, sem derrubar o resto da função (push continua
 // funcionando normalmente mesmo se o e-mail falhar por algum motivo).
-async function enviarEmailResend(destinatarios: string[], titulo: string, avisos: string[]): Promise<number> {
+async function enviarEmailResend(
+  destinatarios: string[],
+  titulo: string,
+  avisos: string[],
+  anexos: { filename: string; content: string }[] = []
+): Promise<number> {
   if (!RESEND_API_KEY || destinatarios.length === 0) return 0;
   const listaHtml = avisos.map(a => `<li style="margin-bottom:6px">${a}</li>`).join("");
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:480px">
       <h2 style="color:#1e3a8a">🔧 ${titulo}</h2>
       <ul style="padding-left:18px;color:#1e293b">${listaHtml}</ul>
+      ${anexos.length ? `<p style="color:#1e293b;font-size:13px">📎 Checklist completo em anexo, separado por programador.</p>` : ""}
       <p style="color:#94a3b8;font-size:12px;margin-top:20px">Aviso automático do Controle de Manutenção.</p>
     </div>`;
   let enviados = 0;
@@ -103,6 +114,7 @@ async function enviarEmailResend(destinatarios: string[], titulo: string, avisos
           to: [destino],
           subject: titulo,
           html,
+          ...(anexos.length ? { attachments: anexos } : {}),
         }),
       });
       if (r.ok) enviados++;
@@ -112,6 +124,117 @@ async function enviarEmailResend(destinatarios: string[], titulo: string, avisos
     }
   }
   return enviados;
+}
+
+// ── Cores das células, iguais às usadas no app (exportarPDFCheck) ──────────
+function _diasCor(dias: number) {
+  if (dias > 14) return { fill: [255, 199, 206], text: [156, 0, 6] };
+  if (dias >= 10) return { fill: [255, 235, 156], text: [156, 87, 0] };
+  return { fill: [198, 239, 206], text: [39, 98, 33] };
+}
+function _corrCor(qtd: number) {
+  if (qtd >= 4) return { fill: [255, 199, 206], text: [156, 0, 6] };
+  if (qtd === 3) return { fill: [255, 235, 156], text: [156, 87, 0] };
+  if (qtd > 0) return { fill: [198, 239, 206], text: [39, 98, 33] };
+  return { fill: [243, 244, 246], text: [156, 163, 175] };
+}
+
+// Gera o PDF do Checklist Preventiva de UM programador, com o mesmo layout
+// (título roxo, KPIs de corretivas, tabela colorida por dias/corretivas)
+// usado no botão "Exportar PDF" do app — só que rodando aqui no servidor,
+// sem precisar de navegador nenhum aberto.
+function gerarPdfChecklistProgramador(programador: string, linhas: any[]): ArrayBuffer {
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(88, 28, 135);
+  doc.rect(0, 0, pageW, 46, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text(`Checklist Preventiva — ${programador}`, 18, 22);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`${linhas.length} registro(s) · Ordenado por dias (maior → menor)`, 18, 38);
+
+  const agora = new Date();
+  doc.setFontSize(8);
+  doc.text(
+    `Gerado em: ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+    pageW - 18,
+    22,
+    { align: "right" }
+  );
+
+  const totCav = linhas.reduce((s, c) => s + (c.qtd_corr_cav_auto || c.qtd_corr_cav || 0), 0);
+  const totReb = linhas.reduce((s, c) => s + (c.qtd_corr_reb_auto || c.qtd_corr_reb || 0), 0);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(`QTD CORRETIVAS CAVALO: ${totCav}    QTD CORRETIVAS REBOQUE: ${totReb}    TOTAL: ${totCav + totReb}`, 18, 62);
+
+  const ordenadas = linhas.slice().sort((a, b) => (b.dias || 0) - (a.dias || 0));
+  const corpo = ordenadas.map(c => {
+    const corrCav = c.qtd_corr_cav_auto || c.qtd_corr_cav || 0;
+    const corrReb = c.qtd_corr_reb_auto || c.qtd_corr_reb || 0;
+    return [
+      c.programador || "—",
+      c.cavalo || "—",
+      c.tipo || "—",
+      c.reboque || "—",
+      c.ult_prev || "—",
+      `${c.dias || 0}d`,
+      c.obs_log || "—",
+      c.obs_comp || "—",
+      String(corrCav),
+      String(corrReb),
+      c.retorno_log || "—",
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 72,
+    head: [["PROGRAMADOR", "CAVALO", "TIPO", "REBOQUE", "ÚLT. PREVENTIVA", "DIAS", "OBS LOGÍSTICA", "OBS COMPRAS", "CORR. CAVALO", "CORR. REBOQUE", "RETORNO LOG."]],
+    body: corpo,
+    styles: { fontSize: 7.5, cellPadding: 4, valign: "middle" },
+    headStyles: { fillColor: [27, 58, 109], textColor: [255, 255, 255], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 247, 255] },
+    columnStyles: { 5: { halign: "center" }, 8: { halign: "center" }, 9: { halign: "center" }, 10: { halign: "center" } },
+    didParseCell: (data: any) => {
+      if (data.section !== "body") return;
+      if (data.column.index === 5) {
+        const dias = parseInt(String(data.cell.raw)) || 0;
+        const cor = _diasCor(dias);
+        data.cell.styles.fillColor = cor.fill;
+        data.cell.styles.textColor = cor.text;
+        data.cell.styles.fontStyle = "bold";
+      }
+      if (data.column.index === 8 || data.column.index === 9) {
+        const qtd = parseInt(String(data.cell.raw)) || 0;
+        const cor = _corrCor(qtd);
+        data.cell.styles.fillColor = cor.fill;
+        data.cell.styles.textColor = cor.text;
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  return doc.output("arraybuffer");
+}
+
+// Converte um ArrayBuffer/Uint8Array para base64 — necessário porque os
+// anexos do Resend precisam vir como string base64, e Deno não tem um
+// atalho pronto pra isso em buffers grandes sem estourar o limite de
+// argumentos do String.fromCharCode.
+function _arrayBufferParaBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binario = "";
+  const tamanhoBloco = 8192;
+  for (let i = 0; i < bytes.length; i += tamanhoBloco) {
+    binario += String.fromCharCode(...bytes.subarray(i, i + tamanhoBloco));
+  }
+  // @ts-ignore — btoa é global no Deno
+  return btoa(binario);
 }
 
 // Dias corridos entre uma data "AAAA-MM-DD" (vencimento de documento) e hoje.
@@ -194,6 +317,17 @@ Deno.serve(async (_req: Request) => {
     fbGet("/manutencao/alertas_enviados.json"),
   ]);
 
+  // ⚠️ checklist.json e indisponiveis.json passaram a ser gravados como
+  // OBJETO indexado por chave (não mais array cru) depois da correção do
+  // bug de "formato antigo". Um Array.isArray(...) aqui sempre dava falso
+  // pra esse formato novo, e os avisos de Checklist/Indisponíveis paravam
+  // de disparar silenciosamente. paraArray() aceita os dois formatos.
+  function paraArray(v: any): any[] {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === "object") return Object.values(v);
+    return [];
+  }
+
   const limites =
     limitesRaw && limitesRaw.amarelo && limitesRaw.vermelho
       ? limitesRaw
@@ -229,8 +363,10 @@ Deno.serve(async (_req: Request) => {
   }
 
   // 2) Checklist preventiva em atraso (mesmos limites configurados no app)
-  if (config.categorias.checklist && Array.isArray(checklist)) {
-    for (const c of checklist) {
+  const checklistArr = paraArray(checklist);
+  let houveAvisoChecklist = false;
+  if (config.categorias.checklist) {
+    for (const c of checklistArr) {
       if (!c || !c.ult_prev) continue;
       const partes = String(c.ult_prev).split("/");
       if (partes.length !== 3) continue;
@@ -240,18 +376,21 @@ Deno.serve(async (_req: Request) => {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
       const dias = Math.floor((hoje.getTime() - dt.getTime()) / 86400000);
+      c.dias = dias; // guarda pra reaproveitar na geração do PDF, sem reprocessar a data
       const placaRef = c.cavalo || c.reboque || "?";
       if (dias >= limites.vermelho) {
         marcarSeNovo(`chk_${c.cavalo}_${c.reboque}_vermelho`, `📋 Checklist de ${placaRef} atrasado (${dias}d)`);
+        houveAvisoChecklist = true;
       } else if (dias >= limites.amarelo) {
         marcarSeNovo(`chk_${c.cavalo}_${c.reboque}_amarelo`, `📋 Checklist de ${placaRef} próximo do prazo (${dias}d)`);
+        houveAvisoChecklist = true;
       }
     }
   }
 
   // 3) Indisponíveis há mais de N horas (configurável) e ainda sem saída
-  if (config.categorias.indisponiveis && Array.isArray(indisponiveis)) {
-    for (const r of indisponiveis) {
+  if (config.categorias.indisponiveis) {
+    for (const r of paraArray(indisponiveis)) {
       if (!r || r.saida || !r.entrada || !r.id) continue;
       const horas = (Date.now() - new Date(r.entrada).getTime()) / 3600000;
       if (horas < config.horas_indisponivel) continue;
@@ -273,15 +412,39 @@ Deno.serve(async (_req: Request) => {
 
   const titulo = avisos.length === 1 ? "🔧 Controle de Manutenção" : `🔧 ${avisos.length} avisos de manutenção`;
 
+  // ── PDF do Checklist, um por programador, só quando há aviso de
+  // checklist nesta rodada (evita gerar/anexar PDF à toa em rodadas que
+  // só têm aviso de documento ou de indisponível, por exemplo) ──
+  const anexosPdf: { filename: string; content: string }[] = [];
+  if (config.email_ativo && houveAvisoChecklist && checklistArr.length) {
+    const porProgramador = new Map<string, any[]>();
+    for (const c of checklistArr) {
+      if (!c || !c.programador) continue;
+      if (!porProgramador.has(c.programador)) porProgramador.set(c.programador, []);
+      porProgramador.get(c.programador)!.push(c);
+    }
+    for (const [programador, linhas] of porProgramador) {
+      try {
+        const pdfBuffer = gerarPdfChecklistProgramador(programador, linhas);
+        anexosPdf.push({
+          filename: `Checklist_Preventiva_-_${programador.replace(/[^\w-]/g, "_")}.pdf`,
+          content: _arrayBufferParaBase64(pdfBuffer),
+        });
+      } catch (e) {
+        console.error("Falha ao gerar PDF do checklist para", programador, e);
+      }
+    }
+  }
+
   // ── E-mail: independe de ter algum aparelho com push inscrito ──
   const emailsEnviados = config.email_ativo
-    ? await enviarEmailResend(config.emails, titulo, avisos)
+    ? await enviarEmailResend(config.emails, titulo, avisos, anexosPdf)
     : 0;
 
   // ── Push: só se houver algum aparelho inscrito ──
   if (!subs || typeof subs !== "object" || Object.keys(subs).length === 0) {
     return new Response(
-      JSON.stringify({ ok: true, avisos: avisos.length, motivo: "nenhum aparelho inscrito", emails_enviados: emailsEnviados }),
+      JSON.stringify({ ok: true, avisos: avisos.length, motivo: "nenhum aparelho inscrito", emails_enviados: emailsEnviados, pdfs_anexados: anexosPdf.length }),
       { headers: { "Content-Type": "application/json" } }
     );
   }
@@ -306,7 +469,7 @@ Deno.serve(async (_req: Request) => {
   }
 
   return new Response(
-    JSON.stringify({ ok: true, avisos: avisos.length, dispositivos_notificados: enviadosOk, emails_enviados: emailsEnviados }),
+    JSON.stringify({ ok: true, avisos: avisos.length, dispositivos_notificados: enviadosOk, emails_enviados: emailsEnviados, pdfs_anexados: anexosPdf.length }),
     { headers: { "Content-Type": "application/json" } }
   );
 });

@@ -3343,6 +3343,22 @@ document.addEventListener('DOMContentLoaded', () => {
           <div id="notif-dias-semana" style="display:flex;gap:6px;flex-wrap:wrap"></div>
         </div>
 
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;color:#e2e8f0;font-size:13px;cursor:pointer;margin-bottom:8px">
+            <input type="checkbox" id="notif-email-ativo" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
+            📧 Enviar por e-mail também
+          </label>
+          <div id="notif-email-bloco" style="display:none">
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <input type="email" id="notif-email-novo" placeholder="nome@empresa.com" style="flex:1;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;padding:8px 10px;font-size:13px"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();_notifEmailAdicionar();}">
+              <button onclick="_notifEmailAdicionar()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Adicionar</button>
+            </div>
+            <div id="notif-email-lista" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            <div style="font-size:11px;color:#64748b;margin-top:6px">Todos os e-mails da lista recebem o mesmo aviso, junto com quem tiver o push ativado.</div>
+          </div>
+        </div>
+
         <div style="display:flex;align-items:center;gap:10px">
           <button onclick="salvarConfigNotificacoes()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar configuração</button>
           <span id="notif-config-status" style="font-size:11px;color:#94a3b8"></span>
@@ -8595,6 +8611,46 @@ function _toggleNotifDiaSemana(i) {
   _renderNotifDiasSemana();
 }
 
+// ── Notificações por e-mail: lista de destinatários ──────────────────────
+let _notifEmailsAtuais = [];
+
+function _notifEmailRenderLista() {
+  const el = document.getElementById('notif-email-lista');
+  if (!el) return;
+  if (!_notifEmailsAtuais.length) {
+    el.innerHTML = '<span style="font-size:12px;color:#64748b">Nenhum e-mail adicionado ainda.</span>';
+    return;
+  }
+  el.innerHTML = _notifEmailsAtuais.map(email => `
+    <span style="display:inline-flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:20px;padding:5px 6px 5px 12px;font-size:12px;color:#e2e8f0">
+      ${email}
+      <button onclick="_notifEmailRemover('${email.replace(/'/g,"\\'")}')" title="Remover" style="background:#334155;border:none;color:#fca5a5;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1">✕</button>
+    </span>`).join('');
+}
+
+function _notifEmailAdicionar() {
+  const input = document.getElementById('notif-email-novo');
+  const email = (input?.value || '').trim().toLowerCase();
+  if (!email) return;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alert('Digite um e-mail válido.'); return; }
+  if (_notifEmailsAtuais.includes(email)) { alert('Esse e-mail já está na lista.'); input.value=''; return; }
+  _notifEmailsAtuais.push(email);
+  input.value = '';
+  _notifEmailRenderLista();
+}
+
+function _notifEmailRemover(email) {
+  _notifEmailsAtuais = _notifEmailsAtuais.filter(e => e !== email);
+  _notifEmailRenderLista();
+}
+
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'notif-email-ativo') {
+    const bloco = document.getElementById('notif-email-bloco');
+    if (bloco) bloco.style.display = e.target.checked ? 'block' : 'none';
+  }
+});
+
 async function carregarConfigNotificacoes() {
   _renderNotifDiasSemana(); // mostra os padrões na hora, enquanto busca o que já foi salvo
   try {
@@ -8620,6 +8676,11 @@ async function carregarConfigNotificacoes() {
       _notifDiasSelecionados = cfg.dias_semana.slice();
       _renderNotifDiasSemana();
     }
+    const cEmailAtivo = document.getElementById('notif-email-ativo');
+    if (cEmailAtivo) cEmailAtivo.checked = !!cfg.email_ativo;
+    document.getElementById('notif-email-bloco').style.display = cfg.email_ativo ? 'block' : 'none';
+    _notifEmailsAtuais = Array.isArray(cfg.emails) ? cfg.emails.slice() : [];
+    _notifEmailRenderLista();
   } catch (e) {
     console.warn('Não foi possível carregar a configuração de notificações (usando padrões):', e);
   }
@@ -8638,6 +8699,8 @@ async function salvarConfigNotificacoes() {
     horario: document.getElementById('notif-horario')?.value || '07:00',
     horario_tarde: document.getElementById('notif-horario-tarde')?.value || '',
     dias_semana: _notifDiasSelecionados.slice().sort(),
+    email_ativo: !!document.getElementById('notif-email-ativo')?.checked,
+    emails: _notifEmailsAtuais.slice(),
     atualizado_em: new Date().toISOString(),
   };
   if (status) { status.textContent = 'Salvando...'; status.style.color = '#94a3b8'; }

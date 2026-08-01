@@ -6614,6 +6614,18 @@ function atualizarCampo(placa, campo, valor) {
   const novoVal = parseInt(valor) || 0;
   if (novoVal === v[campo]) return;
   v[campo] = novoVal;
+  // ── Sem troca registrada ainda (km_motor/km_cambio = 0) → fixa a
+  // referência da PRÓXIMA troca na primeira leitura de KM Atual em vez de
+  // ficar recalculando o alvo a cada edição. Sem isso, toda vez que o KM
+  // Atual era atualizado o "próxima troca" (km_atual + intervalo) avançava
+  // junto, fazendo o "falta X km" nunca diminuir — parecia que o sistema
+  // estava SOMANDO no KM Atual em vez de contar regressivamente. Agora o
+  // alvo só volta a se mover quando uma troca de verdade for registrada
+  // (editando KM da Última Troca / Data da Troca no modal ou no histórico).
+  if (campo === 'km_atual' && novoVal > 0) {
+    if (!v.km_motor)  v.km_motor  = novoVal;
+    if (!v.km_cambio) v.km_cambio = novoVal;
+  }
   // ⚠️ Sem isso, salvarDados() não sabia que esta placa foi editada agora
   // (a marcação só era feita em outras funções, não aqui) — no merge com
   // o Firebase, ele achava que ninguém tinha tocado nesta placa e
@@ -8019,6 +8031,12 @@ function aplicarImport() {
       // Se o KM atual do veículo for maior, mantém o atual
       if (kmPlanilha > (v.km_atual || 0)) {
         v.km_atual = kmPlanilha;
+        // Mesma correção do campo manual de KM (ver atualizarCampo): sem
+        // troca registrada ainda, fixa a referência da próxima troca nesta
+        // primeira leitura, senão o alvo fica avançando junto com o KM
+        // importado e o "falta X km" nunca diminui.
+        if (!v.km_motor)  v.km_motor  = kmPlanilha;
+        if (!v.km_cambio) v.km_cambio = kmPlanilha;
         // ⚠️ Mesmo bug do campo manual de KM: sem marcar a placa como
         // tocada, o salvarDados() não sabia que esta sessão editou este
         // veículo e revertia o KM importado de volta ao valor antigo do

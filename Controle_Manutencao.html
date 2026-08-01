@@ -2511,6 +2511,15 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="modal">
     <h2 id="modal-titulo">➕ Cadastrar Novo Veículo</h2>
     <div class="fg">
+      <div class="full" id="bloco-veiculo-novo">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;text-transform:none">
+          <input type="checkbox" id="f-veiculo-novo" onchange="toggleVeiculoNovo()" style="width:16px;height:16px;flex-shrink:0;cursor:pointer">
+          <span>
+            <span style="font-weight:700;color:#166534">🆕 Veículo novo</span>
+            <span style="display:block;font-size:11px;color:#4b5563;font-weight:400;margin-top:1px">Ainda não passou pela primeira troca de óleo — KM e data ficam zerados/vazios e ele não entra na contagem de trocas.</span>
+          </span>
+        </label>
+      </div>
       <div class="full">
         <label>Placa *</label>
         <input type="text" id="f-placa" placeholder="Ex: ABC1D23" maxlength="10">
@@ -7453,27 +7462,53 @@ function popularTipos(){
   if (dlGp) dlGp.innerHTML = tiposGpCompleto.map(t=>`<option>${t}</option>`).join('');
 }
 
+function toggleVeiculoNovo(){
+  const marcado = document.getElementById('f-veiculo-novo').checked;
+  const campos = ['f-data','f-km-motor','f-km-cambio'];
+  campos.forEach(id=>{
+    const el = document.getElementById(id);
+    if (marcado){
+      el.value = (id==='f-data') ? '' : 0;
+      el.disabled = true;
+    } else {
+      el.disabled = false;
+    }
+  });
+}
+
 function abrirModal(placa=null){
   editPlaca=placa;
   popularTipos();
   document.getElementById('modal-titulo').textContent=placa?'✏️ Editar Veículo':'➕ Cadastrar Novo Veículo';
+  const blocoNovo = document.getElementById('bloco-veiculo-novo');
+  const chkNovo = document.getElementById('f-veiculo-novo');
   if(placa){
     const v=VEICULOS.find(x=>x.placa===placa);
     if(!v){ alert('Veículo não encontrado: '+placa); editPlaca=null; return; }
+    blocoNovo.style.display='none'; // "veículo novo" só faz sentido no cadastro inicial
+    chkNovo.checked=false;
     document.getElementById('f-placa').value=v.placa;
     document.getElementById('f-placa').readOnly=true;
     document.getElementById('f-tipo').value=v.tipo;
     document.getElementById('f-km-motor').value=v.km_motor;
+    document.getElementById('f-km-motor').disabled=false;
     document.getElementById('f-km-cambio').value=v.km_cambio;
+    document.getElementById('f-km-cambio').disabled=false;
     document.getElementById('f-interv-m').value=v.interv_motor;
     document.getElementById('f-interv-c').value=v.interv_cambio;
+    document.getElementById('f-data').disabled=false;
     if(v.data_troca){const[d,m,a]=v.data_troca.split('/');document.getElementById('f-data').value=`${a}-${m}-${d}`;}
     else document.getElementById('f-data').value='';
   } else {
+    blocoNovo.style.display='';
+    chkNovo.checked=false;
     ['f-placa','f-tipo','f-data'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('f-placa').readOnly=false;
     document.getElementById('f-km-motor').value=0;
+    document.getElementById('f-km-motor').disabled=false;
     document.getElementById('f-km-cambio').value=0;
+    document.getElementById('f-km-cambio').disabled=false;
+    document.getElementById('f-data').disabled=false;
     document.getElementById('f-interv-m').value=30000;
     document.getElementById('f-interv-c').value=90000;
   }
@@ -7487,11 +7522,12 @@ function salvar(){
   const placa=document.getElementById('f-placa').value.trim().toUpperCase();
   const tipo=document.getElementById('f-tipo').value.trim().toUpperCase();
   if(!placa||!tipo){alert('Preencha PLACA e TIPO!');return;}
-  const dv=document.getElementById('f-data').value;
+  const veiculoNovo = document.getElementById('f-veiculo-novo').checked;
+  const dv = veiculoNovo ? '' : document.getElementById('f-data').value;
   let data_troca='',dias=null;
   if(dv){const dt=new Date(dv+'T00:00:00');data_troca=dt.toLocaleDateString('pt-BR');dias=Math.floor((HOJE-dt)/86400000);}
-  const kmMotorVal = parseInt(document.getElementById('f-km-motor').value)||0;
-const kmCambioVal = parseInt(document.getElementById('f-km-cambio').value)||0;
+  const kmMotorVal = veiculoNovo ? 0 : (parseInt(document.getElementById('f-km-motor').value)||0);
+const kmCambioVal = veiculoNovo ? 0 : (parseInt(document.getElementById('f-km-cambio').value)||0);
 let kmAtualAuto = 0;
 
 if (kmMotorVal > 0) kmAtualAuto = kmMotorVal;

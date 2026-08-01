@@ -14371,6 +14371,10 @@ function renderGraficoMensal() {
   // trocas ANTERIORES à mais recente, que data_troca não registra.
   const contagem = {};
   const detalhes = {}; // chave (AAAA-MM) -> array de {placa, veiculoTipo, data, km, trocaTipo, responsavel, obs}
+  // Veículos com KM abaixo disso são considerados "novos" — o registro de
+  // data_troca/histórico nesse caso normalmente é só o cadastro inicial,
+  // não uma troca de óleo de verdade. Por isso ficam fora da contagem e da lista.
+  const KM_MINIMO_TROCA_VALIDA = 20000;
   const toDate = s => {
     if(!s) return null;
     if (s.includes('/')) { const[d,m,y]=s.split('/'); const dt=new Date(+y, +m-1, +d); return isNaN(dt)?null:dt; }
@@ -14385,6 +14389,7 @@ function renderGraficoMensal() {
   VEICULOS.forEach(v => {
     const dt = toDate(v.data_troca);
     if (!dt || isNaN(dt)) return;
+    if (!(v.km_atual > KM_MINIMO_TROCA_VALIDA)) return; // veículo novo, sem troca real ainda
     const chave = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
     contagem[chave] = (contagem[chave] || 0) + 1;
     addDetalhe(chave, { placa: v.placa, veiculoTipo: v.tipo || '', data: v.data_troca, km: v.km_atual || null, trocaTipo: '', responsavel: '', obs: '' });
@@ -14398,6 +14403,7 @@ function renderGraficoMensal() {
     (arr || []).forEach(r => {
       const dt = toDate(r.data);
       if (!dt || isNaN(dt)) return;
+      if (!(r.km > KM_MINIMO_TROCA_VALIDA)) return; // veículo novo nessa data, sem troca real ainda
       // Evita contar 2x a mesma troca (a mais recente já foi somada via data_troca)
       if (dtUltima && dt.getTime() === dtUltima.getTime()) return;
       const chave = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;

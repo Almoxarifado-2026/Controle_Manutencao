@@ -7485,7 +7485,7 @@ function abrirModal(placa=null){
   if(placa){
     const v=VEICULOS.find(x=>x.placa===placa);
     if(!v){ alert('Veículo não encontrado: '+placa); editPlaca=null; return; }
-    blocoNovo.style.display='none'; // "veículo novo" só faz sentido no cadastro inicial
+    blocoNovo.style.display='';
     chkNovo.checked=false;
     document.getElementById('f-placa').value=v.placa;
     document.getElementById('f-placa').readOnly=true;

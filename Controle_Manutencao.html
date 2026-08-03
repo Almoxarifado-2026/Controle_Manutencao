@@ -6292,6 +6292,11 @@ function fecharConfigLimitesChecklist() {
   document.getElementById('overlay-limites-checklist').classList.remove('open');
 }
 async function _salvarConfigLimitesChecklistUI() {
+  // Reforço de consistência: o botão que abre este modal já é edit-only e
+  // já checa _checkEdicao() em abrirConfigLimitesChecklist(), então isto é
+  // hoje inalcançável em modo visualização — mas mantém o mesmo padrão de
+  // segurança em camadas usado no resto do sistema.
+  if (!_checkEdicao()) return;
   const amarelo = document.getElementById('limite-check-amarelo')?.value;
   const vermelho = document.getElementById('limite-check-vermelho')?.value;
   const ok = await salvarLimitesChecklist(amarelo, vermelho);
@@ -7489,6 +7494,12 @@ function toggleVeiculoNovo(){
 }
 
 function abrirModal(placa=null){
+  // ⚠️ Reforço de modo visualização: o "banner-chip" de alerta no dashboard
+  // (vencidos/próximos) abre este modal direto no clique e não tem a classe
+  // edit-only (o chip em si precisa ficar visível pra todo mundo ver o
+  // alerta). O salvar() já bloqueava a gravação, mas isso deixava o
+  // formulário de edição abrir mesmo em modo visualização.
+  if (!_checkEdicao()) return;
   editPlaca=placa;
   popularTipos();
   document.getElementById('modal-titulo').textContent=placa?'✏️ Editar Veículo':'➕ Cadastrar Novo Veículo';
@@ -12585,6 +12596,17 @@ function mergeIdsExcluidos(localIds, remotoObj) {
 }
 
 async function subirBackupLocalFirebase(idx) {
+  // ⚠️ Auditoria de modo visualização (ago/2026): esta função ESCREVE no
+  // Firebase (mescla um backup local com os dados ao vivo) mas não checava
+  // _checkEdicao(). Como o botão que a aciona (barra de "você ficou
+  // offline") aparece pra QUALQUER usuário, não só editores, um visualizador
+  // conseguia disparar uma escrita real no banco sem estar logado. A checagem
+  // é segura mesmo pro fluxo automático de reconexão (ver chamadas mais
+  // acima nesta função): um backup só fica "pendente de sincronizar" se
+  // alguém em modo edição tiver feito uma alteração de verdade enquanto
+  // offline — e quem editou continua logado (modoEdicao='1' no localStorage)
+  // quando a conexão volta.
+  if (!_checkEdicao()) return;
   const lista = _lerBackupsLocais();
   const snap = lista[idx];
   if (!snap) return alert('Backup não encontrado.');
@@ -13177,6 +13199,9 @@ function importarBackupsLocais(input) {
 }
 
 function excluirBackupLocal(idx) {
+  // ⚠️ Mesma auditoria de modo visualização — alcançável pela barra offline
+  // ("Ver backups locais") sem passar pelo botão "🗄️ Backups" (edit-only).
+  if (!_checkEdicao()) return;
   if (!confirm('Excluir este ponto de restauração local?')) return;
   const lista = _lerBackupsLocais();
   lista.splice(idx, 1);
@@ -17349,6 +17374,13 @@ function filtrarPlacasDoc(tipo) {
 }
 
 function abrirModalDoc(key) {
+  // ⚠️ Reforço de modo visualização: os chips de documento (que mostram
+  // vencimento) e os botões "+ Add" abrem este modal direto no clique e não
+  // têm a classe edit-only (o chip precisa ficar visível pra todo mundo ver
+  // o status do documento). salvarDoc()/excluirDoc() já bloqueavam a
+  // gravação, mas isso deixava o formulário de cadastro/edição abrir mesmo
+  // em modo visualização.
+  if (!_checkEdicao()) return;
   _docEditKey = key || null;
   const titulo = document.getElementById('doc-modal-titulo');
   const btnExc = document.getElementById('doc-btn-excluir');

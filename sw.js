@@ -19,7 +19,7 @@
 // (ex.: v2 → v3). Isso muda o conteúdo deste arquivo, o navegador
 // detecta a diferença, baixa o SW novo, e o cache antigo é descartado
 // no 'activate' (ver mais abaixo).
-const CACHE_NAME = 'manutencao-v210';
+const CACHE_NAME = 'manutencao-v211';
 
 // Recursos do shell que devem ser cacheados na instalação
 const SHELL_URLS = [

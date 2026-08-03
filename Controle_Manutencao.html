@@ -16616,7 +16616,12 @@ function renderCombustivel() {
     v.custo_km = v.km_rodado > 0 ? v.custo / v.km_rodado : 0;
     v.combustivel = [...v.combustiveis].join(', ');
     return v;
-  });
+  })
+  // Só mostra placas que já tiveram pelo menos 1 abastecimento registrado —
+  // placas recém-cadastradas (via Documentos) que ainda não importaram
+  // nenhuma planilha ficam de fora da tabela, dos KPIs e dos cards mobile,
+  // em vez de aparecer com tudo zerado ("0 abast., 0 L, R$ 0,00, —").
+  .filter(v => v.abastecimentos > 0);
 
   /* ── Detecção de consumo anormal ──
      Compara o km/l dos ÚLTIMOS 3 abastecimentos de cada veículo com a

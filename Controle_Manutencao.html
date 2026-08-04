@@ -8960,19 +8960,42 @@ async function salvarFB() {
       // que não vieram na planilha nova (por terem sido fechadas), fazendo a
       // contagem de "ordens abertas" só crescer a cada importação em vez de
       // refletir o Excel mais recente. Nesse caso, PUT substitui por completo.
+      //
+      // ⚠️⚠️ BUG CORRIGIDO (ago/2026) — "QTD CORRETIVAS" zerando sozinho:
+      // salvarFB() roda em TODO save de checklist (qualquer campo, de
+      // qualquer linha — não só ordens). Antes, se o fetch de leitura do
+      // Firebase abaixo falhasse (timeout/rede) OU se este dispositivo ainda
+      // não tivesse terminado de carregar CORRETIVAS na inicialização
+      // (initChecklist() é assíncrono), o código seguia em frente e dava
+      // PUT no que estava em memória — que podia estar vazio — apagando
+      // TODAS as ordens de serviço já importadas no Firebase, mesmo sem
+      // nenhuma relação com o que o usuário estava editando. Agora: se a
+      // leitura de mesclagem falhar, ou se o resultado ficar vazio sem ser
+      // uma reconstrução intencional (aplicarOrdens()), o PUT de
+      // corretivas.json é PULADO nesta rodada — o resto do save (checklist)
+      // continua normalmente, e o corretivas.json real só é tocado de novo
+      // na próxima vez que uma leitura confiável acontecer.
       let remotoCorr = [];
+      let _corretivasFetchOk = true;
+      const _eraReconstrucao = _corretivasReconstruidas; // captura ANTES de resetar a flag abaixo
       if (!_corretivasReconstruidas) {
         try {
           const r2 = await _fetchComTimeout(FIREBASE_URL + '/manutencao/corretivas.json', {}, 15000);
           if (r2.ok) {
             const raw2 = await r2.json();
             remotoCorr = Array.isArray(raw2) ? raw2 : (raw2 && typeof raw2 === 'object' ? Object.values(raw2).filter(v => v && typeof v === 'object') : []);
+          } else {
+            _corretivasFetchOk = false;
           }
-        } catch(e) {}
+        } catch(e) { _corretivasFetchOk = false; }
         const ordensLocais = new Set(CORRETIVAS.map(c => c && c.ordem));
         remotoCorr.forEach(c => { if (c && !ordensLocais.has(c.ordem)) CORRETIVAS.push(c); });
       }
       _corretivasReconstruidas = false;
+      // Só grava corretivas.json se: foi uma reconstrução intencional
+      // (import de Excel), OU a leitura de mesclagem funcionou e sobrou
+      // pelo menos 1 registro. Nunca grava um array vazio "por acidente".
+      const _devePutCorretivas = _eraReconstrucao || (_corretivasFetchOk && CORRETIVAS.length > 0) || (_corretivasFetchOk && remotoCorr.length === 0 && CORRETIVAS.length === 0);
 
       // ── Checklist: PATCH só dos _ckid tocados nesta sessão (editados,
       // criados ou excluídos) — em vez de PUT do array inteiro. Antes,
@@ -9002,7 +9025,8 @@ async function salvarFB() {
           if (!rPatch.ok) { ok1 = false; motivoErro1 = 'checklist HTTP ' + rPatch.status; }
         } catch(e) { ok1 = false; motivoErro1 = 'checklist: ' + e.message; console.warn('[Checklist] Falha no PATCH:', e); }
       }
-      const ok2 = await fbPut('/manutencao/corretivas.json', CORRETIVAS);
+      const ok2 = _devePutCorretivas ? await fbPut('/manutencao/corretivas.json', CORRETIVAS) : true;
+      if (!_devePutCorretivas) console.warn('[Corretivas] PUT pulado nesta rodada (fetch de mesclagem falhou ou resultado vazio suspeito) — dados preservados no Firebase.');
       const h = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
       _saveFalhou = !(ok1 && ok2);
       if(ok1 && ok2){

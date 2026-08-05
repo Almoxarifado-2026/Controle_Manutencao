@@ -4583,7 +4583,7 @@ const DICIONARIO_PTBR = {
   'ninguem':'ninguém', 'alguem':'alguém', 'orgao':'órgão', 'orgaos':'órgãos',
   'amanha':'amanhã', 'irma':'irmã', 'irmao':'irmão', 'razao':'razão',
   'coracao':'coração', 'europeu':'europeu', 'saude':'saúde', 'juiz':'juiz',
-  'ha':'há', 'la':'lá', 'ja':'já', 'e':'é', 'so':'só', 'ai':'aí',
+  'ha':'há', 'la':'lá', 'ja':'já', 'so':'só', 'ai':'aí',
 
   // ── Substantivos terminados em -ção/-são/-ência/-ância (muito comuns) ──
   'acao':'ação', 'acoes':'ações', 'informacao':'informação', 'informacoes':'informações',
@@ -4637,7 +4637,7 @@ const DICIONARIO_PTBR = {
   'radiador':'radiador', 'motor':'motor', 'chassi':'chassi', 'carroceria':'carroceria',
   'reboque':'reboque', 'carreta':'carreta', 'placa':'placa', 'documento':'documento',
   'documentos':'documentos', 'documentacao':'documentação', 'licenciamento':'licenciamento',
-  'seguro':'seguro', 'multa':'multa', 'multas':'multa', 'infracao':'infração',
+  'seguro':'seguro', 'infracao':'infração',
   'infracoes':'infrações', 'vistoria':'vistoria', 'combustivel':'combustível',
   'abastecimento':'abastecimento', 'quilometragem':'quilometragem', 'km':'km',
   'oficina':'oficina', 'fornecedor':'fornecedor', 'fornecedores':'fornecedores',
@@ -4651,7 +4651,68 @@ const DICIONARIO_PTBR = {
   'pane':'pane', 'defeito':'defeito', 'avaria':'avaria', 'trafego':'tráfego',
   'transito':'trânsito', 'rodovia':'rodovia', 'estrada':'estrada', 'motorista':'motorista',
   'motoristas':'motoristas', 'programador':'programador', 'logistica':'logística',
-  'diaria':'diária', 'diarias':'diárias', 'semana':'semana', 'mes':'mês', 'meses':'meses'
+  'diaria':'diária', 'diarias':'diárias', 'semana':'semana', 'mes':'mês', 'meses':'meses',
+
+  // ── Ampliação (ago/2026): vocabulário GERAL do dia a dia, não só de
+  // frota/manutenção — cobre e-mails, mensagens, observações e qualquer
+  // outro texto livre digitado no sistema. Mesma regra de segurança de
+  // sempre: nada de palavra ambígua cujo acento muda o sentido (por isso,
+  // por exemplo, "esta/está" e "marco/março" ficam de fora — "esta" e
+  // "marco" já são palavras corretas por si só com outro significado).
+
+  // ── Substantivos terminados em -ário/-ório/-ência/-ância (2ª leva) ──
+  'medico':'médico', 'medica':'médica', 'medicos':'médicos', 'medicas':'médicas',
+  'clinica':'clínica', 'clinicas':'clínicas', 'estatistica':'estatística',
+  'estatisticas':'estatísticas', 'logica':'lógica', 'gramatica':'gramática',
+  'matematica':'matemática', 'fisica':'física', 'quimica':'química',
+  'familia':'família', 'familias':'famílias', 'policia':'polícia',
+  'noticia':'notícia', 'noticias':'notícias', 'justica':'justiça',
+  'crianca':'criança', 'criancas':'crianças', 'esperanca':'esperança',
+  'lembranca':'lembrança', 'confianca':'confiança', 'mudanca':'mudança',
+  'mudancas':'mudanças', 'financas':'finanças', 'heranca':'herança',
+  'agencia':'agência', 'agencias':'agências',
+  'residencia':'residência', 'presidencia':'presidência', 'excelencia':'excelência',
+  'frequencia':'frequência', 'conveniencia':'conveniência', 'inconveniencia':'inconveniência',
+  'independencia':'independência', 'inteligencia':'inteligência', 'licenca':'licença',
+  'licencas':'licenças', 'crenca':'crença', 'transferencia':'transferência',
+  'conferencia':'conferência', 'preferencia':'preferência', 'deficiencia':'deficiência',
+  'insuficiencia':'insuficiência', 'proficiencia':'proficiência', 'sobrevivencia':'sobrevivência',
+  'juridico':'jurídico', 'juridica':'jurídica', 'beneficio':'benefício', 'beneficios':'benefícios',
+  'salario':'salário', 'salarios':'salários', 'ferias':'férias', 'aniversario':'aniversário',
+  'calendario':'calendário', 'dicionario':'dicionário', 'formulario':'formulário',
+  'formularios':'formulários', 'inventario':'inventário', 'itinerario':'itinerário',
+  'comentario':'comentário', 'comentarios':'comentários', 'voluntario':'voluntário',
+  'proprio':'próprio', 'propria':'própria', 'proprios':'próprios', 'proprias':'próprias',
+  'medio':'médio', 'premio':'prêmio', 'premios':'prêmios', 'genio':'gênio',
+  'clausula':'cláusula', 'clausulas':'cláusulas', 'genero':'gênero', 'generos':'gêneros',
+  'fenomeno':'fenômeno', 'anonimo':'anônimo', 'sabado':'sábado', 'historia':'história',
+  'historias':'histórias', 'memoria':'memória', 'memorias':'memórias',
+  'territorio':'território', 'laboratorio':'laboratório', 'repositorio':'repositório',
+  'obrigatorio':'obrigatório', 'obrigatoria':'obrigatória', 'provisorio':'provisório',
+
+  // ── Adjetivos terminados em -vel (muito comuns e sempre esquecidos) ──
+  'gratis':'grátis', 'faceis':'fáceis', 'possiveis':'possíveis', 'atras':'atrás',
+  'incrivel':'incrível', 'terrivel':'terrível', 'horrivel':'horrível',
+  'sensivel':'sensível', 'visivel':'visível', 'flexivel':'flexível',
+  'responsavel':'responsável', 'responsaveis':'responsáveis', 'agradavel':'agradável',
+  'favoravel':'favorável', 'razoavel':'razoável', 'estavel':'estável',
+  'instavel':'instável', 'variavel':'variável', 'notavel':'notável',
+  'preferivel':'preferível', 'legivel':'legível', 'audivel':'audível',
+  'improvavel':'improvável', 'provavel':'provável',
+
+  // ── Verbos e formas verbais seguras (sem palavra alternativa sem acento) ──
+  'estao':'estão', 'sera':'será', 'serao':'serão', 'tera':'terá',
+  'terao':'terão', 'devera':'deverá', 'deverao':'deverão', 'podera':'poderá',
+  'poderao':'poderão', 'existira':'existirá', 'ocorrera':'ocorrerá', 'acontecera':'acontecerá',
+  'reuniao':'reunião', 'reunioes':'reuniões', 'saudacoes':'saudações',
+
+  // ── Vocabulário de frota / manutenção (2ª leva) ──
+  'colisao':'colisão', 'colisoes':'colisões', 'lubrificacao':'lubrificação',
+  'transmissao':'transmissão', 'ignicao':'ignição', 'injecao':'injeção',
+  'exaustao':'exaustão', 'combustao':'combustão', 'refrigeracao':'refrigeração',
+  'ventilacao':'ventilação', 'climatizacao':'climatização',
+  'eletronica':'eletrônica', 'eletronico':'eletrônico', 'hodometro':'hodômetro',
+  'tacografo':'tacógrafo', 'bau':'baú', 'triangulo':'triângulo'
 };
 
 // Remove acentos pra usar como chave de busca (ex.: "informação" -> "informacao")

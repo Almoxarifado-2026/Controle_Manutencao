@@ -3261,8 +3261,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <thead>
         <tr style="background:#1e293b">
           <th style="padding:10px 12px;text-align:left;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">SERVIÇO</th>
+          <th style="padding:10px 12px;text-align:center;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">Nº OS</th>
           <th style="padding:10px 12px;text-align:left;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">PLACA</th>
-          <th style="padding:10px 12px;text-align:left;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">REBOQUE</th>
           <th style="padding:10px 12px;text-align:left;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">TIPO EQUIP.</th>
           <th style="padding:10px 12px;text-align:left;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">ENTRADA</th>
           <th style="padding:10px 12px;text-align:left;font-weight:700;color:#94a3b8;border-bottom:2px solid #334155;white-space:nowrap">SAÍDA</th>
@@ -3373,6 +3373,15 @@ document.addEventListener('DOMContentLoaded', () => {
           <button onclick="salvarConfigNotificacoes()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar configuração</button>
           <span id="notif-config-status" style="font-size:11px;color:#94a3b8"></span>
         </div>
+      </div>
+    </div>
+
+    <!-- Rotação de tela -->
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Rotação da tela</div>
+      <div style="display:flex;flex-direction:column;gap:6px;background:#1e293b;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Vale só neste aparelho/navegador. Funciona melhor se o app estiver instalado na tela inicial (⬇️ "Instalar App"); no navegador comum, alguns celulares podem não respeitar a trava.</div>
+        <div id="rotacao-tela-opcoes" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
     </div>
 
@@ -7636,6 +7645,17 @@ async function excluir(placa){
   if(!confirm('\u26a0\ufe0f EXCLUIR DEFINITIVAMENTE\n\nVeículo: ' + placa + '\n\nEsta ação não pode ser desfeita.\nO veículo será removido permanentemente do sistema e do Firebase.\n\nConfirmar exclusão?')) return;
   VEICULOS = VEICULOS.filter(v => v.placa !== placa);
   _veiculosPlacasTocadas.add(placa);
+  // Exclusão do veículo inteiro é o sinal mais claro de "não quero mais
+  // rastrear esta placa" — marca automaticamente como ignorada no aviso
+  // de "abastecimentos não reconhecidos" da aba Combustível, já que o
+  // histórico de abastecimento antigo dela é esperado continuar existindo
+  // sem isso ser tratado como um erro/pendência (ver renderCombustivel()).
+  if (typeof _placasDiagCombIgnoradas !== 'undefined') {
+    try {
+      _placasDiagCombIgnoradas.add(_normPlaca(placa));
+      localStorage.setItem('placas_diag_comb_ignoradas', JSON.stringify([..._placasDiagCombIgnoradas]));
+    } catch(e) {}
+  }
   popularTipos(); renderizar();
   if (typeof _timerFBVeiculos !== 'undefined' && _timerFBVeiculos) { clearTimeout(_timerFBVeiculos); _timerFBVeiculos = null; }
   mostrarIndicador('\u23f3 Excluindo ' + placa + '...', '#FCD34D');
@@ -11254,6 +11274,69 @@ async function salvarPlano() {
   window.addEventListener('offline', atualizarOffline);
   atualizarOffline();
 
+})();
+
+/* ══════════════════════════════════════════════════════
+   § 18b · ROTAÇÃO DE TELA (travar/liberar)
+   Usa a Screen Orientation API do navegador. Só funciona de verdade em:
+   - App instalado na tela inicial (modo "standalone"), OU
+   - Navegador em tela cheia (Fullscreen API)
+   Em aba comum de navegador, a maioria dos celulares IGNORA a trava
+   (limitação do próprio navegador, não tem como contornar via JS) — por
+   isso o aviso na tela orientando a instalar o app.
+   Preferência salva neste aparelho (localStorage), não sincroniza entre
+   dispositivos — é uma questão de tela física, não de dado do sistema.
+   ══════════════════════════════════════════════════════ */
+(function initRotacaoTela() {
+  const CHAVE = 'rotacao_tela_pref'; // 'any' | 'portrait' | 'landscape'
+  const OPCOES = [
+    { modo: 'any',       label: '🔓 Automática', lock: null },
+    { modo: 'portrait',  label: '📱 Travar Retrato', lock: 'portrait-primary' },
+    { modo: 'landscape', label: '💻 Travar Paisagem', lock: 'landscape-primary' },
+  ];
+
+  function lerPref() {
+    try { return localStorage.getItem(CHAVE) || 'any'; } catch(e) { return 'any'; }
+  }
+
+  async function aplicar(modo, avisar) {
+    try { localStorage.setItem(CHAVE, modo); } catch(e) {}
+    const opt = OPCOES.find(o => o.modo === modo) || OPCOES[0];
+    try {
+      if (!screen.orientation || !screen.orientation.lock) throw new Error('sem suporte');
+      if (opt.lock) {
+        await screen.orientation.lock(opt.lock);
+      } else if (screen.orientation.unlock) {
+        screen.orientation.unlock();
+      }
+      if (avisar) mostrarIndicador(`✅ Tela: ${opt.label.replace(/^[^\s]+\s/, '')}`, '#86efac');
+    } catch (e) {
+      // Falha esperada fora de PWA instalado/tela cheia — não é erro real,
+      // só a limitação do navegador descrita no comentário acima.
+      if (avisar) mostrarIndicador('⚠️ Seu navegador não permitiu travar aqui. Instale o app na tela inicial e tente de novo.', '#FCD34D');
+    }
+    render();
+  }
+
+  function render() {
+    const el = document.getElementById('rotacao-tela-opcoes');
+    if (!el) return;
+    const atual = lerPref();
+    el.innerHTML = OPCOES.map(o => `
+      <button onclick="_aplicarRotacaoTela('${o.modo}')" style="flex:1 1 auto;min-width:110px;background:${atual===o.modo?'#2563eb':'#0f172a'};color:#fff;border:1px solid ${atual===o.modo?'#3b82f6':'rgba(255,255,255,.15)'};border-radius:10px;padding:10px 12px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">${o.label}</button>
+    `).join('');
+  }
+
+  window._aplicarRotacaoTela = (modo) => aplicar(modo, true);
+
+  // Reaplica a preferência salva sempre que a página carrega (a trava do
+  // navegador não persiste sozinha entre sessões/recarregamentos).
+  aplicar(lerPref(), false);
+
+  // Re-renderiza os botões quando a página de Configurações é aberta,
+  // caso o DOM ainda não estivesse pronto na primeira chamada.
+  document.addEventListener('DOMContentLoaded', render);
+  setTimeout(render, 0);
 })();
 
 /* ══════════════════════════════════════════════════════
@@ -16588,6 +16671,29 @@ function ordComb(campo) {
 // ── Mostrar/ocultar selects de mês/ano ──
 // onChangePeriodoComb removida — filtro por data direto
 
+// ── Placas "ignoradas" no aviso de abastecimentos não reconhecidos ──
+// Quando um veículo é excluído de propósito de Troca de Óleo, Checklist ou
+// Documentos (ex.: vendido, baixado da frota), os abastecimentos antigos
+// dele continuam salvos (histórico financeiro válido), mas a placa deixa
+// de estar em placasValidas — e o aviso amarelo passava a acusar isso como
+// se fosse um erro/pendência, quando na verdade foi uma exclusão
+// intencional. Aqui o usuário pode marcar a placa como "sabia, não avisar
+// de novo" direto no aviso — fica salvo neste aparelho (localStorage).
+let _placasDiagCombIgnoradas = new Set();
+try { _placasDiagCombIgnoradas = new Set(JSON.parse(localStorage.getItem('placas_diag_comb_ignoradas') || '[]')); } catch(e) {}
+
+function _ignorarPlacaDiagComb(placa) {
+  _placasDiagCombIgnoradas.add(_normPlaca(placa));
+  try { localStorage.setItem('placas_diag_comb_ignoradas', JSON.stringify([..._placasDiagCombIgnoradas])); } catch(e) {}
+  renderCombustivel();
+}
+
+function _restaurarAvisosDiagComb() {
+  _placasDiagCombIgnoradas = new Set();
+  try { localStorage.removeItem('placas_diag_comb_ignoradas'); } catch(e) {}
+  renderCombustivel();
+}
+
 // ── Render principal ──
 function renderCombustivel() {
   if (!ABASTECIMENTOS.length && !_combSyncPendente) {
@@ -16690,7 +16796,10 @@ function renderCombustivel() {
   // aqui — esses são escolhas explícitas do usuário, não um bug.
   ABASTECIMENTOS.forEach(a => {
     if (!a || !a.placa) return;
-    if (!placasValidas.has(_normPlaca(a.placa))) { _diagPlacaInvalida.push(a.placa); return; }
+    if (!placasValidas.has(_normPlaca(a.placa))) {
+      if (!_placasDiagCombIgnoradas.has(_normPlaca(a.placa))) _diagPlacaInvalida.push(a.placa);
+      return;
+    }
     const dt = toDate(a.data);
     if (!dt || isNaN(dt)) _diagDataInvalida.push(`${a.placa} (${a.data || '—'})`);
   });
@@ -16705,14 +16814,27 @@ function renderCombustivel() {
       let html = `<div style="margin:0 18px 14px;background:#fef9c3;border:1px solid #fde047;border-left:4px solid #854d0e;border-radius:12px;padding:14px 16px">
         <div style="font-weight:800;color:#854d0e;font-size:13px;margin-bottom:6px">⚠️ Existem abastecimentos salvos que não estão sendo exibidos aqui</div>`;
       if (placasUnicas.length) {
-        html += `<div style="font-size:12px;color:#78350f;margin-bottom:4px">
-          <b>${placasUnicas.length} placa(s) não reconhecida(s)</b> — não estão cadastradas em Troca de Óleo, Checklist ou Documentos (como caminhão): <b>${placasUnicas.join(', ')}</b>.
+        html += `<div style="font-size:12px;color:#78350f;margin-bottom:8px">
+          <b>${placasUnicas.length} placa(s) não reconhecida(s)</b> — não estão cadastradas em Troca de Óleo, Checklist ou Documentos (como caminhão).
           Cadastre a placa em um desses módulos e reimporte a planilha (ou clique em "🔄 Forçar Atualização") pra ela aparecer.
+          Se o veículo foi vendido/baixado de propósito, clique em "🔕 Ignorar" pra parar de avisar sobre ele.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${placasUnicas.map(p => `<span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #fde047;border-radius:8px;padding:4px 6px 4px 10px;font-size:12px;font-weight:700;color:#78350f">
+            ${p}
+            <button onclick="_ignorarPlacaDiagComb('${p.replace(/'/g,"\\'")}')" title="Não avisar mais sobre esta placa" style="background:#fef3c7;border:1px solid #fde047;color:#854d0e;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">🔕 Ignorar</button>
+          </span>`).join('')}
         </div>`;
       }
       if (_diagDataInvalida.length) {
-        html += `<div style="font-size:12px;color:#78350f;margin-top:4px">
+        html += `<div style="font-size:12px;color:#78350f;margin-top:8px">
           <b>${_diagDataInvalida.length} registro(s) com data ilegível:</b> ${_diagDataInvalida.slice(0,8).join(', ')}${_diagDataInvalida.length>8?` e mais ${_diagDataInvalida.length-8}...`:''}.
+        </div>`;
+      }
+      if (_placasDiagCombIgnoradas.size) {
+        html += `<div style="font-size:11px;color:#a16207;margin-top:8px">
+          ${_placasDiagCombIgnoradas.size} placa(s) ignorada(s) neste aparelho: ${[..._placasDiagCombIgnoradas].join(', ')}.
+          <button onclick="_restaurarAvisosDiagComb()" style="background:none;border:none;color:#1D4ED8;text-decoration:underline;cursor:pointer;font-size:11px;padding:0">restaurar avisos</button>
         </div>`;
       }
       html += `</div>`;
@@ -20987,6 +21109,7 @@ function adicionarAoHistorico(registro) {
     reclamacao: registro.reclamacao,
     status: registro.status,
     mecanico: registro.mecanico || '',
+    numero_os: registro.numero_os || '', // ⚠️ faltava — sem isso o Nº OS sumia ao mover pro Histórico
   };
   HIST_MANUT.unshift(item);
   _histManutIdsTocados.add(item.id); // sem isso, o PATCH pro Firebase sai vazio e o registro finalizado nunca é gravado no servidor
@@ -21063,8 +21186,8 @@ function renderHistorico(lista) {
     const badge = `<span style="background:${info.cor}22;color:${info.corHeader};border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700">${info.icon} ${info.label.toUpperCase()}</span>`;
     return `<tr style="background:${bg};border-bottom:1px solid #e2e8f0">
       <td style="padding:10px 12px">${badge}</td>
+      <td style="padding:10px 12px;text-align:center;color:#7c3aed;font-weight:800;word-break:break-word">${r.numero_os||'—'}</td>
       <td style="padding:10px 12px;font-weight:800;color:#1B3A6D;word-break:break-word">${r.placa||'—'}</td>
-      <td style="padding:10px 12px;color:#0369a1;font-weight:700;word-break:break-word">${r.reboque||'—'}</td>
       <td style="padding:10px 12px;color:#64748b;word-break:break-word">${r.tipoEquip||'—'}</td>
       <td style="padding:10px 12px;font-size:10px;word-break:break-word">${fmtDT(r.entrada)}</td>
       <td style="padding:10px 12px;font-size:10px;color:#16a34a;font-weight:700;word-break:break-word">${fmtDT(r.saida)}</td>
@@ -21074,7 +21197,7 @@ function renderHistorico(lista) {
         <div style="background:#DCFCE7;color:#166534;border-radius:8px;padding:5px 10px;font-weight:600;word-break:break-word;line-height:1.5">${r.status||'—'}</div>
       </td>
       <td style="padding:10px 12px;text-align:center">
-        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <div class="edit-only" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
           <button onclick="restaurarDoHistorico('${r.id}')" style="background:#f1f5f9;color:#1B3A6D;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#f1f5f9'">↩️ Restaurar</button>
           <button onclick="excluirRegistroHist('${r.id}')" style="background:#FEF2F2;color:#DC2626;border:1px solid #fecaca;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#FEF2F2'">🗑 Excluir</button>
         </div>
@@ -21728,8 +21851,8 @@ function renderMobHist() {
     if (tds.length < 9) return '';
     const id      = idsPagina[i];
     const servico = tds[0].innerText.trim();
-    const placa   = tds[1].innerText.trim();
-    const reboque = tds[2].innerText.trim();
+    const numOs   = tds[1].innerText.trim();
+    const placa   = tds[2].innerText.trim();
     const tipo    = tds[3].innerText.trim();
     const entrada = tds[4].innerText.trim();
     const saida   = tds[5].innerText.trim();
@@ -21744,13 +21867,13 @@ function renderMobHist() {
       </div>
       <div class="mci-body">
         ${_mobField('Serviço', servico)}
-        ${_mobField('Reboque', reboque)}
+        ${_mobField('Nº OS', numOs)}
         ${_mobField('Entrada', entrada)}
         ${_mobField('Saída', saida)}
       </div>
       ${reclam && reclam !== '—' ? `<div class="mci-obs-wrap"><div class="mci-obs-label">Reclamação / OS</div><div class="mci-obs-txt">${reclam}</div></div>` : ''}
       ${status && status !== '—' ? `<div class="mci-obs-wrap" style="padding-top:0"><div class="mci-obs-label">Último Status</div><div class="mci-obs-txt status-chip-fixo" style="background:#dcfce7;color:#166534">${status}</div></div>` : ''}
-      ${id ? `<div style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid #f1f5f9">
+      ${id ? `<div class="edit-only" style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid #f1f5f9">
         <button onclick="restaurarDoHistorico('${id}')" style="flex:1;background:#f1f5f9;color:#1B3A6D;border:1px solid #cbd5e1;border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">↩️ Restaurar</button>
         <button onclick="excluirRegistroHist('${id}')" style="flex:1;background:#FEF2F2;color:#DC2626;border:1px solid #fecaca;border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Excluir</button>
       </div>` : ''}

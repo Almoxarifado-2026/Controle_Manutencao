@@ -3614,6 +3614,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <!-- Lista de placas existentes -->
     <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Frota cadastrada</div>
+    <div style="position:relative;margin-bottom:10px">
+      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;color:#94a3b8;pointer-events:none">🔎</span>
+      <input type="text" id="gp-busca" placeholder="Buscar placa ou tipo..." oninput="renderListaGP()"
+        style="width:100%;padding:9px 12px 9px 34px;border:1px solid #dbe4f0;border-radius:12px;font-size:13px;background:#f8fafc;text-transform:uppercase">
+    </div>
     <div id="gp-lista" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
 
     <div class="modal-btns" style="margin-top:18px">
@@ -18244,6 +18249,8 @@ function popularSelectAtrelar() {
 }
 
 function abrirGerenciarPlacas() {
+  const buscaEl = document.getElementById('gp-busca');
+  if (buscaEl) buscaEl.value = '';
   renderListaGP();
   cancelarEdicaoGP();
   popularTipos();
@@ -18267,8 +18274,17 @@ function renderListaGP() {
   const placasDoc = Object.values(PLACAS_DOC_EXTRA)
     .filter(p => !placasFrotaSet.has(p.placa) && !reboquesMap.has(p.placa))
     .map(p => ({ placa: p.placa, tipo: p.tipo || '—', fonte: 'doc', categoria: p.categoria === 'reboque' ? 'reboque' : 'caminhao' }));
-  const todas = [...placasVeiculo, ...reboquesMap.values(), ...placasDoc];
-  if (!todas.length) { lista.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">Nenhuma placa cadastrada</div>'; return; }
+  let todas = [...placasVeiculo, ...reboquesMap.values(), ...placasDoc];
+  const termoBusca = (document.getElementById('gp-busca')?.value || '').trim().toUpperCase();
+  if (termoBusca) {
+    todas = todas.filter(v => v.placa.toUpperCase().includes(termoBusca) || (v.tipo||'').toUpperCase().includes(termoBusca));
+  }
+  if (!todas.length) {
+    lista.innerHTML = termoBusca
+      ? `<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">🔎 Nenhuma placa encontrada para "${termoBusca}"</div>`
+      : '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">Nenhuma placa cadastrada</div>';
+    return;
+  }
   const corFundo = { frota:'#DCFCE7', checklist:'#EFF6FF', doc:'#F3E8FF' };
   const corTexto = { frota:'#166534', checklist:'#1D4ED8', doc:'#7C3AED' };
   const rotulo   = { frota:'FROTA', checklist:'REBOQUE', doc:'SÓ DOCUMENTOS' };

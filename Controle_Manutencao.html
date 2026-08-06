@@ -1657,16 +1657,16 @@ tbody td, thead th {
   max-height: min(96dvh, 100vh - 20px) !important;
   overflow: auto !important;
 }
-/* A partir de ~tablet, todos os modais passam a ocupar 75% da largura da
+/* A partir de ~tablet, todos os modais passam a ocupar 85% da largura da
    tela (pedido explícito — ficam bem maiores e mais fáceis de ler em
-   monitor/tablet). Abaixo disso (celular) mantém os 96vw acima: 75% de
+   monitor/tablet). Abaixo disso (celular) mantém os 96vw acima: 85% de
    uma tela de celular ficaria apertado demais pro conteúdo dos modais. */
 @media (min-width: 700px) {
   .modal,
   .modal-plano,
   .modal-hist,
   [role="dialog"] {
-    width: min(75vw, 1300px) !important;
+    width: min(85vw, 1300px) !important;
   }
 }
 .modal-plano-body,

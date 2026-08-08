@@ -6283,30 +6283,27 @@ function calcStatus(v) {
     v.km_falta_cambio = null;
   }
 
-  // STATUS MOTOR
-  if (!v.km_motor && !d)   { v.st_motor='—'; v.cor_motor='sem-dado'; }
-  else if (!v.km_motor) {
-    v.cor_motor = d>180?'vencido':d>150?'proximo':'ok';
-    v.st_motor  = d>180?'REVISÃO POR 180 DIAS':d>150?'PRÓXIMO DO VENCIMENTO':'EM DIA';
-  } else {
+  // STATUS MOTOR — agora só por KM (pedido explícito: "Dias sem Revisão"
+  // continua sendo calculado e mostrado na tela, mas só como informação —
+  // não entra mais na conta de vencido/próximo/em dia, que passa a
+  // depender 100% da quilometragem).
+  if (!v.km_motor && !km)  { v.st_motor='—'; v.cor_motor='sem-dado'; }
+  else if (!v.km_motor)    { v.st_motor='—'; v.cor_motor='sem-dado'; } // sem referência de km pra calcular
+  else {
     const f=v.km_falta_motor;
-    if (d>180)                          { v.st_motor='REVISÃO POR 180 DIAS';   v.cor_motor='vencido'; }
-    else if (f!==null && f<0)           { v.st_motor='REVISÃO POR KM';         v.cor_motor='vencido'; }
-    else if ((f!==null&&f<1000)||d>150) { v.st_motor='PRÓXIMO DO VENCIMENTO';  v.cor_motor='proximo'; }
-    else                                { v.st_motor='EM DIA';                 v.cor_motor='ok'; }
+    if (f!==null && f<0)         { v.st_motor='REVISÃO POR KM';        v.cor_motor='vencido'; }
+    else if (f!==null && f<1000) { v.st_motor='PRÓXIMO DO VENCIMENTO'; v.cor_motor='proximo'; }
+    else                          { v.st_motor='EM DIA';                v.cor_motor='ok'; }
   }
 
-  // STATUS CÂMBIO
-  if (!v.km_cambio && !d)  { v.st_cambio='—'; v.cor_cambio='sem-dado'; }
-  else if (!v.km_cambio) {
-    v.cor_cambio = d>365?'vencido':d>330?'proximo':'ok';
-    v.st_cambio  = d>365?'REVISÃO POR 1 ANO':d>330?'PRÓXIMO DO VENCIMENTO':'EM DIA';
-  } else {
+  // STATUS CÂMBIO — mesma regra, só por KM
+  if (!v.km_cambio && !km) { v.st_cambio='—'; v.cor_cambio='sem-dado'; }
+  else if (!v.km_cambio)   { v.st_cambio='—'; v.cor_cambio='sem-dado'; }
+  else {
     const f=v.km_falta_cambio;
-    if (d>365)                          { v.st_cambio='REVISÃO POR 1 ANO';       v.cor_cambio='vencido'; }
-    else if (f!==null && f<0)           { v.st_cambio='REVISÃO POR KM';          v.cor_cambio='vencido'; }
-    else if ((f!==null&&f<5000)||d>330) { v.st_cambio='PRÓXIMO DO VENCIMENTO';   v.cor_cambio='proximo'; }
-    else                                { v.st_cambio='EM DIA';                  v.cor_cambio='ok'; }
+    if (f!==null && f<0)         { v.st_cambio='REVISÃO POR KM';        v.cor_cambio='vencido'; }
+    else if (f!==null && f<5000) { v.st_cambio='PRÓXIMO DO VENCIMENTO'; v.cor_cambio='proximo'; }
+    else                          { v.st_cambio='EM DIA';                v.cor_cambio='ok'; }
   }
 }
 
@@ -15755,8 +15752,8 @@ function recalcVeiculos() {
     } else if (v.data_troca) {
       const dt = new Date(v.data_troca);
       const dias = Math.floor((hoje - dt) / 86400000);
-      v.dias = dias;
-      v.cor_motor = dias > 180 ? 'vencido' : dias > 150 ? 'proximo' : 'ok';
+      v.dias = dias; // fica só como informação — não decide mais o status
+      v.cor_motor = 'sem-dado'; // sem km_motor/km_atual não tem como calcular por KM
     } else { v.cor_motor = 'sem-dado'; }
     // Câmbio
     if (v.km_cambio && v.km_atual && v.interv_cambio) {

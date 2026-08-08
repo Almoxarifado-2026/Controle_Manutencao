@@ -19503,10 +19503,13 @@ function _renderTabela(lista, tbodyId) {
       onmouseover="this.style.background='#f0f6ff'"
       onmouseout="this.style.background='${bgRow}'">
       <td style="${TDSEC}">
-        <input type="text" value="${(r.numero_os||'').replace(/"/g,'&quot;')}" placeholder="—"
-          ${emEdicao ? '' : 'readonly'}
-          onchange="editarNumeroOSIndisp('${r.id}', this.value)"
-          style="width:100%;max-width:64px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;padding:4px 2px;font-size:10px;font-weight:700;color:#1B3A6D;background:${emEdicao?'#fff':'#f8fafc'}">
+        ${emEdicao
+          ? `<textarea placeholder="Uma OS por linha" onchange="editarNumeroOSIndisp('${r.id}', this.value)"
+               style="width:100%;max-width:110px;min-height:48px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:10px;font-weight:700;color:#1B3A6D;background:#fff;resize:vertical;font-family:inherit;line-height:1.5">${_listaOS(r.numero_os).join('\n').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>`
+          : (_listaOS(r.numero_os).length
+              ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:center" title="${(r.numero_os||'').replace(/"/g,'&quot;')}">${_listaOS(r.numero_os).map(n=>`<span style="background:#fff;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,.08);border-radius:10px;padding:6px 14px;font-size:12px;font-weight:800;color:#1D4ED8;white-space:nowrap">${n}</span>`).join('')}</div>`
+              : `<span style="color:#94a3b8;font-size:11px">—</span>`)
+        }
       </td>
       <td style="${TDSEC};font-weight:800;color:#1B3A6D;font-size:12px;white-space:nowrap">${r.placa||'—'}</td>
       <td style="${TDSEC};color:#475569;font-weight:500">${r.tipoEquip||'—'}</td>
@@ -19650,6 +19653,13 @@ function _infoServico(tipo) {
   if (t === 'solda')   return { icon: '🔥', label: 'Serviço de Solda',   cor: '#EA580C', corHeader: '#c2410c' };
   if (t === 'externo') return { icon: '🔧', label: 'Serviço Externo',    cor: '#D97706', corHeader: '#b45309' };
   return                      { icon: '🏭', label: 'Serviço Interno',    cor: '#1D4ED8', corHeader: '#1e3a8a' };
+}
+
+/* Separa o texto do campo "Nº OS" em uma lista de números individuais.
+   Aceita registros antigos digitados como "6910 / 6667" (separados por
+   barra) e novos digitados um por linha — sempre normaliza pra lista. */
+function _listaOS(str) {
+  return (str || '').split(/[\n,/]+/).map(s => s.trim()).filter(Boolean);
 }
 
 /* Retorna a lista de status de "Previsão de Liberação" marcados num
@@ -20700,7 +20710,7 @@ function gerarRelatorioIndisp() {
     bloco += `${'─'.repeat(35)}\n`;
     lista.forEach(r => {
       bloco += `\n🚛 *${r.placa}*${r.reboque ? ' + ' + r.reboque : ''}\n`;
-      if (r.numero_os) bloco += `🔢 Nº OS: ${r.numero_os}\n`;
+      if (r.numero_os) bloco += `🔢 Nº OS: ${_listaOS(r.numero_os).join(' / ')}\n`;
       bloco += `🔩 ${r.tipoEquip || '—'} | ${r.tipoManut || '—'}\n`;
       bloco += `📥 Entrada: ${fmtDT(r.entrada)}\n`;
       bloco += `📤 Saída: ${r.saida ? fmtDT(r.saida) : 'EM MANUTENÇÃO'}\n`;
@@ -21306,7 +21316,7 @@ function renderHistorico(lista) {
     const badge = `<span style="background:${info.cor}22;color:${info.corHeader};border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700">${info.icon} ${info.label.toUpperCase()}</span>`;
     return `<tr style="background:${bg};border-bottom:1px solid #e2e8f0">
       <td style="padding:10px 12px">${badge}</td>
-      <td style="padding:10px 12px;text-align:center;color:#7c3aed;font-weight:800;word-break:break-word">${r.numero_os||'—'}</td>
+      <td style="padding:10px 12px;text-align:center;word-break:break-word">${_listaOS(r.numero_os).length ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:center">${_listaOS(r.numero_os).map(n=>`<span style="background:#fff;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,.08);border-radius:10px;padding:6px 14px;font-size:12px;font-weight:800;color:#1D4ED8;white-space:nowrap">${n}</span>`).join('')}</div>` : '<span style="color:#94a3b8">—</span>'}</td>
       <td style="padding:10px 12px;font-weight:800;color:#1B3A6D;word-break:break-word">${r.placa||'—'}</td>
       <td style="padding:10px 12px;color:#64748b;word-break:break-word">${r.tipoEquip||'—'}</td>
       <td style="padding:10px 12px;font-size:10px;word-break:break-word">${fmtDT(r.entrada)}</td>
@@ -21909,7 +21919,7 @@ function renderMobIndisp() {
         <div style="background:${corHeader};padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="color:#fff;font-weight:800;font-size:15px;letter-spacing:.5px">${r.placa||'—'}</div>
-            ${r.numero_os ? `<div style="color:rgba(255,255,255,.85);font-size:11px">🔢 OS: ${r.numero_os}</div>` : ''}
+            ${r.numero_os ? `<div style="color:rgba(255,255,255,.85);font-size:11px">🔢 OS: ${_listaOS(r.numero_os).join(' · ')}</div>` : ''}
             ${r.reboque ? `<div style="color:rgba(255,255,255,.7);font-size:11px">🔗 ${r.reboque}</div>` : ''}
           </div>
           <div style="background:rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:4px 10px;font-size:12px;font-weight:700">⏱ ${hrs}</div>

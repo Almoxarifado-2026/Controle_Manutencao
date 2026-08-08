@@ -15841,7 +15841,7 @@ function renderIndisp() {
     if (r.em_diagnostico) itens.push(\`<span class="tv-prev-badge" style="background:#EDE9FE;color:#5B21B6">🔍 Diagnóstico</span>\`);
     if (r.em_orcamento)   itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">💰 Orçamento</span>\`);
     if (r.em_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#E0F2FE;color:#0369a1">📦 Aguard. Peça</span>\`);
-    if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.65);color:#FFFFFF">🛠️ Em Execução</span>\`);
+    if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.12);color:#000000">🛠️ Em Execução</span>\`);
     if (r.em_liberado)    itens.push(\`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`);
     if (r.prev_lib)       itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">\${fmtDT(r.prev_lib)}</span>\`);
     if (!itens.length) return \`<span style="color:#64748b">—</span>\`;
@@ -19606,11 +19606,11 @@ function onPrevTipoChange() {
   if (lblPeca) { lblPeca.style.borderColor = isPeca ? '#0284C7' : '#dbe4f0'; lblPeca.style.background = isPeca ? '#E0F2FE' : '#f8fafc'; }
   if (lblExec) {
     lblExec.style.borderColor = isExec ? '#000000' : '#dbe4f0';
-    lblExec.style.background  = isExec ? 'rgba(0,0,0,.65)' : '#f8fafc';
+    lblExec.style.background  = isExec ? 'rgba(0,0,0,.12)' : '#f8fafc';
     const t1 = document.getElementById('label-execucao-txt1');
     const t2 = document.getElementById('label-execucao-txt2');
-    if (t1) t1.style.color = isExec ? '#FFFFFF' : '#475569';
-    if (t2) t2.style.color = isExec ? '#e5e7eb' : '#94a3b8';
+    if (t1) t1.style.color = isExec ? '#000000' : '#475569';
+    if (t2) t2.style.color = isExec ? '#374151' : '#94a3b8';
   }
   if (lblLib)  { lblLib.style.borderColor  = isLib  ? '#16A34A' : '#dbe4f0'; lblLib.style.background  = isLib  ? '#DCFCE7' : '#f8fafc'; }
 
@@ -19662,7 +19662,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_diagnostico) itens.push({ icon:'🔍', label:'Em Diagnóstico',        labelCurta:'Diagnóstico', cor:'#5B21B6', bg:'#EDE9FE' });
   if (r.em_orcamento)   itens.push({ icon:'💰', label:'Aguardando Orçamento',  labelCurta:'Orçamento',   cor:'#D97706', bg:'#FEF3C7' });
   if (r.em_peca)        itens.push({ icon:'📦', label:'Aguardando Peça',       labelCurta:'Aguard. Peça',cor:'#0369a1', bg:'#E0F2FE' });
-  if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#FFFFFF', bg:'rgba(0,0,0,.65)' });
+  if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#000000', bg:'rgba(0,0,0,.12)' });
   if (r.em_liberado)    itens.push({ icon:'✅', label:'Liberado (aguard. motorista)', labelCurta:'Liberado', cor:'#15803d', bg:'#DCFCE7' });
   if (r.prev_lib)       itens.push({ icon:'📅', label: fmtDT(r.prev_lib),      labelCurta: fmtDT(r.prev_lib), cor:'#92400e', bg:'#FEF3C7' });
   return itens;
@@ -21897,7 +21897,7 @@ function renderMobIndisp() {
       if (r.em_diagnostico) prevItens.push(`<span style="background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔍 Em Diagnóstico</span>`);
       if (r.em_orcamento)   prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 Aguard. Orçamento</span>`);
       if (r.em_peca)        prevItens.push(`<span style="background:#E0F2FE;color:#0369a1;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📦 Aguard. Peça</span>`);
-      if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.65);color:#FFFFFF;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
+      if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.12);color:#000000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
       if (r.em_liberado)    prevItens.push(`<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`);
       if (r.prev_lib)       prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📅 ${fmtDtLocal(r.prev_lib)}</span>`);
       const prevHtml = prevItens.length

@@ -3494,35 +3494,35 @@ document.addEventListener('DOMContentLoaded', () => {
         <input type="text" id="indisp-mecanico" placeholder="Ex: João Silva" style="text-transform:uppercase" spellcheck="false">
       </div>
       <div class="full">
-        <label>📅 Previsão de Liberação</label>
+        <label>📅 Previsão de Liberação <span style="text-transform:none;font-weight:400;color:#94a3b8;font-size:11px">(pode marcar mais de uma)</span></label>
         <div style="display:flex;flex-direction:column;gap:8px">
           <!-- Opção 1: data -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-prev-data">
-            <input type="radio" name="indisp-prev-tipo" value="data" id="indisp-prev-tipo-data" onchange="onPrevTipoChange()" checked style="accent-color:#1D4ED8;width:16px;height:16px;cursor:pointer">
+            <input type="checkbox" id="indisp-prev-tipo-data" onchange="onPrevTipoChange()" checked style="accent-color:#1D4ED8;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#1D4ED8;white-space:nowrap">📅 Data prevista:</span>
             <input type="datetime-local" id="indisp-prev-lib" style="flex:1;padding:6px 10px;border:1px solid #dbe4f0;border-radius:10px;font-size:13px;background:#fff;min-width:0">
           </label>
           <!-- Opção 2: diagnóstico -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-diagnostico">
-            <input type="radio" name="indisp-prev-tipo" value="diagnostico" id="indisp-diagnostico" onchange="onPrevTipoChange()" style="accent-color:#7C3AED;width:16px;height:16px;cursor:pointer">
+            <input type="checkbox" id="indisp-diagnostico" onchange="onPrevTipoChange()" style="accent-color:#7C3AED;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#475569">🔍 Em Diagnóstico</span>
             <span style="font-size:12px;color:#94a3b8">(aguardando avaliação)</span>
           </label>
           <!-- Opção 3: aguardando orçamento -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-orcamento">
-            <input type="radio" name="indisp-prev-tipo" value="orcamento" id="indisp-orcamento" onchange="onPrevTipoChange()" style="accent-color:#D97706;width:16px;height:16px;cursor:pointer">
+            <input type="checkbox" id="indisp-orcamento" onchange="onPrevTipoChange()" style="accent-color:#D97706;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#475569">💰 Aguardando Orçamento</span>
             <span style="font-size:12px;color:#94a3b8">(pendente aprovação)</span>
           </label>
           <!-- Opção 4: aguardando peça -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-peca">
-            <input type="radio" name="indisp-prev-tipo" value="peca" id="indisp-peca" onchange="onPrevTipoChange()" style="accent-color:#0284C7;width:16px;height:16px;cursor:pointer">
+            <input type="checkbox" id="indisp-peca" onchange="onPrevTipoChange()" style="accent-color:#0284C7;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#475569">📦 Aguardando Peça</span>
             <span style="font-size:12px;color:#94a3b8">(aguardando chegada)</span>
           </label>
           <!-- Opção 5: liberado -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-liberado">
-            <input type="radio" name="indisp-prev-tipo" value="liberado" id="indisp-liberado" onchange="onPrevTipoChange()" style="accent-color:#16A34A;width:16px;height:16px;cursor:pointer">
+            <input type="checkbox" id="indisp-liberado" onchange="onPrevTipoChange()" style="accent-color:#16A34A;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#475569">✅ Liberado</span>
             <span style="font-size:12px;color:#94a3b8">(aguardando motorista buscar)</span>
           </label>
@@ -15828,12 +15828,14 @@ function renderIndisp() {
 
   // ── helpers ──
   function prevBadge(r) {
-    if (r.em_liberado)    return \`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`;
-    if (r.em_diagnostico) return \`<span class="tv-prev-badge" style="background:#EDE9FE;color:#5B21B6">🔍 Em Diagnóstico</span>\`;
-    if (r.em_orcamento)   return \`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">💰 Aguard. Orçamento</span>\`;
-    if (r.em_peca)        return \`<span class="tv-prev-badge" style="background:#E0F2FE;color:#0369a1">📦 Aguard. Peça</span>\`;
-    if (r.prev_lib)       return \`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">\${fmtDT(r.prev_lib)}</span>\`;
-    return \`<span style="color:#64748b">—</span>\`;
+    const itens = [];
+    if (r.em_diagnostico) itens.push(\`<span class="tv-prev-badge" style="background:#EDE9FE;color:#5B21B6">🔍 Diagnóstico</span>\`);
+    if (r.em_orcamento)   itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">💰 Orçamento</span>\`);
+    if (r.em_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#E0F2FE;color:#0369a1">📦 Aguard. Peça</span>\`);
+    if (r.em_liberado)    itens.push(\`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`);
+    if (r.prev_lib)       itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">\${fmtDT(r.prev_lib)}</span>\`);
+    if (!itens.length) return \`<span style="color:#64748b">—</span>\`;
+    return \`<div style="display:flex;flex-wrap:wrap;gap:3px">\${itens.join('')}</div>\`;
   }
   function mecBadge(r) {
     return r.mecanico ? \`<span class="tv-mec-badge">\${r.mecanico}</span>\` : \`<span style="color:#64748b;font-size:12px">—</span>\`;
@@ -19520,18 +19522,7 @@ function _renderTabela(lista, tbodyId) {
         }
       </td>
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center;white-space:nowrap">
-        ${r.em_liberado
-          ? `<div style="background:#DCFCE7;color:#15803d;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap">✅ Liberado</div>`
-          : r.em_diagnostico
-            ? `<div style="background:#EDE9FE;color:#5B21B6;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap">🔍 Em Diagnóstico</div>`
-            : r.em_orcamento
-              ? `<div style="background:#FEF3C7;color:#92400e;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap">💰 Aguard. Orçamento</div>`
-              : r.em_peca
-                ? `<div style="background:#E0F2FE;color:#0369a1;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap">📦 Aguard. Peça</div>`
-              : r.prev_lib
-                ? `<div style="background:#FEF3C7;color:#92400e;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700">📅 ${fmtDT(r.prev_lib)}</div>`
-                : `<span style="color:#94a3b8;font-size:11px">—</span>`
-        }
+        ${_previsaoLiberacaoBadgesHTML(r, {justify:'center', fontSize:'11px', padding:'5px 10px', vazio:'<span style="color:#94a3b8;font-size:11px">—</span>'})}
       </td>
       <td style="${TDC};white-space:nowrap;min-width:110px">
         <button class="edit-only" onclick="editarIndisp('${r.id}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px">✏️</button>
@@ -19543,6 +19534,7 @@ function _renderTabela(lista, tbodyId) {
 
 
 function onPrevTipoChange() {
+  const isData  = document.getElementById('indisp-prev-tipo-data').checked;
   const isDiag  = document.getElementById('indisp-diagnostico').checked;
   const isOrc   = document.getElementById('indisp-orcamento')  && document.getElementById('indisp-orcamento').checked;
   const isPeca  = document.getElementById('indisp-peca')       && document.getElementById('indisp-peca').checked;
@@ -19554,22 +19546,21 @@ function onPrevTipoChange() {
   const lblPeca = document.getElementById('label-peca');
   const lblLib  = document.getElementById('label-liberado');
 
-  // Resetar todos
-  [lblData, lblDiag, lblOrc, lblPeca, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  // Cada opção agora liga/desliga o próprio destaque de forma independente
+  // (pode marcar quantas quiser ao mesmo tempo — ex.: "Aguardando Peça" +
+  // uma "Data prevista" pro retorno, ou "Em Diagnóstico" + "Aguardando
+  // Orçamento" juntos).
+  if (lblData) { lblData.style.borderColor = isData ? '#1D4ED8' : '#dbe4f0'; lblData.style.background = isData ? '#EFF6FF' : '#f8fafc'; }
+  if (lblDiag) { lblDiag.style.borderColor = isDiag ? '#7C3AED' : '#dbe4f0'; lblDiag.style.background = isDiag ? '#EDE9FE' : '#f8fafc'; }
+  if (lblOrc)  { lblOrc.style.borderColor  = isOrc  ? '#D97706' : '#dbe4f0'; lblOrc.style.background  = isOrc  ? '#FEF3C7' : '#f8fafc'; }
+  if (lblPeca) { lblPeca.style.borderColor = isPeca ? '#0284C7' : '#dbe4f0'; lblPeca.style.background = isPeca ? '#E0F2FE' : '#f8fafc'; }
+  if (lblLib)  { lblLib.style.borderColor  = isLib  ? '#16A34A' : '#dbe4f0'; lblLib.style.background  = isLib  ? '#DCFCE7' : '#f8fafc'; }
 
-  if (isDiag || isOrc || isPeca || isLib) {
-    inp.value = '';
-    inp.disabled = true;
-    inp.style.opacity = '0.35';
-    if (isDiag && lblDiag) { lblDiag.style.borderColor='#7C3AED'; lblDiag.style.background='#EDE9FE'; }
-    if (isOrc  && lblOrc)  { lblOrc.style.borderColor ='#D97706'; lblOrc.style.background ='#FEF3C7'; }
-    if (isPeca && lblPeca) { lblPeca.style.borderColor='#0284C7'; lblPeca.style.background='#E0F2FE'; }
-    if (isLib  && lblLib)  { lblLib.style.borderColor ='#16A34A'; lblLib.style.background ='#DCFCE7'; }
-  } else {
-    inp.disabled = false;
-    inp.style.opacity = '1';
-    if (lblData) { lblData.style.borderColor='#1D4ED8'; lblData.style.background='#EFF6FF'; }
-  }
+  // O campo de data só fica editável quando a própria opção "Data prevista"
+  // está marcada — independente do que mais estiver marcado junto.
+  inp.disabled = !isData;
+  inp.style.opacity = isData ? '1' : '0.35';
+  if (!isData) inp.value = '';
 }
 
 function _resetDiagnostico() {
@@ -19596,6 +19587,40 @@ function _infoServico(tipo) {
   if (t === 'solda')   return { icon: '🔥', label: 'Serviço de Solda',   cor: '#EA580C', corHeader: '#c2410c' };
   if (t === 'externo') return { icon: '🔧', label: 'Serviço Externo',    cor: '#D97706', corHeader: '#b45309' };
   return                      { icon: '🏭', label: 'Serviço Interno',    cor: '#1D4ED8', corHeader: '#1e3a8a' };
+}
+
+/* Retorna a lista de status de "Previsão de Liberação" marcados num
+   registro de Indisponível — pode ser MAIS DE UM ao mesmo tempo (ex.:
+   "Aguardando Peça" + uma data prevista de retorno). Centraliza a lógica
+   pra não repetir o mesmo ternário em cada lugar que exibe esse campo
+   (tabela, cards mobile, painel de TV, PDF, WhatsApp). */
+function _previsaoLiberacaoItens(r) {
+  const itens = [];
+  if (r.em_diagnostico) itens.push({ icon:'🔍', label:'Em Diagnóstico',        labelCurta:'Diagnóstico', cor:'#5B21B6', bg:'#EDE9FE' });
+  if (r.em_orcamento)   itens.push({ icon:'💰', label:'Aguardando Orçamento',  labelCurta:'Orçamento',   cor:'#D97706', bg:'#FEF3C7' });
+  if (r.em_peca)        itens.push({ icon:'📦', label:'Aguardando Peça',       labelCurta:'Aguard. Peça',cor:'#0369a1', bg:'#E0F2FE' });
+  if (r.em_liberado)    itens.push({ icon:'✅', label:'Liberado (aguard. motorista)', labelCurta:'Liberado', cor:'#15803d', bg:'#DCFCE7' });
+  if (r.prev_lib)       itens.push({ icon:'📅', label: fmtDT(r.prev_lib),      labelCurta: fmtDT(r.prev_lib), cor:'#92400e', bg:'#FEF3C7' });
+  return itens;
+}
+
+/* Versão em texto simples (pra WhatsApp, PDF, exports) — junta todos os
+   status marcados com " + ". Se nada estiver marcado, devolve '—'. */
+function _previsaoLiberacaoTexto(r) {
+  const itens = _previsaoLiberacaoItens(r);
+  return itens.length ? itens.map(i => `${i.icon} ${i.label}`).join(' + ') : '—';
+}
+
+/* Versão em HTML — vários selinhos pequenos lado a lado. */
+function _previsaoLiberacaoBadgesHTML(r, opts) {
+  opts = opts || {};
+  const itens = _previsaoLiberacaoItens(r);
+  if (!itens.length) return opts.vazio !== undefined ? opts.vazio : '—';
+  const fs = opts.fontSize || '9px';
+  const pad = opts.padding || '2px 6px';
+  return `<div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:${opts.justify||'flex-start'}">` +
+    itens.map(i => `<span style="background:${i.bg};color:${i.cor};border-radius:5px;padding:${pad};font-size:${fs};font-weight:700;white-space:nowrap">${i.icon} ${opts.curto ? i.labelCurta : i.label}</span>`).join('') +
+    `</div>`;
 }
 
 // ── Editor de múltiplas ETAPAS do serviço (Reclamação/OS + Status por etapa) ──
@@ -19701,23 +19726,15 @@ function editarIndisp(id) {
   }
   _renderIndispEtapasForm();
   document.getElementById('indisp-mecanico').value = r.mecanico || '';
-  document.getElementById('indisp-prev-lib').value = (r.em_diagnostico || r.em_orcamento || r.em_peca || r.em_liberado) ? '' : (r.prev_lib || '');
-  _resetDiagnostico();
-  if (r.em_diagnostico) {
-    document.getElementById('indisp-diagnostico').checked = true;
-    onPrevTipoChange();
-  } else if (r.em_orcamento) {
-    document.getElementById('indisp-orcamento').checked = true;
-    onPrevTipoChange();
-  } else if (r.em_peca) {
-    document.getElementById('indisp-peca').checked = true;
-    onPrevTipoChange();
-  } else if (r.em_liberado) {
-    document.getElementById('indisp-liberado').checked = true;
-    onPrevTipoChange();
-  } else {
-    onPrevTipoChange();
-  }
+  document.getElementById('indisp-prev-lib').value = r.prev_lib || '';
+  // Marca cada checkbox independentemente, conforme o que estiver salvo —
+  // um registro pode ter várias opções marcadas ao mesmo tempo agora.
+  document.getElementById('indisp-prev-tipo-data').checked = !!(r.prev_lib);
+  document.getElementById('indisp-diagnostico').checked    = !!r.em_diagnostico;
+  document.getElementById('indisp-orcamento').checked      = !!r.em_orcamento;
+  document.getElementById('indisp-peca').checked           = !!r.em_peca;
+  document.getElementById('indisp-liberado').checked       = !!r.em_liberado;
+  onPrevTipoChange();
   document.getElementById('overlay-indisp').classList.add('open');
 }
 
@@ -20390,12 +20407,13 @@ function imprimirPDFIndisp() {
   const solda   = INDISPONIVEIS.filter(r => r && r.servico === 'solda'   && !_saidaValida(r.saida));
 
   function fmtPrev(r) {
-    if (r.em_liberado)    return 'Liberado (Aguard. motorista)';
-    if (r.em_diagnostico) return 'Em Diagnostico';
-    if (r.em_orcamento)   return 'Aguard. Orcamento';
-    if (r.em_peca)        return 'Aguard. Peca';
-    if (r.prev_lib)       return fmtDT(r.prev_lib);
-    return '—';
+    const itens = [];
+    if (r.em_diagnostico) itens.push('Em Diagnostico');
+    if (r.em_orcamento)   itens.push('Aguard. Orcamento');
+    if (r.em_peca)        itens.push('Aguard. Peca');
+    if (r.em_liberado)    itens.push('Liberado (Aguard. motorista)');
+    if (r.prev_lib)       itens.push(fmtDT(r.prev_lib));
+    return itens.length ? itens.join(' + ') : '—';
   }
 
   function fmtEntrada(dt) {
@@ -20624,7 +20642,7 @@ function gerarRelatorioIndisp() {
         if (r.status) bloco += `📌 Status: ${r.status}\n`;
       }
       if (r.mecanico) bloco += `🔧 Mecânico: ${r.mecanico}\n`;
-      bloco += `📅 Previsão: ${r.em_liberado ? '✅ Liberado (Aguard. motorista buscar)' : r.em_diagnostico ? '🔍 Em Diagnóstico' : r.em_orcamento ? '💰 Aguardando Orçamento' : r.em_peca ? '📦 Aguardando Peça' : r.prev_lib ? fmtDT(r.prev_lib) : 'Não informada'}\n`;
+      bloco += `📅 Previsão: ${_previsaoLiberacaoTexto(r) === '—' ? 'Não informada' : _previsaoLiberacaoTexto(r)}\n`;
     });
     return bloco + '\n';
   }
@@ -20711,7 +20729,7 @@ async function capturarTelaIndisp() {
           <td style="padding:5px 8px;font-size:9px;color:#374151;text-align:center;word-break:break-word;line-height:1.3">${r.reclamacao||'—'}</td>
           <td style="padding:5px 8px;font-size:9px;color:#64748b;text-align:center;white-space:nowrap">${r.tipoManut||'—'}</td>
           <td style="padding:5px 8px;font-size:9px;text-align:center"><div style="background:${semSaida?'#FEF3C7':'#DCFCE7'};color:${semSaida?'#92400e':'#166534'};border-radius:6px;padding:3px 7px;font-size:9px;font-weight:600;line-height:1.4;word-break:break-word;text-align:center">${r.status||'—'}</div></td>
-          <td style="padding:5px 8px;font-size:9px;text-align:center;white-space:nowrap">${r.em_liberado?`<div style="background:#DCFCE7;color:#15803d;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700">✅ Liberado</div>`:r.em_diagnostico?`<div style="background:#EDE9FE;color:#5B21B6;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700">🔍 Diagnóstico</div>`:r.em_orcamento?`<div style="background:#FEF3C7;color:#D97706;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700">💰 Orçamento</div>`:r.em_peca?`<div style="background:#E0F2FE;color:#0369a1;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700">📦 Aguard. Peça</div>`:r.prev_lib?`<div style="background:#FEF3C7;color:#92400e;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700">📅 ${fmtDT(r.prev_lib)}</div>`:'—'}</td>
+          <td style="padding:5px 8px;font-size:9px;text-align:center;white-space:nowrap">${_previsaoLiberacaoBadgesHTML(r, {curto:true, justify:'center'})}</td>
         </tr>`;
       }).join('');
     }
@@ -21801,13 +21819,15 @@ function renderMobIndisp() {
       const fmtDtLocal = dt => dt ? dt.replace('T',' ').slice(0,16) : '—';
 
       // Previsão
-      let prevHtml;
-      if (r.em_liberado)       prevHtml = `<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`;
-      else if (r.em_diagnostico) prevHtml = `<span style="background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔍 Em Diagnóstico</span>`;
-      else if (r.em_orcamento)   prevHtml = `<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 Aguard. Orçamento</span>`;
-      else if (r.em_peca)        prevHtml = `<span style="background:#E0F2FE;color:#0369a1;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📦 Aguard. Peça</span>`;
-      else if (r.prev_lib)     prevHtml = `<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📅 ${fmtDtLocal(r.prev_lib)}</span>`;
-      else                     prevHtml = `<span style="color:#94a3b8">—</span>`;
+      const prevItens = [];
+      if (r.em_diagnostico) prevItens.push(`<span style="background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔍 Em Diagnóstico</span>`);
+      if (r.em_orcamento)   prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 Aguard. Orçamento</span>`);
+      if (r.em_peca)        prevItens.push(`<span style="background:#E0F2FE;color:#0369a1;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📦 Aguard. Peça</span>`);
+      if (r.em_liberado)    prevItens.push(`<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`);
+      if (r.prev_lib)       prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📅 ${fmtDtLocal(r.prev_lib)}</span>`);
+      const prevHtml = prevItens.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${prevItens.join('')}</div>`
+        : `<span style="color:#94a3b8">—</span>`;
 
       return `<div style="background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(15,23,42,.1);margin-bottom:12px;overflow:hidden">
         <!-- cabeçalho -->

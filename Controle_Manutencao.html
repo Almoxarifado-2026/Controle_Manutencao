@@ -3490,8 +3490,14 @@ document.addEventListener('DOMContentLoaded', () => {
         <div id="indisp-etapas-container" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <div class="full">
-        <label>🔧 Mecânico Responsável</label>
-        <input type="text" id="indisp-mecanico" placeholder="Ex: João Silva" style="text-transform:uppercase" spellcheck="false">
+        <label>🔧 Mecânico(s) Responsável(is) <span style="text-transform:none;font-weight:400;color:#94a3b8;font-size:11px">(pode adicionar mais de um — cada um numa etapa diferente)</span></label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="indisp-mecanico-input" placeholder="Ex: João Silva" style="text-transform:uppercase;flex:1" spellcheck="false"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();_indispMecanicoAdicionar();}">
+          <button type="button" onclick="_indispMecanicoAdicionar()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">+ Adicionar</button>
+        </div>
+        <div id="indisp-mecanico-lista" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <input type="hidden" id="indisp-mecanico">
       </div>
       <div class="full">
         <label>📅 Previsão de Liberação <span style="text-transform:none;font-weight:400;color:#94a3b8;font-size:11px">(pode marcar mais de uma)</span></label>
@@ -19537,6 +19543,44 @@ function _renderTabela(lista, tbodyId) {
 }
 
 
+// ── Lista de mecânicos responsáveis (chips) — guarda como string separada
+// por vírgula no campo oculto #indisp-mecanico, pra não precisar mudar
+// nenhum outro lugar do sistema que já lê r.mecanico como texto (tabela,
+// cards, WhatsApp, PDF, painel de TV continuam funcionando sem alteração,
+// só que agora podem mostrar "PEDRO, JOÃO" em vez de só um nome). ──
+function _indispMecanicoLerLista() {
+  const raw = document.getElementById('indisp-mecanico').value || '';
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+function _indispMecanicoRenderLista() {
+  const lista = _indispMecanicoLerLista();
+  const el = document.getElementById('indisp-mecanico-lista');
+  if (!el) return;
+  el.innerHTML = lista.length
+    ? lista.map(nome => `
+      <span style="display:inline-flex;align-items:center;gap:6px;background:#EFF6FF;border:1px solid #bfdbfe;color:#1D4ED8;border-radius:20px;padding:5px 6px 5px 12px;font-size:12px;font-weight:700">
+        🔧 ${nome}
+        <button type="button" onclick="_indispMecanicoRemover('${nome.replace(/'/g,"\\'")}')" title="Remover" style="background:#1D4ED8;border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0">✕</button>
+      </span>`).join('')
+    : `<span style="font-size:12px;color:#94a3b8">Nenhum mecânico adicionado ainda</span>`;
+}
+function _indispMecanicoAdicionar() {
+  const inp = document.getElementById('indisp-mecanico-input');
+  const nome = inp.value.trim().toUpperCase();
+  if (!nome) return;
+  const lista = _indispMecanicoLerLista();
+  if (!lista.includes(nome)) lista.push(nome);
+  document.getElementById('indisp-mecanico').value = lista.join(', ');
+  inp.value = '';
+  _indispMecanicoRenderLista();
+  inp.focus();
+}
+function _indispMecanicoRemover(nome) {
+  const lista = _indispMecanicoLerLista().filter(n => n !== nome);
+  document.getElementById('indisp-mecanico').value = lista.join(', ');
+  _indispMecanicoRenderLista();
+}
+
 function onPrevTipoChange() {
   const isData  = document.getElementById('indisp-prev-tipo-data').checked;
   const isDiag  = document.getElementById('indisp-diagnostico').checked;
@@ -19693,7 +19737,8 @@ function abrirModalIndisp(tipoServico) {
   document.getElementById('indisp-edit-tipo').value = tipoServico;
   document.getElementById('indisp-edit-id').value = '';
   document.getElementById('indisp-btn-excluir').style.display = 'none';
-  ['indisp-placa','indisp-reboque','indisp-mecanico','indisp-prev-lib','indisp-numero-os'].forEach(id => document.getElementById(id).value = '');
+  ['indisp-placa','indisp-reboque','indisp-mecanico','indisp-mecanico-input','indisp-prev-lib','indisp-numero-os'].forEach(id => document.getElementById(id).value = '');
+  _indispMecanicoRenderLista();
   _indispEtapasEdit = [{ reclamacao: '', status: '', concluida: false }];
   _renderIndispEtapasForm();
   _resetDiagnostico();
@@ -19735,6 +19780,7 @@ function editarIndisp(id) {
   }
   _renderIndispEtapasForm();
   document.getElementById('indisp-mecanico').value = r.mecanico || '';
+  _indispMecanicoRenderLista();
   document.getElementById('indisp-prev-lib').value = r.prev_lib || '';
   // Marca cada checkbox independentemente, conforme o que estiver salvo —
   // um registro pode ter várias opções marcadas ao mesmo tempo agora.
@@ -19757,6 +19803,11 @@ function fecharModalIndisp() {
    Persiste no Firebase via salvarIndisponiveisLS(). */
 function salvarIndisp() {
   if (!_checkEdicao()) return;
+  // Se a pessoa digitou um nome no campo de mecânico mas esqueceu de
+  // clicar em "+ Adicionar" (ou apertar Enter) antes de Salvar, adiciona
+  // esse nome pendente automaticamente pra não se perder.
+  const _mecInputPendente = document.getElementById('indisp-mecanico-input');
+  if (_mecInputPendente && _mecInputPendente.value.trim()) _indispMecanicoAdicionar();
   const placa = document.getElementById('indisp-placa').value.trim().toUpperCase();
   if (!placa) { alert('Informe a placa!'); return; }
   // ── Detecção de duplicidade ──

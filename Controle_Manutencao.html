@@ -19519,7 +19519,7 @@ function _renderTabela(lista, tbodyId) {
       <td style="${TDSEC}">
         ${emEdicao
           ? `<textarea placeholder="Uma OS por linha" onchange="editarNumeroOSIndisp('${r.id}', this.value)"
-               style="width:100%;max-width:110px;min-height:48px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:10px;font-weight:700;color:#1B3A6D;background:#fff;resize:vertical;font-family:inherit;line-height:1.5">${_listaOS(r.numero_os).join('\n').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>`
+               style="width:100%;max-width:110px;min-height:48px;text-align:center !important;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:10px;font-weight:700;color:#1B3A6D;background:#fff;resize:vertical;font-family:inherit;line-height:1.5">${_listaOS(r.numero_os).join('\n').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>`
           : (_listaOS(r.numero_os).length
               ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:center" title="${(r.numero_os||'').replace(/"/g,'&quot;')}">${_listaOS(r.numero_os).map(n=>`<span style="background:#fff;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,.08);border-radius:10px;padding:6px 14px;font-size:12px;font-weight:800;color:#1D4ED8;white-space:nowrap">${n}</span>`).join('')}</div>`
               : `<span style="color:#94a3b8;font-size:11px">—</span>`)

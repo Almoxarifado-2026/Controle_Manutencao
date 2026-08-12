@@ -19547,11 +19547,8 @@ function _renderTabela(lista, tbodyId) {
       </td>
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center">
         ${r.mecanico
-          ? `<div style="display:flex;align-items:center;justify-content:center;gap:4px">
-               <span style="background:#CCFBF1;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700">${r.mecanico}</span>
-               <button class="edit-only" onclick="editarMecanico('${r.id}')" style="background:#f1f5f9;color:#475569;border:none;border-radius:6px;padding:4px 7px;font-size:11px;cursor:pointer" title="Editar mecânico">✏️</button>
-             </div>`
-          : `<button onclick="editarMecanico('${r.id}')" style="background:#F0FDF4;color:#15803D;border:1px dashed #86efac;border-radius:8px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">+ Mecânico</button>`
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${r.mecanico.split(',').map(n=>n.trim()).filter(Boolean).map(n=>`<span style="background:#CCFBF1;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700">${n}</span>`).join('')}</div>`
+          : `<span style="color:#94a3b8;font-size:11px">—</span>`
         }
       </td>
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center;max-width:150px">

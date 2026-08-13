@@ -19547,7 +19547,7 @@ function _renderTabela(lista, tbodyId) {
       </td>
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center">
         ${r.mecanico
-          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${r.mecanico.split(',').map(n=>n.trim()).filter(Boolean).map(n=>`<span style="background:#CCFBF1;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700">${n}</span>`).join('')}</div>`
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${r.mecanico.split(',').map(n=>n.trim()).filter(Boolean).map(n=>`<span style="background:#CCFBF1;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;word-break:normal;overflow-wrap:normal;white-space:nowrap">${n}</span>`).join('')}</div>`
           : `<span style="color:#94a3b8;font-size:11px">—</span>`
         }
       </td>

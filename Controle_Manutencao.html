@@ -19545,9 +19545,9 @@ function _renderTabela(lista, tbodyId) {
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center">
         <div style="background:${statusBg};color:${statusCor};border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;line-height:1.5;word-break:break-word;text-align:center">${r.status||'—'}</div>
       </td>
-      <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center">
+      <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center;max-width:150px">
         ${r.mecanico
-          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${r.mecanico.split(',').map(n=>n.trim()).filter(Boolean).map(n=>`<span style="background:#CCFBF1;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;word-break:normal;overflow-wrap:normal;white-space:nowrap">${n}</span>`).join('')}</div>`
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${r.mecanico.split(',').map(n=>n.trim()).filter(Boolean).map(n=>`<span style="background:#CCFBF1;color:#0f766e;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.3">${n}</span>`).join('')}</div>`
           : `<span style="color:#94a3b8;font-size:11px">—</span>`
         }
       </td>

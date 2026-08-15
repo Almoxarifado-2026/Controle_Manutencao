@@ -4,22 +4,37 @@
 //    • Network-first para o HTML principal (sempre busca a versão mais
 //      recente; cai para o cache só se a rede falhar/demorar — evita
 //      ficar preso numa versão antiga em cache)
+//    • Stale-while-revalidate para bibliotecas de CDN (pdf.js, html2canvas,
+//      jsPDF, xlsx, Chart.js) — usa o cache na hora (offline funciona) e
+//      atualiza em segundo plano, sem re-versionar a cada deploy (essas
+//      URLs já são fixas por versão)
 //    • Cache-first para os demais recursos do shell (raramente mudam)
 //    • Network-only para Firebase (dados sempre frescos)
 //    • Network-only para SSE (EventSource não é cacheável)
 //    • Responde SKIP_WAITING para troca imediata de versão
+//    • Versão do cache do shell gerada automaticamente pelo GitHub Actions
+//      a cada deploy — ver comentário junto de CACHE_NAME logo abaixo
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ⚠️ IMPORTANTE: o navegador só percebe que há uma versão nova do
-// Service Worker quando o conteúdo de sw.js muda byte a byte. Mudar
-// SÓ o Controle_Manutencao.html (sem tocar aqui) faz o navegador
-// continuar servindo o HTML antigo via cache-first, achando que nada
-// mudou — mesmo com o arquivo novo já publicado no GitHub Pages.
-// Por isso: A CADA atualização do HTML, mude também o número abaixo
-// (ex.: v2 → v3). Isso muda o conteúdo deste arquivo, o navegador
-// detecta a diferença, baixa o SW novo, e o cache antigo é descartado
-// no 'activate' (ver mais abaixo).
-const CACHE_NAME = 'manutencao-v250';
+// ⚠️ A versão do cache é gerada AUTOMATICAMENTE pelo GitHub Actions a cada
+// deploy (o workflow substitui o placeholder abaixo por data+hash do commit
+// — ver .github/workflows/deploy.yml) — não precisa mais editar este número
+// na mão a cada mudança no HTML. Isso garante que todo deploy muda o
+// arquivo sw.js byte a byte, que é o que faz o navegador perceber que
+// existe uma versão nova e disparar o auto-update já existente no HTML.
+// Em ambiente local (sem passar pelo Actions), o placeholder fica literal
+// — funciona igual, só não teria um número novo a cada teste manual.
+const CACHE_NAME = 'manutencao-__BUILD_ID__';
+
+// Cache separado pras bibliotecas de CDN (pdf.js, html2canvas, jsPDF, xlsx,
+// Chart.js) — NÃO é re-versionado a cada deploy do app (diferente do
+// CACHE_NAME acima), porque essas URLs já incluem a própria versão da
+// biblioteca (ex.: .../jspdf/2.5.1/...). O conteúdo sob a mesma URL nunca
+// muda, então recriar esse cache a cada deploy só forçaria redownload à
+// toa. Só muda quando alguém trocar a versão de uma lib no <script src>.
+const LIBS_CACHE_NAME = 'manutencao-libs-v1';
+const LIBS_CACHE_MAX_ITEMS = 20; // teto simples pra não crescer sem parar
+const LIBS_CACHEABLE_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net'];
 
 // Recursos do shell que devem ser cacheados na instalação
 const SHELL_URLS = [
@@ -49,13 +64,14 @@ self.addEventListener('install', event => {
   // (o HTML já trata isso via postMessage)
 });
 
-// ── Activate: remove caches antigos ──────────────────────────────────────────
+// ── Activate: remove caches antigos (só o do shell é versionado; o de
+//    libs de CDN fica, de propósito — ver comentário acima) ────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== CACHE_NAME)
+          .filter(k => k !== CACHE_NAME && k !== LIBS_CACHE_NAME)
           .map(k => caches.delete(k))
       )
     ).then(() => {
@@ -67,6 +83,37 @@ self.addEventListener('activate', event => {
     })
   );
 });
+
+/** Mantém o cache de libs com um teto simples de itens — remove o mais
+ *  antigo quando passa do limite, pra não crescer sem controle. */
+async function limitarTamanhoCache(cacheName, maxItems) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxItems) {
+    await cache.delete(keys[0]);
+    await limitarTamanhoCache(cacheName, maxItems);
+  }
+}
+
+/** Stale-while-revalidate: responde com o cache na hora (se existir —
+ *  funciona offline e mais rápido) e, em paralelo, busca a versão na rede
+ *  pra atualizar o cache silenciosamente pra próxima vez. Seguro aqui
+ *  porque essas URLs de CDN já são fixas por versão (o conteúdo nunca
+ *  muda sob a mesma URL). */
+function staleWhileRevalidate(request) {
+  return caches.open(LIBS_CACHE_NAME).then(cache =>
+    cache.match(request).then(cached => {
+      const fetchPromise = fetch(request).then(response => {
+        if (response.ok) {
+          cache.put(request, response.clone());
+          limitarTamanhoCache(LIBS_CACHE_NAME, LIBS_CACHE_MAX_ITEMS);
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || fetchPromise;
+    })
+  );
+}
 
 // ── Fetch: intercepta requisições ────────────────────────────────────────────
 self.addEventListener('fetch', event => {
@@ -97,7 +144,16 @@ self.addEventListener('fetch', event => {
   // 5) Protocolo não-http (blob:, chrome-extension:, etc.) → ignora
   if (!url.protocol.startsWith('http')) return;
 
-  // 6) HTML principal → NETWORK-FIRST: sempre tenta buscar a versão mais
+  // 6) Bibliotecas de CDN (pdf.js, html2canvas, jsPDF, xlsx, Chart.js) →
+  //    cache inteligente (stale-while-revalidate) — funciona offline depois
+  //    do primeiro carregamento, e atualiza sozinho em segundo plano se a
+  //    lib mudar de versão na URL.
+  if (LIBS_CACHEABLE_HOSTS.some(host => url.hostname === host)) {
+    event.respondWith(staleWhileRevalidate(event.request));
+    return;
+  }
+
+  // 7) HTML principal → NETWORK-FIRST: sempre tenta buscar a versão mais
   //    recente na rede primeiro, e só usa o cache se a rede falhar
   //    (offline ou timeout). Isso elimina a dependência de lembrar de
   //    "subir a versão do cache" a cada atualização do HTML — sem essa
@@ -127,7 +183,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 7) Demais recursos do shell (ícones, manifest, etc.) → Cache-first com
+  // 8) Demais recursos do shell (ícones, manifest, etc.) → Cache-first com
   //    fallback para network — esses raramente mudam, então não precisam
   //    da mesma urgência de atualização do HTML principal.
   event.respondWith(

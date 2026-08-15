@@ -4973,7 +4973,43 @@ const DICIONARIO_PTBR = {
   'sessoes':'sessões', 'substituida':'substituída', 'substituido':'substituído',
   'tecnologica':'tecnológica', 'tecnologico':'tecnológico', 'termino':'término',
   'topico':'tópico', 'topicos':'tópicos', 'urgencias':'urgências', 'versao':'versão',
-  'versoes':'versões', 'visao':'visão'
+  'versoes':'versões', 'visao':'visão',
+
+  // ── Ampliação (ago/2026, leva 5): palavras fundamentais que faltavam
+  // (tão, são, olá, céu, árvore, coração) + mais uma leva de -ção/-ções ──
+  'absolvicao':'absolvição', 'aceleracao':'aceleração', 'adicao':'adição',
+  'adjudicacao':'adjudicação', 'admoestacao':'admoestação', 'afirmacao':'afirmação',
+  'agitacao':'agitação', 'agregacao':'agregação', 'alienacao':'alienação',
+  'alimentacao':'alimentação', 'aliviacao':'aliviação', 'alucinacao':'alucinação',
+  'amortizacao':'amortização', 'ampliacoes':'ampliações', 'animacao':'animação',
+  'anotacao':'anotação', 'antecipacao':'antecipação', 'apreensao':'apreensão',
+  'aproximacoes':'aproximações', 'aptidao':'aptidão', 'aquisicao':'aquisição',
+  'arbitracao':'arbitração', 'arrecadacoes':'arrecadações', 'articulacoes':'articulações',
+  'arvore':'árvore', 'arvores':'árvores', 'aspiracao':'aspiração',
+  'assimilacao':'assimilação', 'assuncao':'assunção', 'atracoes':'atrações',
+  'audicao':'audição', 'automacao':'automação', 'autuacao':'autuação', 'avancos':'avanços',
+  'bencao':'bênção', 'bifurcacao':'bifurcação', 'calcificacao':'calcificação',
+  'calibracao':'calibração', 'canalizacao':'canalização', 'capitalizacao':'capitalização',
+  'caracterizacao':'caracterização', 'certificacoes':'certificações', 'cessacao':'cessação',
+  'ceu':'céu', 'chapeu':'chapéu', 'cicatrizacao':'cicatrização',
+  'circunscricao':'circunscrição', 'citacoes':'citações', 'coalizao':'coalizão',
+  'codificacoes':'codificações', 'combinacoes':'combinações', 'comemoracao':'comemoração',
+  'comercializacao':'comercialização', 'comissao':'comissão', 'comissoes':'comissões',
+  'comocao':'comoção', 'comparacoes':'comparações', 'compreensoes':'compreensões',
+  'comunicacoes':'comunicações', 'concepcao':'concepção', 'concessao':'concessão',
+  'condensacao':'condensação', 'conexao':'conexão', 'conexoes':'conexões',
+  'confeccoes':'confecções', 'confirmacoes':'confirmações', 'confissao':'confissão',
+  'conformacao':'conformação', 'confrontacao':'confrontação', 'congregacao':'congregação',
+  'conjuncao':'conjunção', 'conotacao':'conotação', 'consagracao':'consagração',
+  'conservacao':'conservação', 'constituicao':'constituição', 'constituicoes':'constituições',
+  'construcoes':'construções', 'consumacao':'consumação', 'contencao':'contenção',
+  'contestacao':'contestação', 'contracao':'contração', 'contradicao':'contradição',
+  'contribuicoes':'contribuições', 'controversia':'controvérsia', 'convencao':'convenção',
+  'convencoes':'convenções', 'convergencia':'convergência', 'conversacao':'conversação',
+  'conversacoes':'conversações', 'convocacao':'convocação', 'cooperacoes':'cooperações',
+  'criacoes':'criações', 'liquida':'líquida', 'liquido':'líquido', 'liquidos':'líquidos',
+  'obvia':'óbvia', 'obvio':'óbvio', 'ola':'olá', 'pessego':'pêssego', 'previa':'prévia',
+  'previo':'prévio', 'sao':'são', 'tao':'tão', 'terca':'terça'
 };
 
 // Remove acentos pra usar como chave de busca (ex.: "informação" -> "informacao")
@@ -21000,7 +21036,11 @@ function copiarRelatorio() {
 
 // Fechar modais ao clicar fora
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('overlay-indisp')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharModalIndisp(); });
+  // ⚠️ Sem fechar ao clicar fora de propósito: esse modal costuma ter vários
+  // campos/etapas preenchidos, e um clique sem querer na área escura ao
+  // redor não pode arriscar perder o que já foi digitado. Fecha só pelos
+  // botões Salvar, Cancelar ou Excluir.
+  // (era: document.getElementById('overlay-indisp')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharModalIndisp(); });)
   document.getElementById('overlay-diag-rede')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharDiagnosticoRede(); });
   document.getElementById('overlay-diag-migracao')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharDiagnosticoMigracao(); });
   document.getElementById('overlay-erros-sistema')?.addEventListener('click', e => { if(e.target===e.currentTarget) fecharErrosSistema(); });

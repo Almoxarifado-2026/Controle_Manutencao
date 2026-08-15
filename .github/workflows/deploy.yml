@@ -1,0 +1,54 @@
+name: Deploy Controle de Manutenção
+
+# Roda automaticamente a cada push na branch principal, ou manualmente pela
+# aba "Actions" do GitHub (workflow_dispatch).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Permissões mínimas necessárias pra publicar no GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Evita dois deploys rodando ao mesmo tempo (o segundo espera o primeiro
+# terminar em vez de cancelar, pra nunca publicar uma versão pela metade).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      # ⚠️ Este é o passo que resolve o "esquecer de subir a versão do
+      # cache": gera um ID único (data + hash curto do commit) e troca o
+      # placeholder __BUILD_ID__ no sw.js por esse valor, ANTES de publicar.
+      # Como isso muda o conteúdo do sw.js a cada deploy, o navegador de
+      # quem já tem o app aberto sempre detecta a versão nova sozinho.
+      - name: Gerar BUILD_ID e aplicar no sw.js
+        run: |
+          BUILD_ID="$(date -u +%Y%m%d%H%M)-${GITHUB_SHA::7}"
+          echo "🔖 BUILD_ID gerado: $BUILD_ID"
+          sed -i "s/__BUILD_ID__/${BUILD_ID}/g" sw.js
+          grep "CACHE_NAME" sw.js
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Empacotar o site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

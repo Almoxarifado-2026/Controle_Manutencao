@@ -4583,6 +4583,29 @@ function fmtDataBR(iso) {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
+// ── Nenhum modal do sistema fecha mais ao clicar fora dele — pedido
+// explícito, pra nunca perder uma edição em andamento (formulário,
+// etapas, textos digitados) por um clique sem querer na área escura ao
+// redor. Cada modal continua fechando normalmente pelos próprios botões
+// (Salvar, Cancelar, Fechar, Excluir, ✕).
+//
+// Em vez de caçar e remover o listener de "clique fora fecha" de cada um
+// dos 27+ modais espalhados pelo código (cada um foi implementado em
+// momentos diferentes, alguns com addEventListener, outros com onclick
+// inline no HTML), a solução foi um interceptor ÚNICO na fase de CAPTURA
+// do clique — que roda ANTES de qualquer listener individual de cada
+// modal (que rodam na fase de bolha, o padrão). Ao detectar um clique
+// direto no fundo escuro (elemento com classe "overlay", nunca no
+// conteúdo branco de dentro), ele impede a propagação do evento com
+// stopImmediatePropagation() — o clique nunca chega no listener que
+// fecharia o modal, então ele simplesmente não fecha. Cobre automaticamente
+// modais futuros que usem o mesmo padrão, sem precisar editar cada um.
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('overlay')) {
+    e.stopImmediatePropagation();
+  }
+}, true); // true = fase de captura (roda antes dos listeners de cada modal)
+
 // Atalho de teclado: "/" abre busca global, "Esc" fecha
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();

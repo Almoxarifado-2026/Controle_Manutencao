@@ -3411,6 +3411,17 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
 
+    <!-- Dicionário — palavras novas frequentes -->
+    <div class="edit-only">
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">📖 Dicionário — palavras novas frequentes</div>
+      <div style="background:#1e293b;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">
+          O sistema fica de olho nas palavras digitadas que ainda não estão no corretor ortográfico. Quando a mesma palavra se repete algumas vezes <b>neste aparelho</b>, ela aparece aqui — você confirma a forma certa (com acento) e ela passa a corrigir sozinha em todos os aparelhos, sem precisar de atualização do sistema.
+        </div>
+        <div id="dic-candidatas-lista" style="background:#0f172a;border-radius:10px;padding:10px"></div>
+      </div>
+    </div>
+
     <!-- Ferramentas de sistema -->
     <div>
       <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Ferramentas do sistema</div>
@@ -5143,6 +5154,137 @@ function _normalizarPtBR(s) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
+/* ══════════════════════════════════════════════════════
+   § 00c · DICIONÁRIO CUSTOMIZADO (aprende com o uso)
+   O DICIONARIO_PTBR acima é fixo (só muda quando alguém edita o código).
+   Este aqui é o complemento DINÂMICO: guarda palavras que os próprios
+   usuários confirmaram através da telinha "Palavras novas frequentes" (em
+   Configurações) — funciona pra QUALQUER palavra, de manutenção ou não. Fica
+   salvo no Firebase e sincroniza pra todos os aparelhos na hora, sem
+   precisar de um novo deploy do app.
+
+   ⚠️ O sistema NÃO tem IA — ele não sabe sozinho qual é a forma certa de
+   uma palavra nova, nem se ela "é sobre manutenção". O que ele faz é: (1)
+   detectar quando a MESMA palavra desconhecida se repete várias vezes (2)
+   avisar num painel pra alguém confirmar a forma certa com 1 clique. A
+   revisão humana é o que garante que nada errado entre no dicionário.
+   ══════════════════════════════════════════════════════ */
+let DICIONARIO_CUSTOM = {}; // { 'palavrasemacento': 'Forma Correta' } — carregado do Firebase
+let _dicCustomCarregado = false;
+
+async function _carregarDicionarioCustom() {
+  try {
+    const dados = await fbGet('/manutencao/dicionario_custom.json');
+    DICIONARIO_CUSTOM = (dados && typeof dados === 'object') ? dados : {};
+  } catch(e) { DICIONARIO_CUSTOM = {}; }
+  _dicCustomCarregado = true;
+}
+// ⚠️ NÃO chamar _carregarDicionarioCustom() aqui em cima — FIREBASE_URL só é
+// declarado bem mais abaixo no script (const é hoisted sem valor, dá erro
+// de "acesso antes da inicialização" se chamado cedo demais). A chamada
+// real fica lá embaixo, junto do carregamento inicial da página.
+
+// ── Rastreador de "palavras frequentes não reconhecidas" (só neste
+// aparelho — localStorage, sem custo de rede a cada tecla digitada) ──
+const _CHAVE_FREQ = 'dic_candidatas_freq';   // { palavra_normalizada: {count, exemplo} }
+const _CHAVE_IGNORADAS = 'dic_candidatas_ignoradas'; // [palavra_normalizada, ...]
+const _LIMITE_CANDIDATA = 3; // quantas vezes precisa repetir pra virar candidata
+
+function _lerFreqCandidatas() {
+  try { return JSON.parse(localStorage.getItem(_CHAVE_FREQ) || '{}'); } catch(e) { return {}; }
+}
+function _salvarFreqCandidatas(obj) {
+  try { localStorage.setItem(_CHAVE_FREQ, JSON.stringify(obj)); } catch(e) {}
+}
+function _lerIgnoradas() {
+  try { return new Set(JSON.parse(localStorage.getItem(_CHAVE_IGNORADAS) || '[]')); } catch(e) { return new Set(); }
+}
+
+// Chamada toda vez que uma palavra passa pela fronteira de digitação e NÃO
+// bate com nenhum dos dois dicionários — registra a frequência local.
+function _registrarPalavraNaoReconhecida(palavra) {
+  if (!palavra || palavra.length < 4) return; // ignora palavras curtas (muito ruído: "de", "das", "com"...)
+  if (!/^[A-Za-zÀ-ÿ]+$/.test(palavra)) return;
+  // Se a palavra já tem algum acento, ela já está "resolvida" de algum
+  // jeito — não faz sentido virar candidata de revisão.
+  if (palavra.toLowerCase() !== _normalizarPtBR(palavra)) return;
+  const chave = _normalizarPtBR(palavra);
+  if (_lerIgnoradas().has(chave)) return;
+  const freq = _lerFreqCandidatas();
+  const atual = freq[chave] || { count: 0, exemplo: palavra };
+  atual.count++;
+  atual.exemplo = palavra; // guarda a forma mais recente digitada, como sugestão inicial
+  freq[chave] = atual;
+  _salvarFreqCandidatas(freq);
+}
+
+// Lista de candidatas prontas pra revisão (bateu o limite de repetições)
+function _listarCandidatasDicionario() {
+  const freq = _lerFreqCandidatas();
+  const ignoradas = _lerIgnoradas();
+  return Object.entries(freq)
+    .filter(([chave, info]) => info.count >= _LIMITE_CANDIDATA && !ignoradas.has(chave) && !DICIONARIO_PTBR[chave] && !DICIONARIO_CUSTOM[chave])
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([chave, info]) => ({ chave, exemplo: info.exemplo, count: info.count }));
+}
+
+function _ignorarCandidataDicionario(chave) {
+  const ign = _lerIgnoradas();
+  ign.add(chave);
+  try { localStorage.setItem(_CHAVE_IGNORADAS, JSON.stringify([...ign])); } catch(e) {}
+  const freq = _lerFreqCandidatas();
+  delete freq[chave];
+  _salvarFreqCandidatas(freq);
+  _renderCandidatasDicionario();
+}
+
+async function _adicionarCandidataDicionario(chave, formaCorreta) {
+  if (!_checkEdicao()) return;
+  formaCorreta = (formaCorreta || '').trim();
+  if (!formaCorreta) { alert('Digite a forma correta da palavra antes de adicionar.'); return; }
+  if (_normalizarPtBR(formaCorreta) !== chave) {
+    if (!confirm(`A forma que você digitou ("${formaCorreta}") não é só uma versão acentuada de "${chave}" — confirma que quer adicionar assim mesmo?`)) return;
+  }
+  // Lê o dicionário custom mais atual do Firebase antes de gravar (evita
+  // sobrescrever o que outro aparelho tenha adicionado entre o carregamento
+  // desta página e agora).
+  const remoto = await fbGet('/manutencao/dicionario_custom.json');
+  const atualizado = { ...(remoto && typeof remoto === 'object' ? remoto : {}), [chave]: formaCorreta };
+  const ok = await fbPut('/manutencao/dicionario_custom.json', atualizado);
+  if (!ok) { alert('Não consegui salvar agora — confira a internet e tente de novo.'); return; }
+  DICIONARIO_CUSTOM = atualizado; // já aplica neste aparelho imediatamente, sem esperar reload
+  const freq = _lerFreqCandidatas();
+  delete freq[chave];
+  _salvarFreqCandidatas(freq);
+  mostrarIndicador(`✅ "${formaCorreta}" adicionada ao dicionário`, '#86efac');
+  _renderCandidatasDicionario();
+}
+
+// Renderiza o painel de Configurações (chamado ao abrir a página e depois
+// de cada ação de adicionar/ignorar).
+function _renderCandidatasDicionario() {
+  const el = document.getElementById('dic-candidatas-lista');
+  if (!el) return;
+  const lista = _listarCandidatasDicionario();
+  if (!lista.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Nenhuma palavra nova frequente por enquanto — vai aparecendo aqui conforme forem digitadas repetidamente.</div>';
+    return;
+  }
+  el.innerHTML = lista.map(c => `
+    <div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;margin-bottom:6px;flex-wrap:wrap">
+      <div style="flex:0 0 auto">
+        <div style="font-size:13px;font-weight:700;color:#1B3A6D">${c.exemplo}</div>
+        <div style="font-size:10px;color:#94a3b8">digitada ${c.count}x neste aparelho</div>
+      </div>
+      <input type="text" id="dic-forma-${c.chave}" placeholder="Forma correta (com acento)" value="${c.exemplo}"
+        style="flex:1;min-width:140px;padding:6px 8px;border:1px solid #dbe4f0;border-radius:8px;font-size:12px">
+      <button onclick="_adicionarCandidataDicionario('${c.chave}', document.getElementById('dic-forma-${c.chave}').value)"
+        style="background:#16A34A;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">✅ Adicionar</button>
+      <button onclick="_ignorarCandidataDicionario('${c.chave}')"
+        style="background:#f1f5f9;color:#64748b;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">Ignorar</button>
+    </div>`).join('');
+}
+
 // Aplica no texto de correção o mesmo padrão de maiúsculas/minúsculas da
 // palavra original (TUDO MAIÚSCULO, Só a Primeira Letra, ou minúsculo).
 function _casarCapitalizacaoPtBR(original, correto) {
@@ -5178,14 +5320,21 @@ function _autocorrigirCampoPtBR(el, emBlur) {
   const palavra = valor.slice(ini, fimPalavra);
   if (!palavra) return;
 
-  // 1) Corrige o acento pelo dicionário, se bater (precisa de 2+ letras —
-  // conectivos de 1 letra como "a", "e", "o" nunca estão no dicionário).
+  // 1) Corrige o acento pelo dicionário fixo OU pelo customizado (o que
+  // os usuários foram confirmando na telinha de Configurações), se bater
+  // — precisa de 2+ letras (conectivos de 1 letra como "a", "e", "o" nunca
+  // estão em nenhum dos dois).
   let resultado = palavra;
   if (palavra.length >= 2) {
     const chave = _normalizarPtBR(palavra);
-    const correto = DICIONARIO_PTBR[chave];
+    const correto = DICIONARIO_PTBR[chave] || DICIONARIO_CUSTOM[chave];
     if (correto && correto.toLowerCase() !== palavra.toLowerCase()) {
       resultado = _casarCapitalizacaoPtBR(palavra, correto);
+    } else if (!correto) {
+      // Não bateu em nenhum dos dois — registra a frequência local pra,
+      // se essa mesma palavra se repetir várias vezes, aparecer como
+      // candidata de revisão em Configurações.
+      _registrarPalavraNaoReconhecida(palavra);
     }
   }
 
@@ -11780,6 +11929,13 @@ async function salvarPlano() {
   document.addEventListener('DOMContentLoaded', render);
   setTimeout(render, 0);
 })();
+
+// Renderiza a lista de "palavras novas frequentes" assim que a página
+// carrega, e de novo depois que o dicionário customizado terminar de
+// carregar do Firebase (pode chegar um instante depois do DOMContentLoaded).
+document.addEventListener('DOMContentLoaded', _renderCandidatasDicionario);
+setTimeout(_renderCandidatasDicionario, 0);
+_carregarDicionarioCustom().then(_renderCandidatasDicionario);
 
 /* ══════════════════════════════════════════════════════
    § 19 · SISTEMA DE BACKUP AUTOMÁTICO DIÁRIO

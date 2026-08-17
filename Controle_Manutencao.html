@@ -5153,31 +5153,53 @@ function _casarCapitalizacaoPtBR(original, correto) {
   return correto;
 }
 
-// Verifica a última palavra digitada (antes do cursor) e corrige se ela
-// bater com o dicionário — chamada a cada tecla, mas só age quando a
+// Verifica a última palavra digitada (antes do cursor), corrige o acento se
+// bater com o dicionário e, além disso, coloca a primeira letra em
+// maiúscula automaticamente — chamada a cada tecla, mas só age quando a
 // tecla digitada é uma "fronteira de palavra" (espaço, pontuação, Enter).
-function _autocorrigirCampoPtBR(el) {
-  const fim = el.selectionEnd;
-  if (fim === null || fim === undefined || fim !== el.selectionStart) return; // não mexe se houver seleção
+function _autocorrigirCampoPtBR(el, emBlur) {
+  const fim = emBlur ? el.value.length : el.selectionEnd;
+  if (!emBlur) {
+    if (fim === null || fim === undefined || fim !== el.selectionStart) return; // não mexe se houver seleção
+  }
   const valor = el.value;
   const charAntes = valor.charAt(fim - 1);
-  if (!/[\s,.;:!?)\]]/.test(charAntes)) return; // só age em fronteira de palavra
+  // Em blur, o fim do texto conta como fronteira mesmo sem espaço/pontuação
+  // depois (é o caso de clicar em Salvar logo após terminar de digitar).
+  if (!emBlur && !/[\s,.;:!?)\]]/.test(charAntes)) return;
 
-  // Extrai a palavra imediatamente antes dessa fronteira
-  let ini = fim - 1;
+  // Extrai a palavra imediatamente antes dessa fronteira. Em blur, "fim"
+  // já é o fim de tudo (não sobra caractere de fronteira pra excluir);
+  // fora do blur, o caractere em (fim-1) É a fronteira, então a palavra
+  // termina antes dele.
+  const fimPalavra = emBlur ? fim : fim - 1;
+  let ini = fimPalavra;
   while (ini > 0 && /[A-Za-zÀ-ÿ]/.test(valor.charAt(ini - 1))) ini--;
-  const palavra = valor.slice(ini, fim - 1);
-  if (!palavra || palavra.length < 2) return;
+  const palavra = valor.slice(ini, fimPalavra);
+  if (!palavra) return;
 
-  const chave = _normalizarPtBR(palavra);
-  const correto = DICIONARIO_PTBR[chave];
-  if (!correto || correto.toLowerCase() === palavra.toLowerCase()) return;
+  // 1) Corrige o acento pelo dicionário, se bater (precisa de 2+ letras —
+  // conectivos de 1 letra como "a", "e", "o" nunca estão no dicionário).
+  let resultado = palavra;
+  if (palavra.length >= 2) {
+    const chave = _normalizarPtBR(palavra);
+    const correto = DICIONARIO_PTBR[chave];
+    if (correto && correto.toLowerCase() !== palavra.toLowerCase()) {
+      resultado = _casarCapitalizacaoPtBR(palavra, correto);
+    }
+  }
 
-  const corrigida = _casarCapitalizacaoPtBR(palavra, correto);
-  if (corrigida === palavra) return;
+  // 2) Primeira letra maiúscula em TODA palavra (pedido explícito) — roda
+  // depois da correção de acento, pra maiusculizar já em cima do resultado
+  // certo (ex.: "execucao" -> "execução" -> "Execução").
+  if (/[a-zà-ÿ]/.test(resultado.charAt(0))) {
+    resultado = resultado.charAt(0).toUpperCase() + resultado.slice(1);
+  }
 
-  el.value = valor.slice(0, ini) + corrigida + valor.slice(fim - 1);
-  const novoCursor = ini + corrigida.length + 1;
+  if (resultado === palavra) return; // nada mudou, evita mexer no cursor à toa
+
+  el.value = valor.slice(0, ini) + resultado + valor.slice(fimPalavra);
+  const novoCursor = ini + resultado.length + (emBlur ? 0 : 1);
   try { el.setSelectionRange(novoCursor, novoCursor); } catch(e) {}
   // Dispara 'input' de novo pra qualquer listener existente (ex.: contadores
   // de caractere, oninput=... inline) perceber o valor corrigido.
@@ -5213,6 +5235,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.__ptbrJaProcessado) return; // evita loop do dispatchEvent acima
     if (!_ehCampoDeTextoLivre(e.target)) return;
     _autocorrigirCampoPtBR(e.target);
+  }, true);
+
+  // Pega a ÚLTIMA palavra digitada quando o campo perde o foco (ex.:
+  // clicar direto em "Salvar" sem apertar espaço/Enter depois de terminar
+  // de digitar) — sem isso, só a palavra digitada ANTES da última ficaria
+  // com a maiúscula/acento corrigidos automaticamente.
+  document.addEventListener('blur', e => {
+    if (!_ehCampoDeTextoLivre(e.target)) return;
+    _autocorrigirCampoPtBR(e.target, true);
   }, true);
 
   // Reaplica spellcheck/lang sempre que novos campos aparecerem na tela

@@ -6083,7 +6083,17 @@ function _renderAbaAtiva(origem) {
   if      (idAtivo === 'oleo')          renderizar();
   else if (idAtivo === 'checklist')     renderCheck();
   else if (idAtivo === 'documentos')    renderDocumentos();
-  else if (idAtivo === 'indisponiveis') (_indispSubAtiva === 'historico') ? renderHistorico() : renderIndisponiveis();
+  // ⚠️ Antes chamava renderHistorico() sem argumento aqui, o que sempre
+  // renderizava a lista COMPLETA (HIST_MANUT), ignorando qualquer filtro
+  // que estivesse ativo (placa/serviço/mês). Como esse re-render dispara a
+  // cada atualização em tempo real vinda do Firebase — que pode acontecer
+  // bem frequentemente com vários dispositivos conectados — o filtro
+  // parecia simplesmente "não funcionar": a pessoa selecionava, via
+  // filtrar por um instante, e a lista voltava sozinha pra tudo assim que
+  // qualquer mudança chegava de qualquer lugar. Passando _histFiltrado
+  // (quando existe um filtro ativo) mantém a visão filtrada mesmo com a
+  // tela atualizando em tempo real.
+  else if (idAtivo === 'indisponiveis') (_indispSubAtiva === 'historico') ? renderHistorico(_histFiltrado || undefined) : renderIndisponiveis();
   else if (idAtivo === 'combustivel')   renderCombustivel();
   else if (idAtivo === 'dashboard')     renderDashboard();
   mostrarIndicador('🔄 Sincronizado', '#93C5FD');
@@ -13427,7 +13437,7 @@ async function subirBackupLocalFirebase(idx) {
         try { localStorage.setItem('hist_manut_cache', JSON.stringify(hmArr)); } catch(e) {}
         try { localStorage.setItem('hist_manut', JSON.stringify(hmArr)); } catch(e) {}
         if (typeof atualizarBadgeHistorico === 'function') atualizarBadgeHistorico();
-        if (typeof renderHistorico === 'function') renderHistorico();
+        if (typeof renderHistorico === 'function') renderHistorico(typeof _histFiltrado !== 'undefined' && _histFiltrado ? _histFiltrado : undefined);
       }
     }
 

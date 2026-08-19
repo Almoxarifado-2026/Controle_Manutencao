@@ -3804,6 +3804,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <th style="padding:10px 12px;text-align:left;white-space:nowrap">Data</th>
           <th style="padding:10px 12px;text-align:left">Descrição</th>
           <th style="padding:10px 12px;text-align:left;white-space:nowrap">Situação</th>
+          <th style="padding:10px 12px;text-align:center;white-space:nowrap">Filial</th>
         </tr></thead>
         <tbody id="ver-corr-tbody"></tbody>
       </table>
@@ -10172,6 +10173,17 @@ function importarOrdens(input) {
       const cD = Math.max(0, header.findIndex(h => h === 'data')) || 3;
       const cL = Math.max(0, header.findIndex(h => h.includes('descri') || h.includes('motivo'))) || 11;
       const cT = Math.max(0, header.findIndex(h => h.includes('situa'))) || 19;
+      const cF = Math.max(0, header.findIndex(h => h.includes('filial'))) || 15; // coluna P
+
+      // Filial: MATRIZ vira "RPT" e FILIAL1 vira "MAPE" no sistema — mantém
+      // o valor original (maiúsculo) se vier algo diferente disso, em vez
+      // de descartar a informação.
+      const MAPA_FILIAL = { 'MATRIZ': 'RPT', 'FILIAL1': 'MAPE' };
+      function _mapearFilial(bruto) {
+        const v = String(bruto || '').trim().toUpperCase();
+        if (!v) return '';
+        return MAPA_FILIAL[v] || v;
+      }
 
       // Agrupar ordens por placa
       ordensImportadas = {};
@@ -10189,6 +10201,7 @@ function importarOrdens(input) {
           data:      String(row[cD]||'').trim(),
           descricao: String(row[cL]||'').trim().slice(0,100),
           situacao:  String(row[cT]||'').trim(),
+          filial:    _mapearFilial(row[cF]), // ⚠️ faltava — a função de mapeamento existia mas nunca era chamada aqui
         });
       }
 
@@ -10260,16 +10273,19 @@ function verCorretivas(placa) {
   const ordens = ordensImportadas[placa] || CORRETIVAS.filter(c => (c.placa||'').trim().toUpperCase() === placa);
   document.getElementById('ver-corr-titulo').textContent = `🔧 Ordens de Serviço — ${placa} (${ordens.length} ordens)`;
   document.getElementById('ver-corr-tbody').innerHTML = ordens.length === 0
-    ? '<tr><td colspan="5" style="text-align:center;padding:16px;color:#999">Nenhuma ordem encontrada</td></tr>'
+    ? '<tr><td colspan="6" style="text-align:center;padding:16px;color:#999">Nenhuma ordem encontrada</td></tr>'
     : ordens.map((o,i) => {
         const sitBg = (o.situacao||'').includes('NAO') ? '#FEF3C7' : '#DBEAFE';
         const sitFc = (o.situacao||'').includes('NAO') ? '#92400E' : '#1E40AF';
+        const filBg = o.filial === 'RPT' ? '#DCFCE7' : o.filial === 'MAPE' ? '#E0E7FF' : '#F1F5F9';
+        const filFc = o.filial === 'RPT' ? '#15803D' : o.filial === 'MAPE' ? '#3730A3' : '#64748B';
         return `<tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
           <td style="padding:10px 12px;font-weight:700">${o.ordem}</td>
           <td style="padding:10px 12px">${o.servico}</td>
           <td style="padding:10px 12px;white-space:nowrap">${o.data}</td>
           <td style="padding:10px 12px;white-space:normal">${o.descricao}</td>
           <td style="padding:10px 12px"><span style="background:${sitBg};color:${sitFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${o.situacao}</span></td>
+          <td style="padding:10px 12px;text-align:center">${o.filial ? `<span style="background:${filBg};color:${filFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${o.filial}</span>` : '<span style="color:#94a3b8">—</span>'}</td>
         </tr>`;
       }).join('');
   document.getElementById('overlay-ver-corr').classList.add('open');

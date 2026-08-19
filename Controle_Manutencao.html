@@ -2657,9 +2657,9 @@ document.addEventListener('DOMContentLoaded', () => {
       </select>
       <button class="edit-only" onclick="abrirConfigLimitesChecklist()" title="Configurar a partir de quantos dias fica amarelo e vermelho"
         style="padding:4px 8px;border-radius:4px;border:none;font-size:12px;background:#475569;color:#fff;cursor:pointer">⚙️</button>
-      <label class="edit-only-hide" style="padding:4px 12px;border-radius:3px;background:#7C3AED;color:#fff;font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px">
+      <label class="edit-only-hide" title="Pode selecionar mais de um arquivo de uma vez (Ctrl/Cmd+clique) — útil quando o CTAPlus exporta um Excel por filial (Matriz/Filial1); as ordens de todos são somadas, não substituem umas às outras" style="padding:4px 12px;border-radius:3px;background:#7C3AED;color:#fff;font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px">
         📂 Importar Ordens (Excel)
-        <input type="file" id="inputOrdens" accept=".xlsx,.xls" style="display:none" onchange="importarOrdens(this)">
+        <input type="file" id="inputOrdens" accept=".xlsx,.xls" multiple style="display:none" onchange="importarOrdens(this)">
       </label>
       <button onclick="abrirModalCheck()" class="edit-only" style="background:#16A34A;color:#fff;padding:4px 12px;border:none;border-radius:3px;font-weight:700;font-size:12px;cursor:pointer">➕ Adicionar</button>
       <button onclick="exportarPDFCheck()" style="background:#B91C1C;color:#fff;padding:4px 12px;border:none;border-radius:3px;font-weight:700;font-size:12px;cursor:pointer">📄 PDF</button>
@@ -10154,18 +10154,58 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── IMPORTAR ORDENS DE SERVIÇO DO EXCEL ──
 let ordensImportadas = {};
 
-function importarOrdens(input) {
-  if (!_checkEdicao()) return;
-  const file = input.files[0]; if (!file) return; input.value = '';
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const wb = XLSX.read(e.target.result, {type:'array', cellDates:false});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const dados = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-      if (dados.length < 2) { alert('Planilha sem dados.'); return; }
+// Lê um único arquivo Excel e devolve a matriz de linhas (array de arrays),
+// igual ao que XLSX.utils.sheet_to_json(ws, {header:1}) devolve.
+function _lerExcelComoLinhas(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array', cellDates:false});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(ws, {header:1, defval:''}));
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('Falha ao ler ' + file.name));
+    reader.readAsArrayBuffer(file);
+  });
+}
 
-      // Detectar colunas pelo cabeçalho
+// Filial: MATRIZ vira "RPT" e FILIAL1 vira "MAPE" no sistema — mantém o
+// valor original (maiúsculo) se vier algo diferente disso, em vez de
+// descartar a informação.
+const MAPA_FILIAL = { 'MATRIZ': 'RPT', 'FILIAL1': 'MAPE' };
+function _mapearFilial(bruto) {
+  const v = String(bruto || '').trim().toUpperCase();
+  if (!v) return '';
+  return MAPA_FILIAL[v] || v;
+}
+
+async function importarOrdens(input) {
+  if (!_checkEdicao()) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  input.value = '';
+
+  try {
+    // ⚠️ CTAPlus exporta uma planilha DIFERENTE por filial (uma pra
+    // MATRIZ/RPT, outra pra FILIAL1/MAPE) — sem isso, importar os 2
+    // arquivos um depois do outro fazia o segundo APAGAR as ordens já
+    // importadas do primeiro (cada import reconstruía tudo do zero). Agora
+    // aceita vários arquivos de uma vez (seleção múltipla no navegador,
+    // Ctrl/Cmd+clique) e SOMA as ordens de todos antes de aplicar.
+    ordensImportadas = {};
+    let totalOrdens = 0;
+    const nomesArquivos = [];
+
+    for (const file of files) {
+      const dados = await _lerExcelComoLinhas(file);
+      if (dados.length < 2) continue; // arquivo vazio, pula
+      nomesArquivos.push(file.name);
+
+      // Detectar colunas pelo cabeçalho (cada arquivo pode, em teoria, ter
+      // a ordem das colunas ligeiramente diferente, por isso detecta de
+      // novo pra cada arquivo em vez de assumir a mesma posição sempre)
       const header = dados[0].map(h => String(h).toLowerCase().trim());
       const cP = Math.max(0, header.findIndex(h => h.includes('placa') || h.includes('digo'))) || 5;
       const cO = Math.max(0, header.findIndex(h => h.includes('ordem'))) || 1;
@@ -10175,19 +10215,6 @@ function importarOrdens(input) {
       const cT = Math.max(0, header.findIndex(h => h.includes('situa'))) || 19;
       const cF = Math.max(0, header.findIndex(h => h.includes('filial'))) || 15; // coluna P
 
-      // Filial: MATRIZ vira "RPT" e FILIAL1 vira "MAPE" no sistema — mantém
-      // o valor original (maiúsculo) se vier algo diferente disso, em vez
-      // de descartar a informação.
-      const MAPA_FILIAL = { 'MATRIZ': 'RPT', 'FILIAL1': 'MAPE' };
-      function _mapearFilial(bruto) {
-        const v = String(bruto || '').trim().toUpperCase();
-        if (!v) return '';
-        return MAPA_FILIAL[v] || v;
-      }
-
-      // Agrupar ordens por placa
-      ordensImportadas = {};
-      let totalOrdens = 0;
       for (let r = 1; r < dados.length; r++) {
         const row = dados[r];
         const placa = String(row[cP]||'').trim().toUpperCase();
@@ -10195,57 +10222,65 @@ function importarOrdens(input) {
         if (!placa || !ordem) continue;
         totalOrdens++;
         if (!ordensImportadas[placa]) ordensImportadas[placa] = [];
+        // Evita duplicar a mesma ordem se, por acaso, ela aparecer nos 2
+        // arquivos (não deveria acontecer entre filiais diferentes, mas é
+        // uma proteção barata contra reimportar o mesmo arquivo 2x).
+        if (ordensImportadas[placa].some(o => o.ordem === ordem)) continue;
         ordensImportadas[placa].push({
           ordem,
           servico:   String(row[cS]||'').trim(),
           data:      String(row[cD]||'').trim(),
           descricao: String(row[cL]||'').trim().slice(0,100),
           situacao:  String(row[cT]||'').trim(),
-          filial:    _mapearFilial(row[cF]), // ⚠️ faltava — a função de mapeamento existia mas nunca era chamada aqui
+          filial:    _mapearFilial(row[cF]),
         });
       }
+    }
 
-      // Montar resultado
-      // OBS: um mesmo cavalo/reboque pode ter VÁRIOS registros em CHECKLIST
-      // (um por tipo de preventiva — óleo motor, câmbio, revisão etc.).
-      // Sem essa checagem, a mesma placa aparecia repetida na tabela abaixo,
-      // uma vez para cada tipo de preventiva cadastrado pra ela.
-      let enc = 0, nenc = 0;
-      const linhas = [];
-      const placasVistas = new Set();
-      for (const c of CHECKLIST) {
-        const cav = (c.cavalo||'').toUpperCase();
-        const reb = (c.reboque||'').toUpperCase();
-        const chavePlaca = cav + '|' + reb;
-        if (placasVistas.has(chavePlaca)) continue; // já processada — evita duplicar a placa na lista
-        placasVistas.add(chavePlaca);
-        const ordCav = (ordensImportadas[cav]||[]).length;
-        const ordReb = (ordensImportadas[reb]||[]).length;
-        if (ordCav + ordReb > 0) {
-          enc++;
-          const tot = ordCav + ordReb;
-          const bg = tot>=4?'#FFC7CE':tot===3?'#FFEB9C':'#C6EFCE';
-          const fc = tot>=4?'#9C0006':tot===3?'#9C5700':'#276221';
-          linhas.push(`<tr style="background:#f0fdf4">
-            <td style="padding:4px 8px;font-weight:700;color:#16365C">${cav||'—'}</td>
-            <td style="padding:4px 8px;color:#0D9488;font-weight:700">${reb||'—'}</td>
-            <td style="padding:4px 8px;text-align:center"><span style="background:${bg};color:${fc};font-weight:700;padding:2px 8px;border-radius:10px">${ordCav}</span></td>
-            <td style="padding:4px 8px;text-align:center"><span style="background:${bg};color:${fc};font-weight:700;padding:2px 8px;border-radius:10px">${ordReb}</span></td>
-            <td style="padding:4px 8px;text-align:center;font-weight:700">${tot}</td>
-          </tr>`);
-        } else nenc++;
-      }
+    if (!nomesArquivos.length) { alert('Nenhum dos arquivos tinha dados.'); return; }
 
-      document.getElementById('import-ordens-resumo').innerHTML =
-        `<b>📊 Arquivo:</b> ${file.name} &nbsp;|&nbsp; <b>Total ordens:</b> ${totalOrdens} &nbsp;|&nbsp; <b>✅ Placas com ordens:</b> ${enc} &nbsp;|&nbsp; <b>❌ Sem ordens:</b> ${nenc}`;
-      document.getElementById('import-ordens-tbody').innerHTML = linhas.length
-        ? linhas.join('')
-        : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#999">Nenhuma placa encontrada</td></tr>';
-      document.getElementById('overlay-import-ordens').classList.add('open');
+    // Montar resultado
+    // OBS: um mesmo cavalo/reboque pode ter VÁRIOS registros em CHECKLIST
+    // (um por tipo de preventiva — óleo motor, câmbio, revisão etc.).
+    // Sem essa checagem, a mesma placa aparecia repetida na tabela abaixo,
+    // uma vez para cada tipo de preventiva cadastrado pra ela.
+    let enc = 0, nenc = 0;
+    const linhas = [];
+    const placasVistas = new Set();
+    for (const c of CHECKLIST) {
+      const cav = (c.cavalo||'').toUpperCase();
+      const reb = (c.reboque||'').toUpperCase();
+      const chavePlaca = cav + '|' + reb;
+      if (placasVistas.has(chavePlaca)) continue; // já processada — evita duplicar a placa na lista
+      placasVistas.add(chavePlaca);
+      const ordCav = (ordensImportadas[cav]||[]).length;
+      const ordReb = (ordensImportadas[reb]||[]).length;
+      if (ordCav + ordReb > 0) {
+        enc++;
+        const tot = ordCav + ordReb;
+        const bg = tot>=4?'#FFC7CE':tot===3?'#FFEB9C':'#C6EFCE';
+        const fc = tot>=4?'#9C0006':tot===3?'#9C5700':'#276221';
+        linhas.push(`<tr style="background:#f0fdf4">
+          <td style="padding:4px 8px;font-weight:700;color:#16365C">${cav||'—'}</td>
+          <td style="padding:4px 8px;color:#0D9488;font-weight:700">${reb||'—'}</td>
+          <td style="padding:4px 8px;text-align:center"><span style="background:${bg};color:${fc};font-weight:700;padding:2px 8px;border-radius:10px">${ordCav}</span></td>
+          <td style="padding:4px 8px;text-align:center"><span style="background:${bg};color:${fc};font-weight:700;padding:2px 8px;border-radius:10px">${ordReb}</span></td>
+          <td style="padding:4px 8px;text-align:center;font-weight:700">${tot}</td>
+        </tr>`);
+      } else nenc++;
+    }
 
-    } catch(err) { alert('Erro ao ler o arquivo: '+err.message); console.error(err); }
-  };
-  reader.readAsArrayBuffer(file);
+    const rotuloArquivos = nomesArquivos.length > 1
+      ? `${nomesArquivos.length} arquivos (${nomesArquivos.join(', ')})`
+      : nomesArquivos[0];
+    document.getElementById('import-ordens-resumo').innerHTML =
+      `<b>📊 Arquivo${nomesArquivos.length>1?'s':''}:</b> ${rotuloArquivos} &nbsp;|&nbsp; <b>Total ordens:</b> ${totalOrdens} &nbsp;|&nbsp; <b>✅ Placas com ordens:</b> ${enc} &nbsp;|&nbsp; <b>❌ Sem ordens:</b> ${nenc}`;
+    document.getElementById('import-ordens-tbody').innerHTML = linhas.length
+      ? linhas.join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#999">Nenhuma placa encontrada</td></tr>';
+    document.getElementById('overlay-import-ordens').classList.add('open');
+
+  } catch(err) { alert('Erro ao ler o(s) arquivo(s): '+err.message); console.error(err); }
 }
 
 function aplicarOrdens() {

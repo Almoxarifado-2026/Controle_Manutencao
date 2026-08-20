@@ -3847,6 +3847,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="overlay" id="overlay-import-ordens">
   <div class="modal" style="max-width:680px">
     <h2>📂 Resultado — Importação de Ordens de Serviço</h2>
+    <div style="font-size:11px;color:#64748b;margin:-6px 0 12px">As ordens deste arquivo são <b>somadas</b> ao que já estava importado (por número de ordem — se repetir, atualiza; se for nova, adiciona). Nada de outras importações é apagado.</div>
     <div id="import-ordens-resumo" style="margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border-radius:6px;border:1px solid #86efac;font-size:13px"></div>
     <div style="overflow-y:auto;max-height:340px">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -10194,7 +10195,25 @@ async function importarOrdens(input) {
     // importadas do primeiro (cada import reconstruía tudo do zero). Agora
     // aceita vários arquivos de uma vez (seleção múltipla no navegador,
     // Ctrl/Cmd+clique) e SOMA as ordens de todos antes de aplicar.
+    // ⚠️ CTAPlus exporta uma planilha DIFERENTE por filial (uma pra
+    // MATRIZ/RPT, outra pra FILIAL1/MAPE) — sem isso, importar os 2
+    // arquivos em ações SEPARADAS (uma agora, outra depois) fazia a
+    // segunda importação APAGAR as ordens já aplicadas da primeira (cada
+    // import reconstruía tudo do zero). Agora parte do que JÁ está salvo
+    // em CORRETIVAS (a última coisa aplicada) e mescla o(s) arquivo(s)
+    // novo(s) por cima — usando o número da ORDEM como chave: se a mesma
+    // ordem já existia (ex.: reimportou a mesma filial de novo, com o
+    // status atualizado), os dados novos SUBSTITUEM os antigos daquela
+    // ordem específica; ordens de outras importações que não aparecem
+    // neste arquivo continuam do jeito que estavam. Funciona tanto
+    // selecionando os arquivos juntos quanto um de cada vez.
     ordensImportadas = {};
+    for (const c of CORRETIVAS) {
+      if (!c || !c.placa || !c.ordem) continue;
+      if (!ordensImportadas[c.placa]) ordensImportadas[c.placa] = [];
+      const { placa, ...resto } = c;
+      ordensImportadas[c.placa].push(resto);
+    }
     let totalOrdens = 0;
     const nomesArquivos = [];
 
@@ -10220,22 +10239,25 @@ async function importarOrdens(input) {
         const placa = String(row[cP]||'').trim().toUpperCase();
         const ordem = String(row[cO]||'').trim();
         if (!placa || !ordem) continue;
-        totalOrdens++;
         if (!ordensImportadas[placa]) ordensImportadas[placa] = [];
-        // Evita duplicar a mesma ordem se, por acaso, ela aparecer nos 2
-        // arquivos (não deveria acontecer entre filiais diferentes, mas é
-        // uma proteção barata contra reimportar o mesmo arquivo 2x).
-        if (ordensImportadas[placa].some(o => o.ordem === ordem)) continue;
-        ordensImportadas[placa].push({
+        const nova = {
           ordem,
           servico:   String(row[cS]||'').trim(),
           data:      String(row[cD]||'').trim(),
           descricao: String(row[cL]||'').trim().slice(0,100),
           situacao:  String(row[cT]||'').trim(),
           filial:    _mapearFilial(row[cF]),
-        });
+        };
+        // Se essa mesma ordem já estava (de uma importação anterior, ou
+        // de outro arquivo desta mesma leva), SUBSTITUI pelos dados novos
+        // em vez de duplicar.
+        const idxExistente = ordensImportadas[placa].findIndex(o => o.ordem === ordem);
+        if (idxExistente >= 0) ordensImportadas[placa][idxExistente] = nova;
+        else ordensImportadas[placa].push(nova);
       }
     }
+    // Recontagem final (depois de mesclar tudo) pro resumo mostrado na tela
+    totalOrdens = Object.values(ordensImportadas).reduce((soma, lista) => soma + lista.length, 0);
 
     if (!nomesArquivos.length) { alert('Nenhum dos arquivos tinha dados.'); return; }
 

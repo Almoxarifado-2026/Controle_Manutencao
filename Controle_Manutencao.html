@@ -3557,6 +3557,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span id="label-execucao-txt1" style="font-size:13px;font-weight:600;color:#475569">🛠️ Serviço em Execução</span>
             <span id="label-execucao-txt2" style="font-size:12px;color:#94a3b8">(mecânico já está mexendo)</span>
           </label>
+          <!-- Opção 6: lavagem e lubrificação -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-lavagem">
+            <input type="checkbox" id="indisp-lavagem" onchange="onPrevTipoChange()" style="accent-color:#0891B2;width:16px;height:16px;cursor:pointer">
+            <span id="label-lavagem-txt1" style="font-size:13px;font-weight:600;color:#475569">🧼 Lavagem e Lubrificação</span>
+            <span id="label-lavagem-txt2" style="font-size:12px;color:#94a3b8">(na lavagem/lubrificação)</span>
+          </label>
           <!-- Opção 6: liberado -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-liberado">
             <input type="checkbox" id="indisp-liberado" onchange="onPrevTipoChange()" style="accent-color:#16A34A;width:16px;height:16px;cursor:pointer">
@@ -10189,24 +10195,21 @@ async function importarOrdens(input) {
   input.value = '';
 
   try {
-    // ⚠️ CTAPlus exporta uma planilha DIFERENTE por filial (uma pra
-    // MATRIZ/RPT, outra pra FILIAL1/MAPE) — sem isso, importar os 2
-    // arquivos um depois do outro fazia o segundo APAGAR as ordens já
-    // importadas do primeiro (cada import reconstruía tudo do zero). Agora
-    // aceita vários arquivos de uma vez (seleção múltipla no navegador,
-    // Ctrl/Cmd+clique) e SOMA as ordens de todos antes de aplicar.
-    // ⚠️ CTAPlus exporta uma planilha DIFERENTE por filial (uma pra
-    // MATRIZ/RPT, outra pra FILIAL1/MAPE) — sem isso, importar os 2
-    // arquivos em ações SEPARADAS (uma agora, outra depois) fazia a
-    // segunda importação APAGAR as ordens já aplicadas da primeira (cada
-    // import reconstruía tudo do zero). Agora parte do que JÁ está salvo
-    // em CORRETIVAS (a última coisa aplicada) e mescla o(s) arquivo(s)
-    // novo(s) por cima — usando o número da ORDEM como chave: se a mesma
-    // ordem já existia (ex.: reimportou a mesma filial de novo, com o
-    // status atualizado), os dados novos SUBSTITUEM os antigos daquela
-    // ordem específica; ordens de outras importações que não aparecem
-    // neste arquivo continuam do jeito que estavam. Funciona tanto
-    // selecionando os arquivos juntos quanto um de cada vez.
+    // ⚠️ REGRA DE NEGÓCIO (confirmada pelo usuário): cada exportação do
+    // CTAPlus mostra só as ordens AINDA ABERTAS daquela filial na hora do
+    // export. Se uma ordem que já tínhamos salva NÃO aparece mais na nova
+    // planilha da MESMA filial, é sinal de que ela foi fechada — precisa
+    // sumir da contagem. Só posso concluir isso pra filial que eu de fato
+    // importei agora: se eu importo só o Excel da MAPE, não tenho como
+    // saber se as ordens da RPT ainda estão abertas ou não (elas não
+    // aparecem nesse arquivo de qualquer jeito), então essas ficam
+    // intocadas até o dia que a RPT for reimportada também.
+    //
+    // Também aceita vários arquivos de uma vez (seleção múltipla no
+    // navegador, Ctrl/Cmd+clique) OU importações separadas em momentos
+    // diferentes — funciona igual nos dois casos, porque sempre parte do
+    // que já está salvo em CORRETIVAS antes de aplicar as mudanças desta
+    // rodada.
     ordensImportadas = {};
     for (const c of CORRETIVAS) {
       if (!c || !c.placa || !c.ordem) continue;
@@ -10214,8 +10217,10 @@ async function importarOrdens(input) {
       const { placa, ...resto } = c;
       ordensImportadas[c.placa].push(resto);
     }
-    let totalOrdens = 0;
+    let totalOrdens = 0, totalFechadas = 0;
     const nomesArquivos = [];
+    const filiaisNesteImport = new Set(); // quais filiais tiveram arquivo importado nesta rodada
+    const ordensVistasPorFilial = {};     // { 'RPT': Set('6838','6853',...), 'MAPE': Set(...) }
 
     for (const file of files) {
       const dados = await _lerExcelComoLinhas(file);
@@ -10239,6 +10244,12 @@ async function importarOrdens(input) {
         const placa = String(row[cP]||'').trim().toUpperCase();
         const ordem = String(row[cO]||'').trim();
         if (!placa || !ordem) continue;
+        const filial = _mapearFilial(row[cF]);
+        if (filial) {
+          filiaisNesteImport.add(filial);
+          if (!ordensVistasPorFilial[filial]) ordensVistasPorFilial[filial] = new Set();
+          ordensVistasPorFilial[filial].add(ordem);
+        }
         if (!ordensImportadas[placa]) ordensImportadas[placa] = [];
         const nova = {
           ordem,
@@ -10246,7 +10257,7 @@ async function importarOrdens(input) {
           data:      String(row[cD]||'').trim(),
           descricao: String(row[cL]||'').trim().slice(0,100),
           situacao:  String(row[cT]||'').trim(),
-          filial:    _mapearFilial(row[cF]),
+          filial,
         };
         // Se essa mesma ordem já estava (de uma importação anterior, ou
         // de outro arquivo desta mesma leva), SUBSTITUI pelos dados novos
@@ -10256,10 +10267,30 @@ async function importarOrdens(input) {
         else ordensImportadas[placa].push(nova);
       }
     }
-    // Recontagem final (depois de mesclar tudo) pro resumo mostrado na tela
-    totalOrdens = Object.values(ordensImportadas).reduce((soma, lista) => soma + lista.length, 0);
 
     if (!nomesArquivos.length) { alert('Nenhum dos arquivos tinha dados.'); return; }
+
+    // ── Remove as ordens "fechadas" ──
+    // Pra cada placa, tira as ordens cuja FILIAL foi importada agora mas o
+    // NÚMERO da ordem não apareceu na planilha nova dessa filial — ou seja,
+    // ela sumiu de lá porque foi finalizada. Ordens sem filial salva (de
+    // importações bem antigas, antes desse campo existir) ficam de fora
+    // dessa limpeza por segurança, já que não dá pra saber a qual filial
+    // pertencem.
+    if (filiaisNesteImport.size) {
+      for (const placa of Object.keys(ordensImportadas)) {
+        const antes = ordensImportadas[placa].length;
+        ordensImportadas[placa] = ordensImportadas[placa].filter(o => {
+          if (!o.filial || !filiaisNesteImport.has(o.filial)) return true; // filial não tocada nesta rodada — mantém
+          return ordensVistasPorFilial[o.filial] && ordensVistasPorFilial[o.filial].has(o.ordem); // some se não veio na planilha nova
+        });
+        totalFechadas += antes - ordensImportadas[placa].length;
+        if (!ordensImportadas[placa].length) delete ordensImportadas[placa];
+      }
+    }
+
+    // Recontagem final (depois de mesclar e limpar as fechadas) pro resumo mostrado na tela
+    totalOrdens = Object.values(ordensImportadas).reduce((soma, lista) => soma + lista.length, 0);
 
     // Montar resultado
     // OBS: um mesmo cavalo/reboque pode ter VÁRIOS registros em CHECKLIST
@@ -10295,8 +10326,9 @@ async function importarOrdens(input) {
     const rotuloArquivos = nomesArquivos.length > 1
       ? `${nomesArquivos.length} arquivos (${nomesArquivos.join(', ')})`
       : nomesArquivos[0];
+    const rotuloFiliais = filiaisNesteImport.size ? [...filiaisNesteImport].join(' + ') : '—';
     document.getElementById('import-ordens-resumo').innerHTML =
-      `<b>📊 Arquivo${nomesArquivos.length>1?'s':''}:</b> ${rotuloArquivos} &nbsp;|&nbsp; <b>Total ordens:</b> ${totalOrdens} &nbsp;|&nbsp; <b>✅ Placas com ordens:</b> ${enc} &nbsp;|&nbsp; <b>❌ Sem ordens:</b> ${nenc}`;
+      `<b>📊 Arquivo${nomesArquivos.length>1?'s':''}:</b> ${rotuloArquivos} &nbsp;|&nbsp; <b>Filial(is) atualizada(s):</b> ${rotuloFiliais} &nbsp;|&nbsp; <b>Total ordens abertas:</b> ${totalOrdens} &nbsp;|&nbsp; <b>🔒 Fechadas nesta rodada:</b> ${totalFechadas} &nbsp;|&nbsp; <b>✅ Placas com ordens:</b> ${enc} &nbsp;|&nbsp; <b>❌ Sem ordens:</b> ${nenc}`;
     document.getElementById('import-ordens-tbody').innerHTML = linhas.length
       ? linhas.join('')
       : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#999">Nenhuma placa encontrada</td></tr>';
@@ -16497,6 +16529,7 @@ function renderIndisp() {
     if (r.em_orcamento)   itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">💰 Orçamento</span>\`);
     if (r.em_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#E0F2FE;color:#0369a1">📦 Aguard. Peça</span>\`);
     if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.12);color:#000000">🛠️ Em Execução</span>\`);
+    if (r.em_lavagem)     itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#0891B2">🧼 Lavagem/Lubrif.</span>\`);
     if (r.em_liberado)    itens.push(\`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`);
     if (r.prev_lib)       itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">\${fmtDT(r.prev_lib)}</span>\`);
     if (!itens.length) return \`<span style="color:#64748b">—</span>\`;
@@ -20248,6 +20281,7 @@ function onPrevTipoChange() {
   const isOrc   = document.getElementById('indisp-orcamento')  && document.getElementById('indisp-orcamento').checked;
   const isPeca  = document.getElementById('indisp-peca')       && document.getElementById('indisp-peca').checked;
   const isExec  = document.getElementById('indisp-execucao')   && document.getElementById('indisp-execucao').checked;
+  const isLav   = document.getElementById('indisp-lavagem')    && document.getElementById('indisp-lavagem').checked;
   const isLib   = document.getElementById('indisp-liberado')   && document.getElementById('indisp-liberado').checked;
   const inp     = document.getElementById('indisp-prev-lib');
   const lblData = document.getElementById('label-prev-data');
@@ -20255,6 +20289,7 @@ function onPrevTipoChange() {
   const lblOrc  = document.getElementById('label-orcamento');
   const lblPeca = document.getElementById('label-peca');
   const lblExec = document.getElementById('label-execucao');
+  const lblLav  = document.getElementById('label-lavagem');
   const lblLib  = document.getElementById('label-liberado');
 
   // Cada opção agora liga/desliga o próprio destaque de forma independente
@@ -20273,6 +20308,7 @@ function onPrevTipoChange() {
     if (t1) t1.style.color = isExec ? '#000000' : '#475569';
     if (t2) t2.style.color = isExec ? '#374151' : '#94a3b8';
   }
+  if (lblLav)  { lblLav.style.borderColor  = isLav  ? '#0891B2' : '#dbe4f0'; lblLav.style.background  = isLav  ? '#CFFAFE' : '#f8fafc'; }
   if (lblLib)  { lblLib.style.borderColor  = isLib  ? '#16A34A' : '#dbe4f0'; lblLib.style.background  = isLib  ? '#DCFCE7' : '#f8fafc'; }
 
   // O campo de data só fica editável quando a própria opção "Data prevista"
@@ -20295,7 +20331,8 @@ function _resetDiagnostico() {
   inp.style.opacity = '1';
   const lblPeca = document.getElementById('label-peca');
   const lblExec = document.getElementById('label-execucao');
-  [lblDiag, lblOrc, lblPeca, lblExec, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  const lblLav  = document.getElementById('label-lavagem');
+  [lblDiag, lblOrc, lblPeca, lblExec, lblLav, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
   if (t1) t1.style.color = '#475569';
@@ -20331,6 +20368,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_orcamento)   itens.push({ icon:'💰', label:'Aguardando Orçamento',  labelCurta:'Orçamento',   cor:'#D97706', bg:'#FEF3C7' });
   if (r.em_peca)        itens.push({ icon:'📦', label:'Aguardando Peça',       labelCurta:'Aguard. Peça',cor:'#0369a1', bg:'#E0F2FE' });
   if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#000000', bg:'rgba(0,0,0,.12)' });
+  if (r.em_lavagem)     itens.push({ icon:'🧼', label:'Lavagem e Lubrificação', labelCurta:'Lavagem/Lubrif.', cor:'#0891B2', bg:'#CFFAFE' });
   if (r.em_liberado)    itens.push({ icon:'✅', label:'Liberado (aguard. motorista)', labelCurta:'Liberado', cor:'#15803d', bg:'#DCFCE7' });
   if (r.prev_lib)       itens.push({ icon:'📅', label: fmtDT(r.prev_lib),      labelCurta: fmtDT(r.prev_lib), cor:'#92400e', bg:'#FEF3C7' });
   return itens;
@@ -20472,6 +20510,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-orcamento').checked      = !!r.em_orcamento;
   document.getElementById('indisp-peca').checked           = !!r.em_peca;
   document.getElementById('indisp-execucao').checked       = !!r.em_execucao;
+  document.getElementById('indisp-lavagem').checked        = !!r.em_lavagem;
   document.getElementById('indisp-liberado').checked       = !!r.em_liberado;
   onPrevTipoChange();
   document.getElementById('overlay-indisp').classList.add('open');
@@ -20543,6 +20582,7 @@ function salvarIndisp() {
     em_orcamento:   document.getElementById('indisp-orcamento') ? document.getElementById('indisp-orcamento').checked : false,
     em_peca:        document.getElementById('indisp-peca')       ? document.getElementById('indisp-peca').checked       : false,
     em_execucao:    document.getElementById('indisp-execucao')   ? document.getElementById('indisp-execucao').checked   : false,
+    em_lavagem:     document.getElementById('indisp-lavagem')    ? document.getElementById('indisp-lavagem').checked    : false,
     em_liberado:    document.getElementById('indisp-liberado')   ? document.getElementById('indisp-liberado').checked   : false,
   };
   // ── Detecção de exclusão concorrente ──
@@ -20605,7 +20645,7 @@ function _resumirMudancasIndisp(antes, depois) {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
     em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento',
-    em_peca: 'Aguardando peça', em_execucao: 'Em execução', em_liberado: 'Liberado',
+    em_peca: 'Aguardando peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -21157,6 +21197,7 @@ function imprimirPDFIndisp() {
     if (r.em_orcamento)   itens.push('Aguard. Orcamento');
     if (r.em_peca)        itens.push('Aguard. Peca');
     if (r.em_execucao)    itens.push('Em Execucao');
+    if (r.em_lavagem)     itens.push('Lavagem e Lubrificacao');
     if (r.em_liberado)    itens.push('Liberado (Aguard. motorista)');
     if (r.prev_lib)       itens.push(fmtDT(r.prev_lib));
     return itens.length ? itens.join(' + ') : '—';
@@ -22584,6 +22625,7 @@ function renderMobIndisp() {
       if (r.em_orcamento)   prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 Aguard. Orçamento</span>`);
       if (r.em_peca)        prevItens.push(`<span style="background:#E0F2FE;color:#0369a1;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📦 Aguard. Peça</span>`);
       if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.12);color:#000000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
+      if (r.em_lavagem)     prevItens.push(`<span style="background:#CFFAFE;color:#0891B2;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧼 Lavagem/Lubrif.</span>`);
       if (r.em_liberado)    prevItens.push(`<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`);
       if (r.prev_lib)       prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📅 ${fmtDtLocal(r.prev_lib)}</span>`);
       const prevHtml = prevItens.length

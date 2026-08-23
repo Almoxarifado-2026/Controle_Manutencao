@@ -6910,6 +6910,27 @@ let CHECKLIST = []
 // Verde: 0 até (amarelo-1) dias. Amarelo: amarelo até (vermelho-1) dias.
 // Vermelho: vermelho dias ou mais.
 let CHECKLIST_LIMITES = { amarelo: 10, vermelho: 15 };
+// Exceções por placa — algumas placas vencem com prazos diferentes do
+// padrão global (ex.: um contrato específico exige revisão a cada 30 dias,
+// outro a cada 15). Chave = placa (cavalo OU reboque), valor = {amarelo,
+// vermelho} só pra essa placa. Placas sem entrada aqui usam o padrão global
+// normalmente. Fica salvo junto do config_checklist.json, no campo "porPlaca".
+let CHECKLIST_LIMITES_PLACA = {};
+
+// Calcula os limites amarelo/vermelho que valem pra um registro específico
+// do checklist — usa a exceção da placa (cavalo tem prioridade sobre
+// reboque) se existir, senão cai no padrão global. Usar esta função em vez
+// de ler CHECKLIST_LIMITES direto é o que faz cada placa poder ter seu
+// próprio prazo de vencimento.
+function _limitesChecklistDe(c) {
+  const ov = (c && c.cavalo && CHECKLIST_LIMITES_PLACA[c.cavalo])
+          || (c && c.reboque && CHECKLIST_LIMITES_PLACA[c.reboque])
+          || null;
+  return {
+    amarelo:  (ov && ov.amarelo  > 0) ? ov.amarelo  : CHECKLIST_LIMITES.amarelo,
+    vermelho: (ov && ov.vermelho > 0) ? ov.vermelho : CHECKLIST_LIMITES.vermelho,
+  };
+}
 
 async function carregarLimitesChecklist() {
   try {
@@ -6919,6 +6940,7 @@ async function carregarLimitesChecklist() {
       const vermelho = parseInt(d.vermelho) || 15;
       if (amarelo > 0 && vermelho > amarelo) CHECKLIST_LIMITES = { amarelo, vermelho };
     }
+    if (d && d.porPlaca && typeof d.porPlaca === 'object') CHECKLIST_LIMITES_PLACA = d.porPlaca;
   } catch(e) { /* mantém o padrão se falhar */ }
   _atualizarLabelsLimitesChecklist();
 }
@@ -6934,8 +6956,10 @@ async function salvarLimitesChecklist(amarelo, vermelho) {
   _atualizarLabelsLimitesChecklist();
   if (typeof renderCheck === 'function') renderCheck();
   try {
+    // PUT no nó inteiro apagaria as exceções por placa já salvas — por
+    // isso manda o porPlaca atual junto, em vez de só {amarelo, vermelho}.
     const resp = await _fetchComTimeout(FIREBASE_URL + '/manutencao/config_checklist.json', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amarelo, vermelho })
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amarelo, vermelho, porPlaca: CHECKLIST_LIMITES_PLACA })
     }, 15000);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     mostrarIndicador('✅ Limites de cor salvos!', '#86efac');
@@ -6945,6 +6969,91 @@ async function salvarLimitesChecklist(amarelo, vermelho) {
     console.warn('[salvarLimitesChecklist]', e);
     return false;
   }
+}
+
+// ── Exceções por placa ──
+async function salvarLimitePlacaChecklist(placa, amarelo, vermelho) {
+  if (!_checkEdicao()) return false;
+  placa = (placa || '').trim().toUpperCase();
+  amarelo = parseInt(amarelo);
+  vermelho = parseInt(vermelho);
+  if (!placa) { alert('Escolha uma placa.'); return false; }
+  if (!(amarelo > 0) || !(vermelho > amarelo)) {
+    alert('Valores inválidos: "amarelo" precisa ser maior que 0, e "vermelho" precisa ser maior que o valor do amarelo.');
+    return false;
+  }
+  try {
+    // Lê o mais atual do Firebase antes de gravar, pra não perder uma
+    // exceção que outro aparelho tenha adicionado nesse meio tempo.
+    const remoto = await fbGet('/manutencao/config_checklist.json') || {};
+    const porPlaca = { ...(remoto.porPlaca || {}), [placa]: { amarelo, vermelho } };
+    const corpo = { amarelo: remoto.amarelo || CHECKLIST_LIMITES.amarelo, vermelho: remoto.vermelho || CHECKLIST_LIMITES.vermelho, porPlaca };
+    const resp = await _fetchComTimeout(FIREBASE_URL + '/manutencao/config_checklist.json', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo)
+    }, 15000);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    CHECKLIST_LIMITES_PLACA = porPlaca;
+    if (typeof renderCheck === 'function') renderCheck();
+    mostrarIndicador(`✅ Exceção salva pra ${placa}`, '#86efac');
+    return true;
+  } catch(e) {
+    mostrarIndicador('⚠️ Não confirmou no Firebase — tente de novo', '#fcd34d');
+    console.warn('[salvarLimitePlacaChecklist]', e);
+    return false;
+  }
+}
+
+async function removerLimitePlacaChecklist(placa) {
+  if (!_checkEdicao()) return;
+  if (!confirm(`Remover a exceção de prazo da placa ${placa}? Ela volta a usar o padrão global.`)) return;
+  try {
+    const remoto = await fbGet('/manutencao/config_checklist.json') || {};
+    const porPlaca = { ...(remoto.porPlaca || {}) };
+    delete porPlaca[placa];
+    const corpo = { amarelo: remoto.amarelo || CHECKLIST_LIMITES.amarelo, vermelho: remoto.vermelho || CHECKLIST_LIMITES.vermelho, porPlaca };
+    const resp = await _fetchComTimeout(FIREBASE_URL + '/manutencao/config_checklist.json', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo)
+    }, 15000);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    CHECKLIST_LIMITES_PLACA = porPlaca;
+    _renderExcecoesLimiteChecklist();
+    if (typeof renderCheck === 'function') renderCheck();
+    mostrarIndicador(`🗑️ Exceção removida — ${placa} volta ao padrão`, '#86efac');
+  } catch(e) {
+    mostrarIndicador('⚠️ Não confirmou no Firebase — tente de novo', '#fcd34d');
+    console.warn('[removerLimitePlacaChecklist]', e);
+  }
+}
+
+function _renderExcecoesLimiteChecklist() {
+  const el = document.getElementById('excecoes-limite-lista');
+  if (!el) return;
+  const placas = Object.keys(CHECKLIST_LIMITES_PLACA).sort();
+  el.innerHTML = placas.length
+    ? placas.map(p => {
+        const v = CHECKLIST_LIMITES_PLACA[p];
+        return `<div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;margin-bottom:6px">
+          <span style="font-weight:800;color:#1B3A6D;flex:1">${p}</span>
+          <span style="font-size:11px;color:#92400e">🟡 ${v.amarelo}d</span>
+          <span style="font-size:11px;color:#991b1b">🔴 ${v.vermelho}d</span>
+          <button onclick="removerLimitePlacaChecklist('${p}')" title="Remover exceção" style="background:#FEF2F2;color:#DC2626;border:none;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer">🗑️</button>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:12px;color:#94a3b8;padding:6px 0">Nenhuma exceção configurada — todas as placas usam o padrão acima.</div>';
+}
+
+function _adicionarExcecaoLimiteChecklist() {
+  const placa = document.getElementById('excecao-limite-placa')?.value;
+  const amarelo = document.getElementById('excecao-limite-amarelo')?.value;
+  const vermelho = document.getElementById('excecao-limite-vermelho')?.value;
+  salvarLimitePlacaChecklist(placa, amarelo, vermelho).then(ok => {
+    if (ok) {
+      document.getElementById('excecao-limite-placa').value = '';
+      document.getElementById('excecao-limite-amarelo').value = '';
+      document.getElementById('excecao-limite-vermelho').value = '';
+      _renderExcecoesLimiteChecklist();
+    }
+  });
 }
 
 // Atualiza os textos que mostram os limites atuais — dropdown de filtro e
@@ -6965,6 +7074,15 @@ function abrirConfigLimitesChecklist() {
   const elV = document.getElementById('limite-check-vermelho');
   if (elA) elA.value = CHECKLIST_LIMITES.amarelo;
   if (elV) elV.value = CHECKLIST_LIMITES.vermelho;
+  // Popula o datalist com as placas (cavalo/reboque) já cadastradas no
+  // Checklist, pra facilitar digitar/escolher sem precisar decorar.
+  const dl = document.getElementById('datalist-placas-checklist');
+  if (dl) {
+    const placas = new Set();
+    CHECKLIST.forEach(c => { if (c.cavalo) placas.add(c.cavalo); if (c.reboque) placas.add(c.reboque); });
+    dl.innerHTML = [...placas].sort().map(p => `<option value="${p}">`).join('');
+  }
+  _renderExcecoesLimiteChecklist();
   document.getElementById('overlay-limites-checklist').classList.add('open');
 }
 function fecharConfigLimitesChecklist() {
@@ -9887,9 +10005,10 @@ function renderCheck() {
     // Filtro dias
     if (diasVal) {
       const d = parseInt(c.dias) || 0;
-      if (diasVal === 'vermelho' && d < CHECKLIST_LIMITES.vermelho) return false;
-      if (diasVal === 'amarelo' && (d < CHECKLIST_LIMITES.amarelo || d >= CHECKLIST_LIMITES.vermelho)) return false;
-      if (diasVal === 'verde'   && d >= CHECKLIST_LIMITES.amarelo) return false;
+      const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c);
+      if (diasVal === 'vermelho' && d < limV) return false;
+      if (diasVal === 'amarelo' && (d < limA || d >= limV)) return false;
+      if (diasVal === 'verde'   && d >= limA) return false;
     }
     return true;
   });
@@ -9897,11 +10016,12 @@ function renderCheck() {
   // Guardar índice real para edição
   const indicesReais = listaFiltrada.map(c => CHECKLIST.indexOf(c));
 
-  function diasStyle(dias) {
+  function diasStyle(dias, c) {
     if(dias===''||dias===null||dias===undefined) return 'text-align:center';
     const d=parseInt(dias);
-    if(d<=9)  return 'text-align:center;font-weight:700;background:#C6EFCE;color:#276221';
-    if(d<=14) return 'text-align:center;font-weight:700;background:#FFEB9C;color:#9C5700';
+    const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c||{});
+    if(d<limA)  return 'text-align:center;font-weight:700;background:#C6EFCE;color:#276221';
+    if(d<limV) return 'text-align:center;font-weight:700;background:#FFEB9C;color:#9C5700';
     return 'text-align:center;font-weight:700;background:#FFC7CE;color:#9C0006';
   }
   function diasCellStyle(c) {
@@ -9909,7 +10029,7 @@ function renderCheck() {
       const hex=c.dias_bg.length===8?c.dias_bg.slice(2):c.dias_bg;
       return `text-align:center;font-weight:700;background:#${hex};color:#333`;
     }
-    return diasStyle(c.dias);
+    return diasStyle(c.dias, c);
   }
   function qtdBadge(qtd,placa) {
     if (!qtd || qtd === 0) return `<span style="color:#9CA3AF">${qtd}</span>`;
@@ -9929,7 +10049,8 @@ function renderCheck() {
     const i = indicesReais[pos]; // índice real no CHECKLIST para edição correta
     const qtdCav=c.qtd_corr_cav_auto!==undefined?c.qtd_corr_cav_auto:(c.qtd_corr_cav||0);
     const qtdReb=c.qtd_corr_reb_auto!==undefined?c.qtd_corr_reb_auto:(c.qtd_corr_reb||0);
-    const urgClass = c.dias >= CHECKLIST_LIMITES.vermelho ? 'background:#FFF0F0' : c.dias >= CHECKLIST_LIMITES.amarelo ? 'background:#FFFBEB' : 'background:#F0FDF4';
+    const { amarelo: _limA, vermelho: _limV } = _limitesChecklistDe(c);
+    const urgClass = c.dias >= _limV ? 'background:#FFF0F0' : c.dias >= _limA ? 'background:#FFFBEB' : 'background:#F0FDF4';
     return `<tr style="${urgClass}">
       <td>${c.programador||''}</td>
       <td style="${placaBg(c.cavalo_bg)}font-weight:700;color:#16365C">${c.cavalo||''}</td>
@@ -10562,9 +10683,10 @@ function exportarPDFCheck(){
     if (progVal && (c.programador || '') !== progVal) return false;
     if (diasVal) {
       const d = parseInt(c.dias) || 0;
-      if (diasVal === 'vermelho' && d < CHECKLIST_LIMITES.vermelho) return false;
-      if (diasVal === 'amarelo' && (d < CHECKLIST_LIMITES.amarelo || d >= CHECKLIST_LIMITES.vermelho)) return false;
-      if (diasVal === 'verde'   && d >= CHECKLIST_LIMITES.amarelo) return false;
+      const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c);
+      if (diasVal === 'vermelho' && d < limV) return false;
+      if (diasVal === 'amarelo' && (d < limA || d >= limV)) return false;
+      if (diasVal === 'verde'   && d >= limA) return false;
     }
     return true;
   });
@@ -10581,10 +10703,11 @@ function exportarPDFCheck(){
     ? `Filtrado por programador: ${progVal} · ${lista.length} registro(s) · Ordenado por dias (maior → menor)`
     : `Relatório completo · ${lista.length} registros · Ordenado por dias (maior → menor)`;
 
-  function diasBg(dias) {
+  function diasBg(dias, c) {
     const d = parseInt(dias)||0;
-    if (d > 14) return 'background:#FFC7CE;color:#9C0006';
-    if (d >= 10) return 'background:#FFEB9C;color:#9C5700';
+    const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c||{});
+    if (d >= limV) return 'background:#FFC7CE;color:#9C0006';
+    if (d >= limA) return 'background:#FFEB9C;color:#9C5700';
     return 'background:#C6EFCE;color:#276221';
   }
 
@@ -10599,7 +10722,8 @@ function exportarPDFCheck(){
   const linhas = lista.map((c,i) => {
     const bg = i%2===0 ? '#ffffff' : '#f5f7ff';
     const dias = parseInt(c.dias)||0;
-    const rowBg = dias >= CHECKLIST_LIMITES.vermelho ? '#FFF5F5' : bg;
+    const { vermelho: limV } = _limitesChecklistDe(c);
+    const rowBg = dias >= limV ? '#FFF5F5' : bg;
     const corrCav = c.qtd_corr_cav_auto||c.qtd_corr_cav||0;
     const corrReb = c.qtd_corr_reb_auto||c.qtd_corr_reb||0;
     return `<tr style="background:${rowBg}">
@@ -10609,7 +10733,7 @@ function exportarPDFCheck(){
       <td style="padding:5px 8px;color:#0D9488;font-weight:700">${c.reboque||'—'}</td>
       <td style="padding:5px 8px;text-align:center">${c.ult_prev||'—'}</td>
       <td style="padding:5px 8px;text-align:center">${c.data||'—'}</td>
-      <td style="padding:5px 8px;text-align:center"><span style="${diasBg(c.dias)};padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">${dias}d</span></td>
+      <td style="padding:5px 8px;text-align:center"><span style="${diasBg(c.dias, c)};padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">${dias}d</span></td>
       <td style="padding:5px 8px;white-space:normal;max-width:180px;font-size:10px">${c.obs_log||'—'}</td>
       <td style="padding:5px 8px;white-space:normal;max-width:180px;font-size:10px">${c.obs_comp||'—'}</td>
       <td style="padding:5px 8px;text-align:center"><span style="${corrBg(corrCav)};padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700">${corrCav}</span></td>
@@ -11514,7 +11638,7 @@ async function salvarPlano() {
 
 <!-- ── MODAL: Limites de Cor do Checklist (#overlay-limites-checklist) ── -->
 <div class="overlay" id="overlay-limites-checklist">
-  <div class="modal" style="max-width:400px;padding:0;border-radius:22px;overflow:hidden">
+  <div class="modal" style="max-width:480px;padding:0;border-radius:22px;overflow:hidden">
     <div style="background:linear-gradient(135deg,#0f172a,#166534);color:#fff;padding:20px 24px 16px">
       <h2 style="font-size:18px;font-weight:700;margin:0 0 4px">🎨 Cores do Checklist</h2>
       <div style="font-size:12px;opacity:.8">A partir de quantos dias sem revisão cada cor entra</div>
@@ -11533,6 +11657,20 @@ async function salvarPlano() {
         <span style="font-size:12px;color:#94a3b8">dias</span>
       </div>
       <div style="font-size:11px;color:#94a3b8;margin-top:10px">Abaixo do amarelo fica verde. Vale pra tabela, filtro, cartão do celular, PDF exportado e Painel TV — todos usam esse mesmo valor.</div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:2px">🚚 Exceções por placa</div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">Alguma placa tem um prazo de revisão diferente do padrão acima (ex.: contrato exige 30 dias em vez de 15)? Configure aqui — só essa placa usa o valor abaixo, o resto continua no padrão.</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="excecao-limite-placa" placeholder="Placa" list="datalist-placas-checklist"
+            style="flex:1;min-width:90px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;text-transform:uppercase">
+          <datalist id="datalist-placas-checklist"></datalist>
+          <input type="number" id="excecao-limite-amarelo" placeholder="🟡 dias" min="1" style="width:70px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;text-align:center">
+          <input type="number" id="excecao-limite-vermelho" placeholder="🔴 dias" min="1" style="width:70px;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;text-align:center">
+          <button onclick="_adicionarExcecaoLimiteChecklist()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Adicionar</button>
+        </div>
+        <div id="excecoes-limite-lista"></div>
+      </div>
     </div>
     <div style="padding:0 24px 20px;display:flex;gap:8px;justify-content:flex-end">
       <button onclick="fecharConfigLimitesChecklist()" style="padding:10px 16px;background:#f0f0f0;color:#555;border:none;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer">Cancelar</button>
@@ -16142,6 +16280,18 @@ const _indispSnapshotInicial = INDISPONIVEIS.slice();
 // postMessage (ver listener 'painel-tv-sync' logo abaixo). Começa com o
 // padrão até a primeira sincronização chegar.
 let CHECKLIST_LIMITES = { amarelo: 10, vermelho: 15 };
+// Exceções por placa, sincronizadas junto (ver _aplicarSyncPainelTV abaixo)
+// — mesmo conceito do app principal: cada placa pode ter seu prazo próprio.
+let CHECKLIST_LIMITES_PLACA = {};
+function _limitesChecklistDe(c) {
+  const ov = (c && c.cavalo && CHECKLIST_LIMITES_PLACA[c.cavalo])
+          || (c && c.reboque && CHECKLIST_LIMITES_PLACA[c.reboque])
+          || null;
+  return {
+    amarelo:  (ov && ov.amarelo  > 0) ? ov.amarelo  : CHECKLIST_LIMITES.amarelo,
+    vermelho: (ov && ov.vermelho > 0) ? ov.vermelho : CHECKLIST_LIMITES.vermelho,
+  };
+}
 
 let _indispUltimoConfirmado = new Map(INDISPONIVEIS.filter(r => r && r.id).map(r => [r.id, r]));
 let _indispFaltandoGrace = new Map(); // id → registro, ausente na rodada anterior (1ª ausência, ainda não confirmada)
@@ -16172,6 +16322,9 @@ function _aplicarSyncPainelTV(data) {
   if (Array.isArray(data.checklist) && typeof CHECKLIST !== 'undefined') CHECKLIST = data.checklist;
   if (data.limitesChecklist && data.limitesChecklist.amarelo && data.limitesChecklist.vermelho) {
     CHECKLIST_LIMITES = data.limitesChecklist;
+  }
+  if (data.limitesChecklistPlaca && typeof data.limitesChecklistPlaca === 'object') {
+    CHECKLIST_LIMITES_PLACA = data.limitesChecklistPlaca;
   }
   if (typeof renderIndisp === 'function') renderIndisp();
   if (typeof renderCheck === 'function') renderCheck();
@@ -16489,7 +16642,7 @@ function renderOleo() {
 }
 
 function renderCheck() {
-  const venc = CHECKLIST.filter(c => (c.dias||0) >= CHECKLIST_LIMITES.vermelho).sort((a,b) => (b.dias||0)-(a.dias||0));
+  const venc = CHECKLIST.filter(c => (c.dias||0) >= _limitesChecklistDe(c).vermelho).sort((a,b) => (b.dias||0)-(a.dias||0));
   document.getElementById('check-count').textContent = venc.length + ' veículo' + (venc.length!==1?'s':'');
   document.getElementById('lista-check').innerHTML = venc.length ? venc.map(c => {
     const dias = c.dias||0;
@@ -16927,6 +17080,7 @@ function _sincronizarPainelTV() {
     veiculos: typeof VEICULOS !== 'undefined' ? VEICULOS : [],
     checklist: typeof CHECKLIST !== 'undefined' ? CHECKLIST : [],
     limitesChecklist: typeof CHECKLIST_LIMITES !== 'undefined' ? CHECKLIST_LIMITES : { amarelo: 10, vermelho: 15 },
+    limitesChecklistPlaca: typeof CHECKLIST_LIMITES_PLACA !== 'undefined' ? CHECKLIST_LIMITES_PLACA : {},
   };
   try { _painelTVChannel.postMessage(payload); } catch(e) {}
 }
@@ -22770,7 +22924,8 @@ function renderMobCheck() {
     };
     const corrCavBadge = _corrBadge(qtdCavNum, cavalo);
     const corrRebBadge = _corrBadge(qtdRebNum, reboque);
-    const cor = dias >= CHECKLIST_LIMITES.vermelho ? '#fee2e2;color:#991b1b' : dias >= CHECKLIST_LIMITES.amarelo ? '#fef9c3;color:#854d0e' : '#dcfce7;color:#166534';
+    const { amarelo: _limA, vermelho: _limV } = _limitesChecklistDe({ cavalo, reboque });
+    const cor = dias >= _limV ? '#fee2e2;color:#991b1b' : dias >= _limA ? '#fef9c3;color:#854d0e' : '#dcfce7;color:#166534';
     const bgCorBadge = cor.split(';')[0];
     const fgCorBadge = cor.split('color:')[1];
     // Find edit button onclick in tds

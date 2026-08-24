@@ -9944,9 +9944,72 @@ async function _restaurarChecklistPendentes() {
     console.warn('[Checklist] Erro ao restaurar pendentes:', e);
   }
 }
+// Conta quantos dias corridos existem entre duas datas (domingo conta
+// normalmente — só a pausa é que "congela" a contagem, ver recalcDias()).
+function _diasCorridos(inicio, fim) {
+  if (!(inicio instanceof Date) || !(fim instanceof Date) || isNaN(inicio) || isNaN(fim)) return 0;
+  const d = new Date(inicio); d.setHours(0,0,0,0);
+  const alvo = new Date(fim); alvo.setHours(0,0,0,0);
+  return Math.max(0, Math.round((alvo - d) / 86400000));
+}
+
+// Calcula os "dias sem revisão" de um registro do Checklist:
+// - Conta dias corridos normais (domingo conta igual aos outros dias).
+// - Se o registro estiver PAUSADO (c.pausado — veículo parado, sem rodar),
+//   a contagem fica CONGELADA na data em que a pausa começou, em vez de
+//   continuar subindo enquanto ele está parado.
+// - c.dias_pausados_acumulados guarda o total de dias já "descontados" de
+//   pausas ANTERIORES já encerradas (ver retomarChecklist()), pra a
+//   contagem retomar de onde parou depois de despausar, sem pular pra
+//   frente contando os dias em que ficou parado.
 function recalcDias(c) {
-  if (!c.ult_prev) { c.dias=0; return; }
-  try { const[d,m,a]=c.ult_prev.split('/'); const hoje=new Date(); hoje.setHours(0,0,0,0); c.dias=Math.floor((hoje-new Date(+a,+m-1,+d))/86400000); } catch { c.dias=0; }
+  if (!c.ult_prev) { c.dias = 0; return; }
+  try {
+    const [d,m,a] = c.ult_prev.split('/');
+    const inicio = new Date(+a, +m-1, +d);
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const fimContagem = (c.pausado && c.data_inicio_pausa) ? new Date(c.data_inicio_pausa) : hoje;
+    const bruto = _diasCorridos(inicio, fimContagem);
+    c.dias = Math.max(0, bruto - (c.dias_pausados_acumulados || 0));
+  } catch { c.dias = 0; }
+}
+
+// ── Pausar / retomar a contagem de uma placa ──
+// Uso: o caminhão fez o checklist preventivo mas ficou parado (sem rodar)
+// alguns dias por qualquer motivo — não faz sentido os "dias sem revisão"
+// continuarem subindo nesse período, já que ele nem estava em operação.
+function pausarChecklist(i) {
+  if (!_checkEdicao()) return;
+  const c = CHECKLIST[i];
+  if (!c || c.pausado) return;
+  if (!confirm(`⏸️ Pausar a contagem de dias de ${c.cavalo || c.reboque || 'este registro'}?\n\nUse quando o veículo ficar parado (sem rodar) por um tempo — os dias parados não contam pro vencimento. Lembre de "Retomar" quando ele voltar a rodar.`)) return;
+  c.pausado = true;
+  c.data_inicio_pausa = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+  recalcDias(c);
+  if (c._ckid) _checkIdsTocados.add(c._ckid);
+  _temAlteracoesPendentes = true;
+  renderCheck();
+  salvarFB();
+  mostrarIndicador('⏸️ Contagem pausada', '#FCD34D');
+}
+
+function retomarChecklist(i) {
+  if (!_checkEdicao()) return;
+  const c = CHECKLIST[i];
+  if (!c || !c.pausado) return;
+  try {
+    const inicioPausa = new Date(c.data_inicio_pausa);
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    c.dias_pausados_acumulados = (c.dias_pausados_acumulados || 0) + _diasCorridos(inicioPausa, hoje);
+  } catch(e) {}
+  c.pausado = false;
+  c.data_inicio_pausa = '';
+  recalcDias(c);
+  if (c._ckid) _checkIdsTocados.add(c._ckid);
+  _temAlteracoesPendentes = true;
+  renderCheck();
+  salvarFB();
+  mostrarIndicador('▶️ Contagem retomada', '#86efac');
 }
 
 
@@ -10050,7 +10113,13 @@ function renderCheck() {
     const qtdCav=c.qtd_corr_cav_auto!==undefined?c.qtd_corr_cav_auto:(c.qtd_corr_cav||0);
     const qtdReb=c.qtd_corr_reb_auto!==undefined?c.qtd_corr_reb_auto:(c.qtd_corr_reb||0);
     const { amarelo: _limA, vermelho: _limV } = _limitesChecklistDe(c);
-    const urgClass = c.dias >= _limV ? 'background:#FFF0F0' : c.dias >= _limA ? 'background:#FFFBEB' : 'background:#F0FDF4';
+    // Linha pausada fica com destaque azul-acinzentado neutro, sobrepondo a
+    // cor de urgência normal — sinaliza visualmente que a contagem está
+    // congelada e não deve ser lida como "tudo bem"/verde nem "vencido".
+    const urgClass = c.pausado ? 'background:#EEF2FF' : (c.dias >= _limV ? 'background:#FFF0F0' : c.dias >= _limA ? 'background:#FFFBEB' : 'background:#F0FDF4');
+    const badgePausa = c.pausado
+      ? `<div style="font-size:9px;color:#4338CA;font-weight:700;margin-top:2px;white-space:nowrap">⏸️ PARADO ${c.data_inicio_pausa ? 'desde ' + c.data_inicio_pausa.split('-').reverse().join('/') : ''}</div>`
+      : '';
     return `<tr style="${urgClass}">
       <td>${c.programador||''}</td>
       <td style="${placaBg(c.cavalo_bg)}font-weight:700;color:#16365C">${c.cavalo||''}</td>
@@ -10058,7 +10127,7 @@ function renderCheck() {
       <td style="${placaBg(c.reboque_bg)}font-weight:700;color:#16365C">${c.reboque||''}</td>
       <td>${c.ult_prev||''}</td>
       <td>${hoje}</td>
-      <td style="${diasCellStyle(c)}">${c.dias!==undefined?c.dias:''}</td>
+      <td style="${diasCellStyle(c)}">${c.dias!==undefined?c.dias:''}${badgePausa}</td>
       <td style="white-space:normal;max-width:220px">${c.obs_log||''}</td>
       <td style="white-space:normal;max-width:220px">${c.obs_comp||''}</td>
       <td style="text-align:center">${qtdBadge(qtdCav,c.cavalo)}</td>
@@ -10067,6 +10136,10 @@ function renderCheck() {
       <td style="text-align:center;white-space:nowrap">
         <button class="edit-only" onclick="editarCheck(${i})" style="padding:2px 8px;border:none;border-radius:3px;background:#EFF6FF;color:#1D4ED8;font-weight:700;cursor:pointer;font-size:11px">✏️ Editar</button>
         <button class="edit-only" onclick="duplicarCheckRow(${i})" title="Duplicar este registro" style="padding:2px 6px;border:none;border-radius:3px;background:#F0FDF4;color:#16A34A;font-weight:700;cursor:pointer;font-size:11px;margin-left:3px">📋</button>
+        ${c.pausado
+          ? `<button class="edit-only" onclick="retomarChecklist(${i})" title="Veículo voltou a rodar — retomar contagem" style="padding:2px 8px;border:none;border-radius:3px;background:#DCFCE7;color:#15803D;font-weight:700;cursor:pointer;font-size:11px;margin-left:3px">▶️ Retomar</button>`
+          : `<button class="edit-only" onclick="pausarChecklist(${i})" title="Veículo parado (sem rodar) — pausar contagem" style="padding:2px 8px;border:none;border-radius:3px;background:#FEF3C7;color:#92400E;font-weight:700;cursor:pointer;font-size:11px;margin-left:3px">⏸️ Pausar</button>`
+        }
       </td>
     </tr>`;
   }).join('');
@@ -10123,17 +10196,29 @@ function salvarCheck(){
   if (!_checkEdicao()) return;
   function toDisp(s){if(!s)return'';const[a,m,d]=s.split('-');return`${d}/${m}/${a}`;}
   const novo={programador:document.getElementById('c-prog').value.trim(),cavalo:document.getElementById('c-cavalo').value.trim().toUpperCase(),tipo:document.getElementById('c-tipo').value.trim().toUpperCase(),reboque:document.getElementById('c-reboque').value.trim().toUpperCase(),ult_prev:toDisp(document.getElementById('c-ult-prev').value),obs_log:document.getElementById('c-obs-log').value.trim(),obs_comp:document.getElementById('c-obs-comp').value.trim(),qtd_corr_cav:parseInt(document.getElementById('c-corr-cav').value)||0,qtd_corr_reb:parseInt(document.getElementById('c-corr-reb').value)||0,retorno_log:document.getElementById('c-retorno').value.trim(),dias_bg:'',cavalo_bg:'',reboque_bg:'',_editadoEm:Date.now()};
-  recalcDias(novo);
   if (editCheckIdx >= 0) {
     // Relocaliza o registro pela chave estável (cavalo+reboque) em vez de confiar
     // no índice numérico, que pode ter ficado desatualizado se outro dispositivo
     // adicionou/excluiu/reordenou registros enquanto este modal estava aberto.
     let idxReal = CHECKLIST.findIndex((c,idx) => idx === editCheckIdx && (c.cavalo||'')+'|'+(c.reboque||'') === _editCheckKey);
     if (idxReal < 0) idxReal = CHECKLIST.findIndex(c => (c.cavalo||'')+'|'+(c.reboque||'') === _editCheckKey);
-    if (idxReal >= 0) { novo._ckid = CHECKLIST[idxReal]._ckid || _gerarIdChecklist(); CHECKLIST[idxReal] = novo; }
-    else { novo._ckid = _gerarIdChecklist(); CHECKLIST.push(novo); } // registro original não existe mais — adiciona como novo em vez de perder os dados
+    if (idxReal >= 0) {
+      // Preserva o estado de pausa (pausado/data_inicio_pausa/dias
+      // pausados acumulados) — sem isso, editar qualquer outro campo do
+      // registro (ex.: observação) apagava a pausa sem querer, porque
+      // "novo" é montado do zero só com os campos do formulário.
+      const antigo = CHECKLIST[idxReal];
+      novo._ckid = antigo._ckid || _gerarIdChecklist();
+      novo.pausado = antigo.pausado;
+      novo.data_inicio_pausa = antigo.data_inicio_pausa;
+      novo.dias_pausados_acumulados = antigo.dias_pausados_acumulados;
+      recalcDias(novo);
+      CHECKLIST[idxReal] = novo;
+    }
+    else { novo._ckid = _gerarIdChecklist(); recalcDias(novo); CHECKLIST.push(novo); } // registro original não existe mais — adiciona como novo em vez de perder os dados
   } else {
     novo._ckid = _gerarIdChecklist();
+    recalcDias(novo);
     CHECKLIST.push(novo);
   }
   _temAlteracoesPendentes = true;
@@ -16468,13 +16553,18 @@ async function carregarDados() {
     const rvArr = toArray(rv); if (rvArr && rvArr.length) VEICULOS = rvArr;
     const rcArr = toArray(rc);
     if (rcArr && rcArr.length) {
-      // Recalcula dias frescos; preserva dias existente se ult_prev ausente/inválido
+      // Recalcula dias frescos (considerando pausa); preserva dias existente se ult_prev ausente/inválido
       rcArr.forEach(c => {
         if (c.ult_prev) {
           try {
             const [d,m,a] = c.ult_prev.split('/');
             const dt = new Date(+a, +m-1, +d);
-            if (!isNaN(dt)) c.dias = Math.floor((Date.now() - dt) / 86400000);
+            if (!isNaN(dt)) {
+              const hoje = new Date(); hoje.setHours(0,0,0,0);
+              const fimContagem = (c.pausado && c.data_inicio_pausa) ? new Date(c.data_inicio_pausa) : hoje;
+              const bruto = _diasCorridos(dt, fimContagem);
+              c.dias = Math.max(0, bruto - (c.dias_pausados_acumulados || 0));
+            }
           } catch(e) {}
         }
         // Se ainda não tem dias, mantém o que veio do Firebase
@@ -16578,13 +16668,22 @@ async function carregarDados() {
   }
 }
 
+function _diasCorridos(inicio, fim) {
+  if (!(inicio instanceof Date) || !(fim instanceof Date) || isNaN(inicio) || isNaN(fim)) return 0;
+  const d = new Date(inicio); d.setHours(0,0,0,0);
+  const alvo = new Date(fim); alvo.setHours(0,0,0,0);
+  return Math.max(0, Math.round((alvo - d) / 86400000));
+}
 function recalcDias(c) {
   if (!c.ult_prev) { /* preserva c.dias existente se não tiver ult_prev */ return; }
   const partes = c.ult_prev.split('/');
   if (partes.length !== 3) { return; }
   const d = new Date(+partes[2], +partes[1]-1, +partes[0]);
   if (isNaN(d)) { return; }
-  c.dias = Math.floor((Date.now() - d) / 86400000);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const fimContagem = (c.pausado && c.data_inicio_pausa) ? new Date(c.data_inicio_pausa) : hoje;
+  const bruto = _diasCorridos(d, fimContagem);
+  c.dias = Math.max(0, bruto - (c.dias_pausados_acumulados || 0));
 }
 
 function recalcVeiculos() {

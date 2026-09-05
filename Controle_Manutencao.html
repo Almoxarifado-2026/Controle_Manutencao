@@ -11587,34 +11587,33 @@ async function salvarPlano() {
 
 <!-- ===== MODAIS MOVIDAS DO POPUP exportarPDF() PARA O DOM PRINCIPAL ===== -->
 <!-- ── MODAL: Restauração Seletiva de Backup (#overlay-rest-seletiva) ── -->
-<!-- MODAL RESTAURAÇÃO SELETIVA -->
+<!-- MODAL RESTAURAÇÃO SELETIVA — por módulo/aba, fonte Firebase ou Neste Aparelho -->
 <div class="overlay" id="overlay-rest-seletiva">
-  <div class="modal" style="max-width:480px">
-    <h2 style="font-size:17px;font-weight:700;color:#1B3A6D;margin-bottom:6px">🔀 Restauração Seletiva</h2>
-    <p style="font-size:12px;color:#64748b;margin-bottom:16px">Escolha um backup e quais dados restaurar — o restante permanece intacto.</p>
+  <div class="modal" style="max-width:520px">
+    <h2 style="font-size:17px;font-weight:700;color:#1B3A6D;margin-bottom:6px">🔀 Restauração Seletiva por Módulo</h2>
+    <p style="font-size:12px;color:#64748b;margin-bottom:14px">Escolha um backup e marque só os módulos que devem voltar exatamente ao estado dele. Dentro do módulo marcado, o backup escolhido vence integralmente — os módulos não marcados permanecem intactos.</p>
+
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button type="button" id="rest-fonte-firebase" onclick="mudarFonteRestSeletiva('firebase')"
+        style="flex:1;padding:8px;border-radius:10px;border:1px solid #dbe4f0;font-size:12px;font-weight:700;cursor:pointer">☁️ Firebase</button>
+      <button type="button" id="rest-fonte-local" onclick="mudarFonteRestSeletiva('local')"
+        style="flex:1;padding:8px;border-radius:10px;border:1px solid #dbe4f0;font-size:12px;font-weight:700;cursor:pointer">💻 Neste Aparelho</button>
+    </div>
+
     <div class="fg">
       <div class="full">
         <label>Selecionar Backup</label>
-        <select id="rest-sel-backup" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:12px;background:#f8fafc"></select>
+        <select id="rest-sel-backup" onchange="_atualizarDisponibilidadeModulosRestSeletiva()" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:12px;background:#f8fafc"></select>
       </div>
+      <div class="full" id="rest-backup-info" style="font-size:11px;color:#64748b;margin-top:-6px;margin-bottom:2px"></div>
       <div class="full">
-        <label style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;display:block">O que restaurar?</label>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0">
-            <input type="checkbox" id="rest-veiculos" checked style="width:16px;height:16px;cursor:pointer"> 🚛 Veículos (KM, datas, intervalos)
-          </label>
-          <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0">
-            <input type="checkbox" id="rest-checklist" style="width:16px;height:16px;cursor:pointer"> 📋 Checklist Preventiva
-          </label>
-          <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0">
-            <input type="checkbox" id="rest-historico" style="width:16px;height:16px;cursor:pointer"> 🔧 Histórico de Trocas
-          </label>
-        </div>
+        <label style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;display:block">Módulos a restaurar</label>
+        <div id="rest-modulos-lista" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
     </div>
     <div class="modal-btns" style="margin-top:18px">
       <button class="btn-cancel" onclick="document.getElementById('overlay-rest-seletiva').classList.remove('open')">Cancelar</button>
-      <button class="btn-salvar" style="background:#2563eb" onclick="executarRestauracaoSeletiva()">↩ Restaurar Selecionado</button>
+      <button class="btn-salvar" style="background:#2563eb" onclick="executarRestauracaoSeletiva()">↩ Restaurar Seleção</button>
     </div>
   </div>
 </div>
@@ -16283,83 +16282,255 @@ async function gerarPDFComFiltros() {
 
 
 /* ══════════════════════════════════════════════════════
-   § 23 · RESTAURAÇÃO SELETIVA
-   abrirRestauracaoSeletiva() — abre modal com lista de backups
-   aplicarRestauracao()       — substitui VEICULOS[] pelo backup
+   § 23 · RESTAURAÇÃO SELETIVA POR MÓDULO/ABA
+   MODULOS_RESTAURACAO             — mapeamento módulo → coleções Firebase
+   mudarFonteRestSeletiva()        — alterna Firebase / Neste Aparelho
+   abrirRestauracaoSeletiva()      — abre modal, lista backups da fonte ativa
+   _atualizarDisponibilidadeModulosRestSeletiva() — re-renderiza módulos
+                                       conforme o backup escolhido tenha
+                                       ou não dados daquele módulo
+   executarRestauracaoSeletiva()   — aplica a restauração exata (sem merge)
+                                       só nos módulos marcados
+   ══════════════════════════════════════════════════════
+   REGRA: dentro do módulo marcado, o backup escolhido é a fonte de
+   verdade — sobrescreve sem comparar timestamps (mesma regra de
+   restaurarBackupFirebaseExato / restaurarBackupExato). Módulos NÃO
+   marcados não são tocados. Um módulo só é restaurado se o backup
+   escolhido realmente contiver dados dele (nunca inventa/zera coleção
+   ausente do snapshot).
    ══════════════════════════════════════════════════════ */
-// ══════════════════════════════════════════════════
-//  RESTAURAÇÃO SELETIVA
-// ══════════════════════════════════════════════════
-async function abrirRestauracaoSeletiva() {
-  const backups = await carregarBackups();
-  const chaves  = Object.keys(backups).sort().reverse();
+const MODULOS_RESTAURACAO = {
+  oleo: {
+    label: '🛢️ Troca de Óleo',
+    desc: 'KM, datas de troca, histórico de trocas e plano de manutenção por veículo',
+    // campo principal usado para checar se o backup tem dado deste módulo
+    principal: 'veiculos',
+    campos: [
+      { snap: 'veiculos',  path: null /* usa DB_PATH, resolvido em runtime */, tipo: 'array_por_chave', chave: 'placa', rotulo: 'veículos (troca de óleo)' },
+      { snap: 'historico', path: '/manutencao/historico.json', tipo: 'objeto', rotulo: 'histórico de trocas' },
+      { snap: 'planos',    path: '/manutencao/planos.json',    tipo: 'objeto', rotulo: 'planos de manutenção' },
+    ],
+    filas: ['veiculos_fila_pendente'],
+    aplicarCaches: (snap) => {
+      if (Array.isArray(snap.veiculos)) try { localStorage.setItem('frota_veiculos', JSON.stringify(snap.veiculos)); } catch(e) {}
+    },
+  },
+  checklist: {
+    label: '📋 Checklist Preventiva',
+    desc: 'Registros de checklist preventivo, ordens corretivas e configuração de limites',
+    principal: 'checklist',
+    campos: [
+      { snap: 'checklist',        path: '/manutencao/checklist.json',        tipo: 'array_por_chave', chave: '_ckid', rotulo: 'checklist preventiva' },
+      { snap: 'corretivas',       path: '/manutencao/corretivas.json',       tipo: 'array',  rotulo: 'ordens corretivas' },
+      { snap: 'config_checklist', path: '/manutencao/config_checklist.json', tipo: 'objeto', rotulo: 'configuração de limites' },
+    ],
+    filas: ['checklist_fila_pendente'],
+    aplicarCaches: (snap) => {
+      if (Array.isArray(snap.checklist)) try { localStorage.setItem('frota_checklist_cache', JSON.stringify(snap.checklist)); } catch(e) {}
+    },
+  },
+  combustivel: {
+    label: '⛽ Combustível',
+    desc: 'Registros de abastecimento (litros, custo, KM, consumo)',
+    principal: 'abastecimentos',
+    campos: [
+      { snap: 'abastecimentos', path: '/manutencao/abastecimentos.json', tipo: 'array', rotulo: 'abastecimentos' },
+    ],
+    filas: ['abastecimentos_pendentes'],
+    aplicarCaches: (snap) => {
+      if (Array.isArray(snap.abastecimentos)) try { localStorage.setItem('abastecimentos_cache', JSON.stringify(snap.abastecimentos)); } catch(e) {}
+    },
+  },
+  documentos: {
+    label: '📄 Documentos',
+    desc: 'Documentos por placa, PDFs anexados, vínculo de placas e tipos de documento personalizados',
+    principal: 'documentos',
+    campos: [
+      { snap: 'documentos',          path: '/manutencao/documentos.json',          tipo: 'objeto', rotulo: 'documentos' },
+      { snap: 'placas_doc',          path: '/manutencao/placas_doc.json',          tipo: 'objeto', rotulo: 'vínculo de placas' },
+      { snap: 'documentos_pdf',      path: '/manutencao/documentos_pdf.json',      tipo: 'objeto', rotulo: 'PDFs de documentos' },
+      { snap: 'tipos_placa_custom',  path: '/manutencao/tipos_placa_custom.json',  tipo: 'array',  rotulo: 'tipos de documento personalizados' },
+    ],
+    filas: ['documentos_fila_pendente'],
+    aplicarCaches: () => {}, // Documentos não mantém cache dedicado em localStorage
+  },
+  indisponiveis: {
+    label: '🚧 Indisponíveis',
+    desc: 'Veículos indisponíveis (em aberto e histórico), IDs excluídos e histórico de manutenções',
+    principal: 'indisponiveis',
+    campos: [
+      { snap: 'indisponiveis',    path: '/manutencao/indisponiveis.json',    tipo: 'indisp_por_id',    rotulo: 'indisponíveis' },
+      { snap: 'indisp_excluidos', path: '/manutencao/indisp_excluidos.json', tipo: 'ids_excluidos',    rotulo: 'IDs excluídos (indisp.)' },
+      { snap: 'hist_manut',       path: '/manutencao/hist_manut.json',       tipo: 'array',            rotulo: 'histórico de manutenções' },
+    ],
+    filas: ['indisponiveis_fila_pendente', 'hist_manut_fila_pendente'],
+    aplicarCaches: (snap) => {
+      if (Array.isArray(snap.indisponiveis)) try { localStorage.setItem('frota_indisp_cache', JSON.stringify(snap.indisponiveis)); } catch(e) {}
+      if (Array.isArray(snap.hist_manut)) {
+        try { localStorage.setItem('hist_manut_cache', JSON.stringify(snap.hist_manut)); } catch(e) {}
+        try { localStorage.setItem('hist_manut', JSON.stringify(snap.hist_manut)); } catch(e) {}
+      }
+    },
+  },
+};
+
+// Estado da fonte ativa no modal ('firebase' ou 'local') e cache dos
+// backups já carregados dessa fonte, para não rebaixar a cada troca de módulo.
+let _fonteRestSeletiva = 'firebase';
+let _backupsCacheRestSeletiva = null; // objeto (Firebase) ou array (local)
+
+function mudarFonteRestSeletiva(fonte) {
+  _fonteRestSeletiva = fonte;
+  const btnFB = document.getElementById('rest-fonte-firebase');
+  const btnLC = document.getElementById('rest-fonte-local');
+  if (btnFB) { btnFB.style.background = fonte === 'firebase' ? '#2563eb' : '#f1f5f9'; btnFB.style.color = fonte === 'firebase' ? '#fff' : '#334155'; }
+  if (btnLC) { btnLC.style.background = fonte === 'local'    ? '#2563eb' : '#f1f5f9'; btnLC.style.color = fonte === 'local'    ? '#fff' : '#334155'; }
+  _carregarListaRestSeletiva();
+}
+
+async function _carregarListaRestSeletiva() {
   const sel = document.getElementById('rest-sel-backup');
-  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  if (!chaves.length) { alert('Nenhum backup disponível.'); return; }
-  sel.innerHTML = chaves.map(c => {
-    const b = backups[c];
-    const dataFmt = b.data ? b.data.split('-').reverse().join('/') : c;
-    const tipo = b.tipo === 'manual' ? '👤' : b.tipo === 'pre-restauracao' ? '🔄' : '🤖';
-    return `<option value="${c}">${tipo} ${dataFmt} às ${b.hora} — ${b.veiculos?.length||0} veíc.</option>`;
+  sel.innerHTML = '<option>⏳ Carregando...</option>';
+  if (_fonteRestSeletiva === 'firebase') {
+    const backups = await carregarBackups();
+    _backupsCacheRestSeletiva = backups;
+    const chaves = Object.keys(backups).sort().reverse();
+    if (!chaves.length) { sel.innerHTML = '<option value="">Nenhum backup no Firebase</option>'; _atualizarDisponibilidadeModulosRestSeletiva(); return; }
+    sel.innerHTML = chaves.map(c => {
+      const b = backups[c];
+      const dataFmt = b.data ? b.data.split('-').reverse().join('/') : c;
+      const icone = b.tipo === 'manual' ? '👤' : b.tipo === 'pre-restauracao' ? '🔄' : b.tipo === 'compartilhado' ? '🤝' : '🤖';
+      return `<option value="${c}">${icone} ${dataFmt} às ${b.hora||'—'}</option>`;
+    }).join('');
+  } else {
+    const lista = _lerBackupsLocais();
+    _backupsCacheRestSeletiva = lista;
+    if (!lista.length) { sel.innerHTML = '<option value="">Nenhum backup neste aparelho</option>'; _atualizarDisponibilidadeModulosRestSeletiva(); return; }
+    sel.innerHTML = lista.map((b, idx) => {
+      const dataFmt = b.data ? b.data.split('-').reverse().join('/') : '—';
+      const icones = { auto:'⚙️', manual:'👤', pos_edicao:'✏️', pre_restore:'🔄', pre_restauracao:'🔄', offline:'📴' };
+      const icone = icones[b.tipo] || '💾';
+      return `<option value="${idx}">${icone} ${dataFmt} às ${b.hora||'—'}${b._origem_externa ? ' · externo' : ''}</option>`;
+    }).join('');
+  }
+  _atualizarDisponibilidadeModulosRestSeletiva();
+}
+
+// Retorna o snapshot atualmente selecionado no <select>, ou null
+function _snapEscolhidoRestSeletiva() {
+  const sel = document.getElementById('rest-sel-backup');
+  if (!sel || !sel.value) return null;
+  if (_fonteRestSeletiva === 'firebase') return (_backupsCacheRestSeletiva || {})[sel.value] || null;
+  return (_backupsCacheRestSeletiva || [])[Number(sel.value)] || null;
+}
+
+// Re-renderiza a lista de módulos: desabilita/avisa quando o backup
+// escolhido não tem dado daquele módulo, para nunca oferecer uma
+// restauração falsa de algo que o snapshot não contém.
+function _atualizarDisponibilidadeModulosRestSeletiva() {
+  const snap = _snapEscolhidoRestSeletiva();
+  const info = document.getElementById('rest-backup-info');
+  if (info) {
+    info.textContent = snap
+      ? `Backup de ${(snap.data||'').split('-').reverse().join('/')} às ${snap.hora||'—'} · origem: ${_fonteRestSeletiva === 'firebase' ? 'Firebase' : 'Neste Aparelho'}`
+      : '';
+  }
+  const cont = document.getElementById('rest-modulos-lista');
+  if (!cont) return;
+  cont.innerHTML = Object.keys(MODULOS_RESTAURACAO).map(chave => {
+    const mod = MODULOS_RESTAURACAO[chave];
+    const temDado = !!(snap && snap[mod.principal] !== undefined && snap[mod.principal] !== null);
+    const disabled = !temDado;
+    return `
+    <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:${disabled?'not-allowed':'pointer'};text-transform:none;letter-spacing:0;opacity:${disabled?0.5:1}">
+      <input type="checkbox" id="rest-mod-${chave}" ${disabled?'disabled':''} style="width:16px;height:16px;cursor:pointer;margin-top:2px">
+      <span>
+        <span style="display:block;font-weight:700">${mod.label}${disabled?' <span style="font-weight:400;color:#dc2626">— sem dados neste backup</span>':''}</span>
+        <span style="display:block;font-size:11px;color:#64748b">${mod.desc}</span>
+      </span>
+    </label>`;
   }).join('');
+}
+
+async function abrirRestauracaoSeletiva() {
+  mudarFonteRestSeletiva(_fonteRestSeletiva || 'firebase');
   document.getElementById('overlay-rest-seletiva').classList.add('open');
 }
 
 async function executarRestauracaoSeletiva() {
   if (!_checkEdicao()) return;
   if (window._restauracaoEmAndamento) { alert('Já existe uma restauração em andamento.'); return; }
-  const chave = document.getElementById('rest-sel-backup').value;
-  const restVeiculos  = document.getElementById('rest-veiculos').checked;
-  const restChecklist = document.getElementById('rest-checklist').checked;
-  const restHistorico = document.getElementById('rest-historico').checked;
 
-  if (!restVeiculos && !restChecklist && !restHistorico) {
-    alert('Selecione pelo menos um item para restaurar.'); return;
-  }
+  const snap = _snapEscolhidoRestSeletiva();
+  if (!snap) { alert('Selecione um backup válido.'); return; }
 
-  const itens = [restVeiculos?'Veículos':'', restChecklist?'Checklist':'', restHistorico?'Histórico':''].filter(Boolean).join(', ');
-  const digitado = prompt(`RESTAURAR EXATAMENTE: ${itens}?\n\nDentro da(s) coleção(ões) marcada(s), o backup escolhido vence integralmente — não é mesclagem, nenhum registro mais novo é preservado.\nAs demais coleções (não marcadas) permanecem intactas.\nUm backup de segurança do estado atual será criado antes.\n\nDigite RESTAURAR para continuar:`);
+  const chavesModulos = Object.keys(MODULOS_RESTAURACAO).filter(k => {
+    const cb = document.getElementById('rest-mod-' + k);
+    return cb && cb.checked && !cb.disabled;
+  });
+  if (!chavesModulos.length) { alert('Selecione pelo menos um módulo para restaurar.'); return; }
+
+  const dataFmt = snap.data ? snap.data.split('-').reverse().join('/') : '—';
+  const nomesModulos = chavesModulos.map(k => MODULOS_RESTAURACAO[k].label);
+  const digitado = prompt(
+    `Você está prestes a restaurar os módulos selecionados a partir do backup de ${dataFmt} às ${snap.hora||'—'} (${_fonteRestSeletiva === 'firebase' ? 'Firebase' : 'Neste Aparelho'}).\n\n`
+    + 'Módulos selecionados:\n- ' + nomesModulos.join('\n- ') + '\n\n'
+    + 'Somente os módulos selecionados serão substituídos — dentro deles, o backup escolhido vence integralmente (não é mesclagem).\n'
+    + 'Os demais módulos permanecem intactos.\n'
+    + 'Um backup de segurança do estado atual completo será criado antes.\n\n'
+    + 'Digite RESTAURAR para continuar:'
+  );
   if (digitado !== 'RESTAURAR') {
     if (digitado !== null) alert('Confirmação incorreta. Restauração cancelada — nada foi alterado.');
     return;
   }
 
-  const backups = await carregarBackups();
-  const snap = backups[chave];
-  if (!snap) { alert('Backup não encontrado.'); return; }
-
-  // ── 1. Backup pré-restauração OBRIGATÓRIO — só das coleções que serão
-  //      afetadas, lido fresco do Firebase. Aborta tudo se falhar. ──────
+  // ── 1. Backup de segurança OBRIGATÓRIO do estado atual COMPLETO
+  //      (não só dos módulos que serão trocados) — se falhar, aborta tudo.
   mostrarIndicador('💾 Criando backup do estado atual antes de restaurar...', '#93C5FD');
-  let chaveAtual;
-  try {
-    const [fV, fC, fH] = await Promise.all([
-      restVeiculos  ? fbGet(DB_PATH) : Promise.resolve(null),
-      restChecklist ? fbGet('/manutencao/checklist.json') : Promise.resolve(null),
-      restHistorico ? fbGet('/manutencao/historico.json') : Promise.resolve(null),
-    ]);
-    const agora = new Date();
-    chaveAtual = todayBrasilia() + '_pre_restore_' + agora.getTime();
-    const snapshotAtual = {
-      data: todayBrasilia(),
-      hora: agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/Sao_Paulo' }),
-      ts: agora.getTime(),
-      tipo: 'pre-restauracao',
-      veiculos:  restVeiculos  ? _normalizarParaArray(fV) : undefined,
-      checklist: restChecklist ? _normalizarParaArray(fC) : undefined,
-      historico: restHistorico ? (fH || {}) : undefined,
-    };
-    const rPre = await _fetchComTimeout(FIREBASE_URL + BACKUP_PATH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
-      body: JSON.stringify({ [chaveAtual]: snapshotAtual })
-    }, 30000);
-    if (!rPre.ok) throw new Error('HTTP ' + rPre.status);
-  } catch (e) {
-    alert('❌ Não foi possível criar o backup de segurança pré-restauração.\n\nA restauração seletiva foi ABORTADA — nenhum dado foi alterado.\n\n' + e.message);
-    return;
+  let chaveAtual = null;
+  if (_fonteRestSeletiva === 'firebase') {
+    try {
+      const [fV, fC, fH, fI, fHM, fA, fD, fCo, fP, fPd, fEx, fCfg, fTp] = await Promise.all([
+        fbGet(DB_PATH), fbGet('/manutencao/checklist.json'), fbGet('/manutencao/historico.json'),
+        fbGet('/manutencao/indisponiveis.json'), fbGet('/manutencao/hist_manut.json'),
+        fbGet('/manutencao/abastecimentos.json'), fbGet('/manutencao/documentos.json'),
+        fbGet('/manutencao/corretivas.json'), fbGet('/manutencao/planos.json'),
+        fbGet('/manutencao/placas_doc.json'), fbGet('/manutencao/indisp_excluidos.json'),
+        fbGet('/manutencao/config_checklist.json'), fbGet('/manutencao/tipos_placa_custom.json'),
+      ]);
+      const agora = new Date();
+      chaveAtual = todayBrasilia() + '_pre_restore_seletivo_' + agora.getTime();
+      const snapshotAtual = {
+        data: todayBrasilia(),
+        hora: agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/Sao_Paulo' }),
+        ts: agora.getTime(),
+        tipo: 'pre-restauracao',
+        veiculos: _normalizarParaArray(fV), checklist: _normalizarParaArray(fC), historico: fH || {},
+        indisponiveis: _normalizarParaArray(fI), hist_manut: _normalizarParaArray(fHM),
+        abastecimentos: _normalizarParaArray(fA), documentos: fD || {}, corretivas: _normalizarParaArray(fCo),
+        planos: fP || {}, placas_doc: fPd || {}, indisp_excluidos: fEx ? Object.keys(fEx) : [],
+        config_checklist: fCfg || {}, tipos_placa_custom: _normalizarParaArray(fTp),
+      };
+      const rPre = await _fetchComTimeout(FIREBASE_URL + BACKUP_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
+        body: JSON.stringify({ [chaveAtual]: snapshotAtual })
+      }, 30000);
+      if (!rPre.ok) throw new Error('HTTP ' + rPre.status);
+    } catch (e) {
+      alert('❌ Não foi possível criar o backup de segurança pré-restauração.\n\nA restauração seletiva foi ABORTADA — nenhum dado foi alterado.\n\n' + e.message);
+      return;
+    }
+    if (_abaBackupAtiva === 'firebase') await renderListaBackups();
+  } else {
+    const preRestore = salvarBackupLocal('pre_restauracao');
+    if (!preRestore || !preRestore.snap) {
+      alert('❌ Não foi possível criar o backup de segurança pré-restauração.\n\nA restauração seletiva foi ABORTADA — nenhum dado foi alterado.');
+      return;
+    }
+    if (_abaBackupAtiva === 'local') renderListaBackupsLocais();
   }
-  if (_abaBackupAtiva === 'firebase') await renderListaBackups();
 
   // ── 2. Suspende gravações automáticas, filas e SSE ──────────────────────
   window._restauracaoEmAndamento = true;
@@ -16375,21 +16546,39 @@ async function executarRestauracaoSeletiva() {
     }
   } catch(e) {}
 
-  mostrarIndicador('☁️ Restaurando exatamente...', '#FCD34D');
+  mostrarIndicador('☁️ Restaurando módulos selecionados...', '#FCD34D');
   try {
     const escritas = [];
     const rotulos = [];
-    if (restVeiculos && snap.veiculos) {
-      escritas.push(fbPut(DB_PATH, _arrayComoObjetoPorChave(snap.veiculos, 'placa')));
-      rotulos.push('veículos');
-    }
-    if (restChecklist && snap.checklist) {
-      escritas.push(fbPut('/manutencao/checklist.json', _arrayComoObjetoPorChave(snap.checklist, '_ckid')));
-      rotulos.push('checklist');
-    }
-    if (restHistorico && snap.historico) {
-      escritas.push(fbPut('/manutencao/historico.json', snap.historico));
-      rotulos.push('histórico');
+    const modulosSemDadoNesteBackup = [];
+
+    for (const chaveMod of chavesModulos) {
+      const mod = MODULOS_RESTAURACAO[chaveMod];
+      let algumCampoGravado = false;
+      for (const campo of mod.campos) {
+        const path = campo.path || DB_PATH; // só o campo 'veiculos' usa DB_PATH
+        const valor = snap[campo.snap];
+        if (campo.tipo === 'array_por_chave' && Array.isArray(valor)) {
+          escritas.push(fbPut(path, _arrayComoObjetoPorChave(valor, campo.chave)));
+          rotulos.push(campo.rotulo); algumCampoGravado = true;
+        } else if (campo.tipo === 'array' && Array.isArray(valor)) {
+          escritas.push(fbPut(path, valor));
+          rotulos.push(campo.rotulo); algumCampoGravado = true;
+        } else if (campo.tipo === 'objeto' && valor && typeof valor === 'object') {
+          escritas.push(fbPut(path, valor));
+          rotulos.push(campo.rotulo); algumCampoGravado = true;
+        } else if (campo.tipo === 'indisp_por_id' && Array.isArray(valor)) {
+          const obj = {}; valor.forEach(r => { if (r && r.id) obj[r.id] = r; });
+          escritas.push(fbPut(path, obj));
+          rotulos.push(campo.rotulo); algumCampoGravado = true;
+        } else if (campo.tipo === 'ids_excluidos' && Array.isArray(valor)) {
+          const obj = {}; valor.forEach(id => { if (id) obj[id] = Date.now(); });
+          escritas.push(fbPut(path, obj));
+          rotulos.push(campo.rotulo); algumCampoGravado = true;
+        }
+        // campo ausente no snapshot: não grava nada (nunca inventa/apaga sem base no backup)
+      }
+      if (!algumCampoGravado) modulosSemDadoNesteBackup.push(mod.label);
     }
 
     const resultados = await Promise.all(escritas);
@@ -16398,19 +16587,28 @@ async function executarRestauracaoSeletiva() {
     if (falhas.length) {
       mostrarIndicador('❌ Falha ao restaurar: ' + falhas.join(', '), '#FCA5A5');
       alert('⚠️ A restauração seletiva FALHOU em: ' + falhas.join(', ') + '.\n\n'
-        + 'NENHUM sucesso foi declarado. O backup do estado anterior (chave "' + chaveAtual + '") foi preservado.');
+        + 'NENHUM sucesso foi declarado. O backup do estado anterior à restauração foi preservado'
+        + (chaveAtual ? ' (chave "' + chaveAtual + '" na aba Firebase)' : ' (tipo "pre_restauracao" nos backups locais)')
+        + ' — use-o para reverter manualmente se necessário.');
       _encerrarRestauracaoExata();
       return;
     }
 
-    // ── Limpa só as filas das coleções restauradas ──
-    if (restVeiculos)  try { localStorage.removeItem('veiculos_fila_pendente'); } catch(e) {}
-    if (restChecklist) try { localStorage.removeItem('checklist_fila_pendente'); } catch(e) {}
-    if (restVeiculos  && snap.veiculos)  try { localStorage.setItem('frota_veiculos', JSON.stringify(snap.veiculos)); } catch(e) {}
-    if (restChecklist && snap.checklist) try { localStorage.setItem('frota_checklist_cache', JSON.stringify(snap.checklist)); } catch(e) {}
+    // ── 4. Limpa filas pendentes e atualiza caches SÓ dos módulos restaurados ──
+    for (const chaveMod of chavesModulos) {
+      const mod = MODULOS_RESTAURACAO[chaveMod];
+      mod.filas.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+      try { mod.aplicarCaches(snap); } catch(e) {}
+    }
 
     mostrarIndicador('✅ Restauração seletiva concluída! Recarregando...', '#86efac');
+    console.log('[RestauracaoSeletiva] ✅ Concluída — coleções gravadas:', rotulos.join(', ')
+      + (modulosSemDadoNesteBackup.length ? ' | módulos marcados sem dado neste backup (não alterados): ' + modulosSemDadoNesteBackup.join(', ') : ''));
+    if (modulosSemDadoNesteBackup.length) {
+      alert('ℹ️ Restauração concluída, mas os seguintes módulos marcados não tinham dado algum neste backup — permaneceram como estavam:\n\n- ' + modulosSemDadoNesteBackup.join('\n- '));
+    }
     document.getElementById('overlay-rest-seletiva').classList.remove('open');
+    // ── 5. Recarrega direto do Firebase — também reconecta SSE do zero ──
     setTimeout(() => location.reload(), 1200);
   } catch(e) {
     mostrarIndicador('❌ Erro na restauração', '#FCA5A5');

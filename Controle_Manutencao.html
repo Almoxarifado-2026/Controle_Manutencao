@@ -10188,6 +10188,11 @@ function contarCorretivas() {
    ────────────────────────────────────────────── */
 function renderCheck() {
   CHECKLIST.sort((a, b) => {
+    // Placa pausada (parada) sempre vai pro final da lista, independente
+    // da coluna/ordem escolhida — ela não está em contagem ativa, então
+    // não faz sentido competir por posição com as que estão rodando.
+    const pausA = a.pausado ? 1 : 0, pausB = b.pausado ? 1 : 0;
+    if (pausA !== pausB) return pausA - pausB;
     let va = a[checkOrdem.campo], vb = b[checkOrdem.campo];
     if (typeof va === 'string') va = va.toLowerCase();
     if (typeof vb === 'string') vb = vb.toLowerCase();

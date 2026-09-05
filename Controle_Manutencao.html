@@ -2491,7 +2491,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <tr class="grp">
       <th class="col-v" colspan="5">VEÍCULO</th>
       <th class="col-m" colspan="5">🛢️ &nbsp;ÓLEO DO MOTOR</th>
-      <th class="col-c" colspan="5">⚙️ &nbsp;ÓLEO CÂMBIO / DIFERENCIAL</th>
+      <th class="col-c" colspan="6">⚙️ &nbsp;ÓLEO CÂMBIO / DIFERENCIAL</th>
       <th class="col-r" colspan="2">📅 &nbsp;REVISÃO 180d</th>
       <th class="col-a" colspan="2">⚠️ ALERTA E AÇÕES</th>
       <th style="background:#404040;color:#fff" colspan="1">PLANO DE MANUTENÇÃO</th>
@@ -2507,6 +2507,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <th class="col-m" onclick="ord('km_prox_motor')">KM PRÓXIMA<br>TROCA MOTOR <span id="arr-km_prox_motor"></span></th>
       <th class="col-m" onclick="ord('km_falta_motor')">PROGRESSO<br>MOTOR <span id="arr-km_falta_motor"></span></th>
       <th class="col-m" onclick="ord('cor_motor')">STATUS MOTOR <span id="arr-cor_motor"></span></th>
+      <th class="col-c" onclick="ord('data_troca_cambio')">DATA ÚLTIMA<br>TROCA CÂMBIO <span id="arr-data_troca_cambio"></span></th>
       <th class="col-c" onclick="ord('km_cambio')">KM ÚLTIMA<br>TROCA CÂMBIO <span id="arr-km_cambio"></span></th>
       <th class="col-c">INTERV.<br>CÂMBIO</th>
       <th class="col-c" onclick="ord('km_prox_cambio')">KM PRÓXIMA<br>TROCA CÂMBIO <span id="arr-km_prox_cambio"></span></th>
@@ -2570,6 +2571,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <label>KM Última Troca Motor</label>
         <input type="number" id="f-km-motor" value="0" min="0">
         <div class="hint">0 = ainda não realizada</div>
+      </div>
+      <div>
+        <label>Data Última Troca Óleo Câmbio/Diferencial</label>
+        <input type="date" id="f-data-cambio">
       </div>
       <div>
         <label>KM Última Troca Câmbio</label>
@@ -4343,6 +4348,7 @@ window.addEventListener('beforeunload', () => {
     const campos = VEICULOS.map(v => ({
       placa: v.placa, tipo: v.tipo, km_atual: v.km_atual, data_troca: v.data_troca,
       km_motor: v.km_motor, interv_motor: v.interv_motor, km_cambio: v.km_cambio, interv_cambio: v.interv_cambio,
+      data_troca_cambio: v.data_troca_cambio,
     }));
     enviarSync(DB_PATH, campos);
   }
@@ -5734,6 +5740,7 @@ async function salvarDados() {
           km_atual: v.km_atual, data_troca: v.data_troca,
           km_motor: v.km_motor, interv_motor: v.interv_motor,
           km_cambio: v.km_cambio, interv_cambio: v.interv_cambio,
+          data_troca_cambio: v.data_troca_cambio,
         };
       });
       // Limpa de vez as chaves numéricas órfãs detectadas acima (sobra da
@@ -6843,7 +6850,25 @@ function recalcularDias(v) {
   } catch(e) { v.dias = null; }
 }
 
+// ── RECALCULAR DIAS DO CÂMBIO/DIFERENCIAL — espelha recalcularDias(), mas
+// a partir de data_troca_cambio. Campo 100% independente: nunca usa/deriva
+// de data_troca (motor). Veículos antigos sem essa data ficam com
+// dias_cambio = null (exibido como "Não informado" / "—" na interface).
+function recalcularDiasCambio(v) {
+  if (!v.data_troca_cambio || v.data_troca_cambio === '') { v.dias_cambio = null; return; }
+  try {
+    const [d, m, a] = v.data_troca_cambio.split('/');
+    const dt = new Date(parseInt(a), parseInt(m)-1, parseInt(d));
+    v.dias_cambio = Math.floor((HOJE - dt) / 86400000);
+  } catch(e) { v.dias_cambio = null; }
+}
+
 function calcStatus(v) {
+  // dias_cambio é recalculado aqui (sempre junto de calcStatus, já que todo
+  // ponto do sistema que chama recalcularDias(v) chama calcStatus(v) logo
+  // em seguida) — evita ter que caçar e duplicar a chamada em cada um dos
+  // pontos onde recalcularDias(v) já é usado.
+  recalcularDiasCambio(v);
   const d=v.dias, km=v.km_atual, im=v.interv_motor, ic=v.interv_cambio;
 
   // KM PRÓXIMA TROCA MOTOR
@@ -7262,7 +7287,8 @@ function _carregarComRetryPersistente(fn, nomeLog) {
 
   _ultimoHash = JSON.stringify(VEICULOS.map(v => ({
     placa:v.placa, tipo:v.tipo, km_atual:v.km_atual, data_troca:v.data_troca,
-    km_motor:v.km_motor, interv_motor:v.interv_motor, km_cambio:v.km_cambio, interv_cambio:v.interv_cambio
+    km_motor:v.km_motor, interv_motor:v.interv_motor, km_cambio:v.km_cambio, interv_cambio:v.interv_cambio,
+    data_troca_cambio:v.data_troca_cambio
   })));
 
   // IDs excluídos + Indisponíveis + Histórico em paralelo, sem bloquear a tela
@@ -7536,6 +7562,7 @@ function renderizar(){
       <td>${fmtKm(v.km_prox_motor)}</td>
       <td style="padding:4px 6px">${kmProgressBar(v.km_falta_motor, v.interv_motor)}</td>
       <td>${stPill(v.cor_motor,v.st_motor)}</td>
+      <td>${v.data_troca_cambio||'—'}</td>
       <td style="padding:2px 4px">
         <input type="number" value="${v.km_cambio||''}" min="0"
           ${emEdicao ? '' : 'readonly'}
@@ -8177,23 +8204,29 @@ function registrarTroca() {
   if (!v) return;
 
   const campoKm    = tipo === 'motor' ? 'km_motor' : tipo === 'cambio' ? 'km_cambio' : null;
+  // Campo de data correspondente ao tipo de troca registrado — MOTOR e
+  // CÂMBIO/DIFERENCIAL têm datas 100% independentes (data_troca /
+  // data_troca_cambio). Nunca atualizar os dois juntos a partir de um só
+  // registro: uma troca de câmbio não pode sobrescrever a data do motor,
+  // e vice-versa.
+  const campoData  = tipo === 'motor' ? 'data_troca' : tipo === 'cambio' ? 'data_troca_cambio' : null;
   const nomeOleo   = tipo === 'motor' ? 'Óleo Motor' : tipo === 'cambio' ? 'Óleo Câmbio/Diferencial' : null;
   const kmAtualiza = km > 0;
-  const dataAtualiza = dataFmt;
+  const dataAtualiza = campoData ? dataFmt : null;
 
   // Só pergunta se tiver algo útil para aplicar
   if (!campoKm && !kmAtualiza) return;
 
   let msg = `✅ Troca registrada no histórico!\n\nDeseja aplicar os dados ao veículo ${_histPlacaAtual}?`;
   if (campoKm && kmAtualiza) msg += `\n• KM ${nomeOleo}: ${km.toLocaleString('pt-BR')} km`;
-  if (dataAtualiza)          msg += `\n• Data da última troca: ${dataFmt}`;
+  if (dataAtualiza)          msg += `\n• Data da última troca (${nomeOleo}): ${dataFmt}`;
   if (kmAtualiza)            msg += `\n• KM atual do veículo: ${km.toLocaleString('pt-BR')} km`;
 
   if (!confirm(msg)) return;
 
-  // Aplicar campos ao veículo
+  // Aplicar campos ao veículo — só o campo do tipo de troca selecionado.
   if (campoKm && kmAtualiza) v[campoKm] = km;
-  v.data_troca = dataFmt;
+  if (campoData) v[campoData] = dataFmt;
   if (kmAtualiza && km > (v.km_atual || 0)) v.km_atual = km;
 
   recalcularDias(v);
@@ -8278,11 +8311,11 @@ function popularTipos(){
 
 function toggleVeiculoNovo(){
   const marcado = document.getElementById('f-veiculo-novo').checked;
-  const campos = ['f-data','f-km-motor','f-km-cambio'];
+  const campos = ['f-data','f-data-cambio','f-km-motor','f-km-cambio'];
   campos.forEach(id=>{
     const el = document.getElementById(id);
     if (marcado){
-      el.value = (id==='f-data') ? '' : 0;
+      el.value = (id==='f-data' || id==='f-data-cambio') ? '' : 0;
       el.disabled = true;
     } else {
       el.disabled = false;
@@ -8319,16 +8352,20 @@ function abrirModal(placa=null){
     document.getElementById('f-data').disabled=false;
     if(v.data_troca){const[d,m,a]=v.data_troca.split('/');document.getElementById('f-data').value=`${a}-${m}-${d}`;}
     else document.getElementById('f-data').value='';
+    document.getElementById('f-data-cambio').disabled=false;
+    if(v.data_troca_cambio){const[d,m,a]=v.data_troca_cambio.split('/');document.getElementById('f-data-cambio').value=`${a}-${m}-${d}`;}
+    else document.getElementById('f-data-cambio').value='';
   } else {
     blocoNovo.style.display='';
     chkNovo.checked=false;
-    ['f-placa','f-tipo','f-data'].forEach(id=>document.getElementById(id).value='');
+    ['f-placa','f-tipo','f-data','f-data-cambio'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('f-placa').readOnly=false;
     document.getElementById('f-km-motor').value=0;
     document.getElementById('f-km-motor').disabled=false;
     document.getElementById('f-km-cambio').value=0;
     document.getElementById('f-km-cambio').disabled=false;
     document.getElementById('f-data').disabled=false;
+    document.getElementById('f-data-cambio').disabled=false;
     document.getElementById('f-interv-m').value=30000;
     document.getElementById('f-interv-c').value=90000;
   }
@@ -8346,6 +8383,11 @@ function salvar(){
   const dv = veiculoNovo ? '' : document.getElementById('f-data').value;
   let data_troca='',dias=null;
   if(dv){const dt=new Date(dv+'T00:00:00');data_troca=dt.toLocaleDateString('pt-BR');dias=Math.floor((HOJE-dt)/86400000);}
+  // Data do câmbio/diferencial — campo independente da data do motor acima.
+  // Nunca copiar/derivar uma da outra: cada óleo tem sua própria referência de troca.
+  const dvCambio = veiculoNovo ? '' : document.getElementById('f-data-cambio').value;
+  let data_troca_cambio='',dias_cambio=null;
+  if(dvCambio){const dtc=new Date(dvCambio+'T00:00:00');data_troca_cambio=dtc.toLocaleDateString('pt-BR');dias_cambio=Math.floor((HOJE-dtc)/86400000);}
   const kmMotorVal = veiculoNovo ? 0 : (parseInt(document.getElementById('f-km-motor').value)||0);
 const kmCambioVal = veiculoNovo ? 0 : (parseInt(document.getElementById('f-km-cambio').value)||0);
 let kmAtualAuto = 0;
@@ -8353,7 +8395,7 @@ let kmAtualAuto = 0;
 if (kmMotorVal > 0) kmAtualAuto = kmMotorVal;
 if (kmCambioVal > 0 && kmCambioVal > kmAtualAuto) kmAtualAuto = kmCambioVal;
 
-const novo={placa,tipo,km_atual:kmAtualAuto,data_troca,dias,
+const novo={placa,tipo,km_atual:kmAtualAuto,data_troca,dias,data_troca_cambio,dias_cambio,
     km_motor:kmMotorVal,
     km_cambio:kmCambioVal,
     interv_motor:parseInt(document.getElementById('f-interv-m').value)||30000,
@@ -8525,6 +8567,7 @@ async function exportarPDF() {
       <td style="padding:5px 7px;text-align:center">${kmFmt(v.km_prox_motor)}</td>
       <td style="padding:5px 7px;text-align:center">${v.km_falta_motor!=null?(v.km_falta_motor>=0?'+':'')+Number(v.km_falta_motor).toLocaleString('pt-BR'):'—'}</td>
       <td style="padding:5px 7px;text-align:center">${stLabel(v.cor_motor)}</td>
+      <td style="padding:5px 7px;text-align:center">${v.data_troca_cambio||'—'}</td>
       <td style="padding:5px 7px;text-align:center">${kmFmt(v.km_cambio)}</td>
       <td style="padding:5px 7px;text-align:center">${kmFmt(v.km_prox_cambio)}</td>
       <td style="padding:5px 7px;text-align:center">${v.km_falta_cambio!=null?(v.km_falta_cambio>=0?'+':'')+Number(v.km_falta_cambio).toLocaleString('pt-BR'):'—'}</td>
@@ -8612,7 +8655,7 @@ async function exportarPDF() {
     <tr>
       <th class="th-veiculo" colspan="4">🚛 VEÍCULO</th>
       <th class="th-motor"   colspan="4">🛢️ ÓLEO MOTOR</th>
-      <th class="th-cambio"  colspan="4">⚙️ CÂMBIO / DIFERENCIAL</th>
+      <th class="th-cambio"  colspan="5">⚙️ CÂMBIO / DIFERENCIAL</th>
     </tr>
     <tr>
       <th class="th-veiculo">PLACA</th>
@@ -8623,6 +8666,7 @@ async function exportarPDF() {
       <th class="th-motor">PRÓX. TROCA</th>
       <th class="th-motor">FALTA KM</th>
       <th class="th-motor">STATUS</th>
+      <th class="th-cambio">DATA TROCA</th>
       <th class="th-cambio">KM TROCA</th>
       <th class="th-cambio">PRÓX. TROCA</th>
       <th class="th-cambio">FALTA KM</th>
@@ -8653,8 +8697,8 @@ async function exportarPDF() {
    exportarCSV() — gera arquivo .csv com todos os veículos
    ══════════════════════════════════════════════════════ */
 function exportarCSV(){
-  const cab=['Placa','Tipo','Dias','Data Troca','KM Motor','Interv Motor','Prox Motor','Falta Motor','Status Motor','KM Câmbio','Interv Câmbio','Prox Câmbio','Falta Câmbio','Status Câmbio'];
-  const rows=VEICULOS.map(v=>[v.placa,v.tipo,v.dias??'',v.data_troca,v.km_motor,v.interv_motor,v.km_prox_motor||'',v.km_falta_motor??'',v.st_motor,v.km_cambio,v.interv_cambio,v.km_prox_cambio||'',v.km_falta_cambio??'',v.st_cambio]);
+  const cab=['Placa','Tipo','Dias','Data Troca','KM Motor','Interv Motor','Prox Motor','Falta Motor','Status Motor','Data Troca Câmbio','KM Câmbio','Interv Câmbio','Prox Câmbio','Falta Câmbio','Status Câmbio'];
+  const rows=VEICULOS.map(v=>[v.placa,v.tipo,v.dias??'',v.data_troca,v.km_motor,v.interv_motor,v.km_prox_motor||'',v.km_falta_motor??'',v.st_motor,v.data_troca_cambio||'',v.km_cambio,v.interv_cambio,v.km_prox_cambio||'',v.km_falta_cambio??'',v.st_cambio]);
   const csv=[cab,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
@@ -15498,6 +15542,7 @@ function renderPrevisao() {
     // Usa km_medio do plano, ou fallback geral, ou 5000 km/mês
     const kmMedio  = parseInt(plano?.km_medio) || kmMedioGeral || 5000;
     const dataTroca = parseBR(v.data_troca);
+    const dataTrocaCambio = parseBR(v.data_troca_cambio);
 
     // ── Método 1: por KM (quando km_atual > 0) ──
     if (kmAtual > 0) {
@@ -15531,10 +15576,12 @@ function renderPrevisao() {
       }
     }
 
-    // ── Método 2: por DATA (usando data_troca + intervalo em meses do plano) ──
+    // ── Método 2: por DATA (usando a data de troca de cada óleo + intervalo
+    // em meses do plano). MOTOR usa exclusivamente data_troca; CÂMBIO/
+    // DIFERENCIAL usa exclusivamente data_troca_cambio — nunca uma
+    // substitui a outra. ──
     if (dataTroca && plano) {
       const intervMotorDias  = intervaloEmDias(plano?.oleo_motor?.tempo);
-      const intervCambioDias = intervaloEmDias(plano?.oleo_caixa?.tempo);
 
       if (intervMotorDias > 0) {
         const dataProx = new Date(dataTroca); dataProx.setDate(dataTroca.getDate() + intervMotorDias);
@@ -15546,8 +15593,12 @@ function renderPrevisao() {
           }
         }
       }
+    }
+    if (dataTrocaCambio && plano) {
+      const intervCambioDias = intervaloEmDias(plano?.oleo_caixa?.tempo);
+
       if (intervCambioDias > 0) {
-        const dataProx = new Date(dataTroca); dataProx.setDate(dataTroca.getDate() + intervCambioDias);
+        const dataProx = new Date(dataTrocaCambio); dataProx.setDate(dataTrocaCambio.getDate() + intervCambioDias);
         const diasRestantes = Math.round((dataProx - hoje) / 86400000);
         if (diasRestantes > 0 && dataProx <= limite) {
           const key = v.placa + '_cambio';
@@ -15725,7 +15776,7 @@ async function exportarExcelCompleto() {
       [`Exportado em: ${hoje} às ${agora}`, '', '', '', '', '', '', '', '', '', '', ''],
       [],
       ['Placa', 'Tipo', 'KM Atual', 'Data Troca', 'KM Motor', 'Intervalo Motor (km)', 'Status Motor', 'KM Faltando Motor',
-       'KM Câmbio', 'Intervalo Câmbio (km)', 'Status Câmbio', 'KM Faltando Câmbio', 'Dias Sem Revisão']
+       'Data Troca Câmbio', 'KM Câmbio', 'Intervalo Câmbio (km)', 'Status Câmbio', 'KM Faltando Câmbio', 'Dias Sem Revisão']
     ];
     const frotaRows = VEICULOS.map(v => {
       const stMotor  = v.cor_motor  === 'vencido' ? 'VENCIDO' : v.cor_motor  === 'proximo' ? 'PRÓXIMO' : v.cor_motor  === 'ok' ? 'EM DIA' : 'SEM DADO';
@@ -15734,6 +15785,7 @@ async function exportarExcelCompleto() {
         v.placa, v.tipo || '', v.km_atual || 0, v.data_troca || '',
         v.km_motor || 0, v.interv_motor ? v.interv_motor * 1000 : 0,
         stMotor, v.km_falta_motor || 0,
+        v.data_troca_cambio || '',
         v.km_cambio || 0, v.interv_cambio ? v.interv_cambio * 1000 : 0,
         stCambio, v.km_falta_cambio || 0,
         v.dias || 0
@@ -15741,9 +15793,9 @@ async function exportarExcelCompleto() {
     });
     const wsFromta = XLSX.utils.aoa_to_sheet([...frotaHeader, ...frotaRows]);
     // Larguras de coluna
-    wsFromta['!cols'] = [12,18,12,12,12,20,12,18,12,20,12,18,14].map(w => ({wch:w}));
+    wsFromta['!cols'] = [12,18,12,12,12,20,12,18,14,12,20,12,18,14].map(w => ({wch:w}));
     // Merge título
-    wsFromta['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:12}}, {s:{r:1,c:0}, e:{r:1,c:12}}];
+    wsFromta['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:13}}, {s:{r:1,c:0}, e:{r:1,c:13}}];
     XLSX.utils.book_append_sheet(wb, wsFromta, '🚛 Frota');
 
     // ── ABA 2: VEÍCULOS VENCIDOS ──
@@ -16135,6 +16187,7 @@ async function gerarPDFComFiltros() {
         <td style="padding:4px 6px;text-align:right;font-weight:700;color:${(v.km_falta_motor??0)<0?'#DC2626':'#16A34A'}">${v.km_falta_motor!=null?(v.km_falta_motor>=0?'+':'')+Number(v.km_falta_motor).toLocaleString('pt-BR'):'—'}</td>
         <td style="padding:4px 6px;text-align:center">${stLabel(v.st_motor||v.cor_motor)}</td>
         ${inclCambio ? `
+        <td style="padding:4px 6px;text-align:center">${v.data_troca_cambio||'—'}</td>
         <td style="padding:4px 6px;text-align:right">${kmFmt(v.km_cambio)}</td>
         <td style="padding:4px 6px;text-align:right">${kmFmt(v.km_prox_cambio)}</td>
         <td style="padding:4px 6px;text-align:right;font-weight:700;color:${(v.km_falta_cambio??0)<0?'#DC2626':'#16A34A'}">${v.km_falta_cambio!=null?(v.km_falta_cambio>=0?'+':'')+Number(v.km_falta_cambio).toLocaleString('pt-BR'):'—'}</td>
@@ -16145,7 +16198,7 @@ async function gerarPDFComFiltros() {
 
   const colVeiculo = inclKmAtual ? 5 : 4;
   const colMotor   = 4;
-  const colCambio  = inclCambio ? 4 : 0;
+  const colCambio  = inclCambio ? 5 : 0;
 
   const thStyle = (bg) => `background:${bg};color:#fff;padding:5px 6px;font-size:9px;font-weight:700;text-align:center;border:1px solid rgba(255,255,255,.2);white-space:nowrap;-webkit-print-color-adjust:exact;print-color-adjust:exact`;
 
@@ -16167,6 +16220,7 @@ async function gerarPDFComFiltros() {
       <th style="${thStyle('#16A34A')}">FALTA KM</th>
       <th style="${thStyle('#16A34A')}">STATUS</th>
       ${inclCambio ? `
+      <th style="${thStyle('#0D9488')}">DATA TROCA</th>
       <th style="${thStyle('#0D9488')}">KM TROCA</th>
       <th style="${thStyle('#0D9488')}">PRÓX. TROCA</th>
       <th style="${thStyle('#0D9488')}">FALTA KM</th>
@@ -20001,7 +20055,7 @@ function salvarPlacaGP() {
             CHECKLIST.push({ _ckid:_gerarIdChecklist(), cavalo:'', reboque:novaPlaca, tipo:novoTipo, programador:'', ult_prev:'', dias:0, obs_log:'', obs_comp:'', troca_oleo:'', qtd_corr_cav:0, qtd_corr_reb:0, retorno_log:'', dias_bg:'', cavalo_bg:'', reboque_bg:'' });
           }
         } else {
-          const novoVeiculo = { placa: novaPlaca, tipo: novoTipo, km_atual: 0, data_troca: '', dias: null, km_motor: 0, km_cambio: 0, interv_motor: 30000, interv_cambio: 90000, _editadoEm: Date.now() };
+          const novoVeiculo = { placa: novaPlaca, tipo: novoTipo, km_atual: 0, data_troca: '', dias: null, data_troca_cambio: '', dias_cambio: null, km_motor: 0, km_cambio: 0, interv_motor: 30000, interv_cambio: 90000, _editadoEm: Date.now() };
           calcStatus(novoVeiculo);
           VEICULOS.push(novoVeiculo);
           if (atrelarValor) _salvarVinculoCaminhaoReboque(novaPlaca, atrelarValor);
@@ -20060,6 +20114,7 @@ function salvarPlacaGP() {
       } else {
         const novoVeiculo = {
           placa: novaPlaca, tipo: novoTipo, km_atual: 0, data_troca: '', dias: null,
+          data_troca_cambio: '', dias_cambio: null,
           km_motor: 0, km_cambio: 0, interv_motor: 30000, interv_cambio: 90000,
           _editadoEm: Date.now()
         };
@@ -21561,6 +21616,7 @@ async function salvarIndispAgora() {
       km_atual: v.km_atual, data_troca: v.data_troca,
       km_motor: v.km_motor, interv_motor: v.interv_motor,
       km_cambio: v.km_cambio, interv_cambio: v.interv_cambio,
+      data_troca_cambio: v.data_troca_cambio,
     }));
     const r = await _fetchComTimeout(FIREBASE_URL + DB_PATH, {
       method: 'PUT',

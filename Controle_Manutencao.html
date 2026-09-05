@@ -5325,16 +5325,87 @@ function _casarCapitalizacaoPtBR(original, correto) {
   return correto;
 }
 
-// Verifica a última palavra digitada (antes do cursor), corrige o acento se
-// bater com o dicionário e, além disso, coloca a primeira letra em
-// maiúscula automaticamente — chamada a cada tecla, mas só age quando a
-// tecla digitada é uma "fronteira de palavra" (espaço, pontuação, Enter).
+// ── Balão de sugestão ortográfica ──────────────────────────────────────
+// Pedido explícito: o app NUNCA deve trocar sozinho a palavra do jeito que
+// o usuário digitou. Ele só sugere a forma correta (acentuada) num balãozinho
+// perto do campo; a troca só acontece se o usuário tocar/clicar na sugestão.
+// Se ele ignorar e continuar digitando, o texto fica do jeito que ele
+// escreveu, sem interferência nenhuma.
+let _sugestaoAtual = null; // { el, ini, fim, palavraOriginal, sugestao }
+let _sugestaoTimeoutId = null;
+
+function _criarBalaoSugestao() {
+  let div = document.getElementById('balao-sugestao-ortografia');
+  if (div) return div;
+  div = document.createElement('div');
+  div.id = 'balao-sugestao-ortografia';
+  div.style.cssText = 'position:fixed;z-index:99999;display:none;background:#1B3A6D;color:#fff;'
+    + 'padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;line-height:1.3;'
+    + 'box-shadow:0 4px 14px rgba(0,0,0,.28);cursor:pointer;max-width:260px;';
+  document.body.appendChild(div);
+  // mousedown (não click) + preventDefault: aplica a sugestão sem tirar o
+  // foco do campo antes (senão o blur dispararia e esconderia o balão
+  // antes do clique terminar).
+  div.addEventListener('mousedown', (e) => { e.preventDefault(); _aplicarSugestaoAtual(); });
+  return div;
+}
+
+function _esconderSugestao() {
+  const div = document.getElementById('balao-sugestao-ortografia');
+  if (div) div.style.display = 'none';
+  _sugestaoAtual = null;
+  if (_sugestaoTimeoutId) { clearTimeout(_sugestaoTimeoutId); _sugestaoTimeoutId = null; }
+}
+
+function _aplicarSugestaoAtual() {
+  if (!_sugestaoAtual) return;
+  const { el, ini, fim, palavraOriginal, sugestao } = _sugestaoAtual;
+  const valor = el.value;
+  // Confirma que o trecho ainda é o mesmo de quando a sugestão apareceu —
+  // se o usuário editou o texto ali no meio enquanto isso, cancela em vez
+  // de bagunçar posições.
+  if (valor.slice(ini, fim) !== palavraOriginal) { _esconderSugestao(); return; }
+  el.value = valor.slice(0, ini) + sugestao + valor.slice(fim);
+  const novoCursor = ini + sugestao.length;
+  el.focus();
+  try { el.setSelectionRange(novoCursor, novoCursor); } catch(e) {}
+  try { el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true, __ptbrJaProcessado: true })); } catch(e) {}
+  mostrarIndicador(`✅ Corrigido para "${sugestao}"`, '#86efac');
+  _esconderSugestao();
+}
+
+function _mostrarSugestaoOrtografica(el, ini, fim, palavraOriginal, sugestao) {
+  const div = _criarBalaoSugestao();
+  _sugestaoAtual = { el, ini, fim, palavraOriginal, sugestao };
+  div.textContent = `💡 Será que não é "${sugestao}"? (toque para corrigir)`;
+  const rect = el.getBoundingClientRect();
+  div.style.display = 'block';
+  // Mede a largura real antes de posicionar, pra não estourar a tela.
+  const largura = div.offsetWidth;
+  let esquerda = rect.left;
+  if (esquerda + largura > window.innerWidth - 8) esquerda = Math.max(8, window.innerWidth - largura - 8);
+  div.style.left = esquerda + 'px';
+  div.style.top = (rect.bottom + 6) + 'px';
+  if (_sugestaoTimeoutId) clearTimeout(_sugestaoTimeoutId);
+  _sugestaoTimeoutId = setTimeout(_esconderSugestao, 6000); // some sozinho se ignorada
+}
+
+// Some com o balão se o usuário rolar a tela, redimensionar a janela, ou
+// clicar/focar em outro campo — ele não deve ficar "grudado" no lugar errado.
+window.addEventListener('scroll', () => _esconderSugestao(), true);
+window.addEventListener('resize', () => _esconderSugestao());
+
+// Verifica a última palavra digitada (antes do cursor). A primeira letra
+// maiúscula continua sendo aplicada automaticamente (pedido explícito de
+// formatação, não é "ortografia"). Já a correção de acento pelo dicionário
+// NUNCA troca sozinha — só aparece como sugestão no balão acima; o usuário
+// decide se aceita ou deixa do jeito que escreveu.
 function _autocorrigirCampoPtBR(el, emBlur) {
   const fim = emBlur ? el.value.length : el.selectionEnd;
   if (!emBlur) {
     if (fim === null || fim === undefined || fim !== el.selectionStart) return; // não mexe se houver seleção
   }
-  const valor = el.value;
+  let valor = el.value;
   const charAntes = valor.charAt(fim - 1);
   // Em blur, o fim do texto conta como fronteira mesmo sem espaço/pontuação
   // depois (é o caso de clicar em Salvar logo após terminar de digitar).
@@ -5347,19 +5418,37 @@ function _autocorrigirCampoPtBR(el, emBlur) {
   const fimPalavra = emBlur ? fim : fim - 1;
   let ini = fimPalavra;
   while (ini > 0 && /[A-Za-zÀ-ÿ]/.test(valor.charAt(ini - 1))) ini--;
-  const palavra = valor.slice(ini, fimPalavra);
-  if (!palavra) return;
+  let palavra = valor.slice(ini, fimPalavra);
+  if (!palavra) { _esconderSugestao(); return; }
 
-  // 1) Corrige o acento pelo dicionário fixo OU pelo customizado (o que
-  // os usuários foram confirmando na telinha de Configurações), se bater
-  // — precisa de 2+ letras (conectivos de 1 letra como "a", "e", "o" nunca
-  // estão em nenhum dos dois).
-  let resultado = palavra;
+  // 1) Primeira letra maiúscula em TODA palavra (pedido explícito, continua
+  // automático — isso é formatação, não é "trocar a palavra que a pessoa
+  // quis digitar").
+  if (/[a-zà-ÿ]/.test(palavra.charAt(0))) {
+    const capitalizada = palavra.charAt(0).toUpperCase() + palavra.slice(1);
+    if (capitalizada !== palavra) {
+      el.value = valor.slice(0, ini) + capitalizada + valor.slice(fimPalavra);
+      const novoCursor = ini + capitalizada.length + (emBlur ? 0 : 1);
+      try { el.setSelectionRange(novoCursor, novoCursor); } catch(e) {}
+      try { el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true, __ptbrJaProcessado: true })); } catch(e) {}
+      valor = el.value;
+      palavra = capitalizada;
+    }
+  }
+
+  // 2) Verifica se existe forma acentuada no dicionário fixo OU no
+  // customizado — precisa de 2+ letras (conectivos de 1 letra como "a",
+  // "e", "o" nunca estão em nenhum dos dois). NÃO substitui sozinho: só
+  // mostra a sugestão no balão, e quem decide aplicar é o usuário.
   if (palavra.length >= 2) {
     const chave = _normalizarPtBR(palavra);
     const correto = DICIONARIO_PTBR[chave] || DICIONARIO_CUSTOM[chave];
     if (correto && correto.toLowerCase() !== palavra.toLowerCase()) {
-      resultado = _casarCapitalizacaoPtBR(palavra, correto);
+      const sugestao = _casarCapitalizacaoPtBR(palavra, correto);
+      if (sugestao !== palavra) {
+        _mostrarSugestaoOrtografica(el, ini, fimPalavra, palavra, sugestao);
+        return;
+      }
     } else if (!correto) {
       // Não bateu em nenhum dos dois — registra a frequência local pra,
       // se essa mesma palavra se repetir várias vezes, aparecer como
@@ -5367,22 +5456,7 @@ function _autocorrigirCampoPtBR(el, emBlur) {
       _registrarPalavraNaoReconhecida(palavra);
     }
   }
-
-  // 2) Primeira letra maiúscula em TODA palavra (pedido explícito) — roda
-  // depois da correção de acento, pra maiusculizar já em cima do resultado
-  // certo (ex.: "execucao" -> "execução" -> "Execução").
-  if (/[a-zà-ÿ]/.test(resultado.charAt(0))) {
-    resultado = resultado.charAt(0).toUpperCase() + resultado.slice(1);
-  }
-
-  if (resultado === palavra) return; // nada mudou, evita mexer no cursor à toa
-
-  el.value = valor.slice(0, ini) + resultado + valor.slice(fimPalavra);
-  const novoCursor = ini + resultado.length + (emBlur ? 0 : 1);
-  try { el.setSelectionRange(novoCursor, novoCursor); } catch(e) {}
-  // Dispara 'input' de novo pra qualquer listener existente (ex.: contadores
-  // de caractere, oninput=... inline) perceber o valor corrigido.
-  try { el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true, __ptbrJaProcessado: true })); } catch(e) {}
+  _esconderSugestao();
 }
 
 function _ehCampoDeTextoLivre(el) {

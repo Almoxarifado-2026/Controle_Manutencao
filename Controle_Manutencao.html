@@ -11614,7 +11614,7 @@ async function salvarPlano() {
     </div>
     <div class="modal-btns" style="margin-top:18px">
       <button class="btn-cancel" onclick="document.getElementById('overlay-rest-seletiva').classList.remove('open')">Cancelar</button>
-      <button class="btn-salvar" style="background:#2563eb" onclick="executarRestauracaoSeletiva()">🔀 Restaurar Selecionado</button>
+      <button class="btn-salvar" style="background:#2563eb" onclick="executarRestauracaoSeletiva()">↩ Restaurar Selecionado</button>
     </div>
   </div>
 </div>
@@ -13135,7 +13135,8 @@ async function baixarBackupFirebase(chave, evt) {
   }
 }
 
-async function restaurarBackup(chave) {
+async function restaurarBackup(chave, ev) {
+  if (ev) ev.stopPropagation();
   if (!_checkEdicao()) return;
   // Busca só o snapshot escolhido (GET pontual em /backups/{chave}.json),
   // em vez de baixar TODOS os backups acumulados só para usar um deles.
@@ -13144,10 +13145,10 @@ async function restaurarBackup(chave) {
 
   const data = snap.data.split('-').reverse().join('/');
   const tipo = snap.tipo === 'manual' ? 'manual' : 'automático';
-  if (!confirm(`🔀 Restaurar backup ${tipo} de ${data} às ${snap.hora}?
+  if (!confirm(`🔀 Mesclar backup ${tipo} de ${data} às ${snap.hora} com o Firebase?
 
-O sistema vai comparar cada registro e manter sempre a versão mais recente.
-Nenhum dado mais novo (criado/editado depois deste backup) será perdido.
+(Isto é MESCLAGEM, não restauração exata: o sistema vai comparar cada registro e manter sempre a versão mais recente.
+Nenhum dado mais novo — criado/editado depois deste backup — será perdido.)
 Um backup do estado atual será criado antes.`)) return;
 
   // Salvar estado atual antes de restaurar (PATCH pontual — não reenvia os demais backups)
@@ -13225,6 +13226,180 @@ Um backup do estado atual será criado antes.`)) return;
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// RESTAURAÇÃO EXATA (aba Firebase) — mesma regra de restaurarBackupExato()
+// (backup local): o snapshot escolhido é a fonte de verdade, sobrescreve
+// sem comparar timestamps. restaurarBackup() (acima) continua existindo
+// para quem quiser MESCLAR de propósito — por isso o botão e os textos
+// dessa função usam a palavra "Mesclar", nunca "Restaurar".
+// ════════════════════════════════════════════════════════════════════════
+async function restaurarBackupFirebaseExato(chave, ev) {
+  if (ev) ev.stopPropagation();
+  if (!_checkEdicao()) return;
+  if (window._restauracaoEmAndamento) { alert('Já existe uma restauração em andamento.'); return; }
+
+  const snap = await carregarUmBackup(chave);
+  if (!snap) return alert('Backup não encontrado.');
+
+  const dataFmt = snap.data ? snap.data.split('-').reverse().join('/') : '—';
+  const aviso = 'RESTAURAR EXATAMENTE ESTE BACKUP?\n\n'
+    + 'Data: ' + dataFmt + '\n'
+    + 'Hora: ' + (snap.hora || '—') + '\n\n'
+    + 'O sistema será retornado ao estado registrado neste backup.\n\n'
+    + 'Dados posteriores existentes nas coleções cobertas por este snapshot serão substituídos.\n\n'
+    + 'Um backup de segurança do estado atual será criado antes.\n\n'
+    + 'Digite RESTAURAR para continuar:';
+  const digitado = prompt(aviso);
+  if (digitado !== 'RESTAURAR') {
+    if (digitado !== null) alert('Confirmação incorreta. Restauração cancelada — nada foi alterado.');
+    return;
+  }
+
+  // ── 1. Backup pré-restauração OBRIGATÓRIO — lido fresco do Firebase
+  //      (não da memória), cobrindo todas as coleções. Aborta tudo se
+  //      a gravação de segurança falhar. ──────────────────────────────
+  mostrarIndicador('💾 Criando backup do estado atual antes de restaurar...', '#93C5FD');
+  let chaveAtual;
+  try {
+    const [fV, fC, fH, fI, fHM, fA, fD, fCo, fP] = await Promise.all([
+      fbGet(DB_PATH), fbGet('/manutencao/checklist.json'), fbGet('/manutencao/historico.json'),
+      fbGet('/manutencao/indisponiveis.json'), fbGet('/manutencao/hist_manut.json'),
+      fbGet('/manutencao/abastecimentos.json'), fbGet('/manutencao/documentos.json'),
+      fbGet('/manutencao/corretivas.json'), fbGet('/manutencao/planos.json'),
+    ]);
+    const agora = new Date();
+    chaveAtual = todayBrasilia() + '_pre_restore_' + agora.getTime();
+    const snapshotAtual = {
+      data: todayBrasilia(),
+      hora: agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/Sao_Paulo' }),
+      ts: agora.getTime(),
+      tipo: 'pre-restauracao',
+      veiculos:       _normalizarParaArray(fV),
+      checklist:      _normalizarParaArray(fC),
+      historico:      fH || {},
+      indisponiveis:  _normalizarParaArray(fI),
+      hist_manut:     _normalizarParaArray(fHM),
+      abastecimentos: _normalizarParaArray(fA),
+      documentos:     fD || {},
+      corretivas:     _normalizarParaArray(fCo),
+      planos:         fP || {},
+    };
+    // Grava direto (em vez de salvarBackupChave, que não confirma sucesso)
+    // para poder ABORTAR de verdade se a gravação de segurança falhar.
+    const rPre = await _fetchComTimeout(FIREBASE_URL + BACKUP_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
+      body: JSON.stringify({ [chaveAtual]: snapshotAtual })
+    }, 30000);
+    if (!rPre.ok) throw new Error('HTTP ' + rPre.status);
+  } catch (e) {
+    alert('❌ Não foi possível criar o backup de segurança pré-restauração.\n\nA restauração foi ABORTADA — nenhum dado foi alterado.\n\n' + e.message);
+    return;
+  }
+  if (_abaBackupAtiva === 'firebase') await renderListaBackups();
+
+  // ── 2. Suspende gravações automáticas, filas e SSE ──────────────────────
+  window._restauracaoEmAndamento = true;
+  _overlayRestauracaoExata(true);
+  ['_timerFBVeiculos','_timerFBChecklist','_timerFBIndisp','_timerFBHist','_timerCombRetry'].forEach(nome => {
+    try { if (window[nome]) { clearTimeout(window[nome]); window[nome] = null; } } catch(e) {}
+  });
+  try {
+    Object.keys(_sseConexoes || {}).forEach(path => { try { _sseConexoes[path].close(); } catch(e) {} });
+  } catch(e) {}
+  try {
+    if (window._backupPendenteListener) {
+      window.removeEventListener('online', window._backupPendenteListener);
+      window._backupPendenteListener = null;
+    }
+  } catch(e) {}
+
+  try {
+    mostrarIndicador('☁️ Restaurando exatamente do backup...', '#FCD34D');
+
+    // ── 3. Grava CADA coleção presente no snapshot, sem merge ────────────
+    const escritas = [];
+    const rotulos = [];
+
+    if (Array.isArray(snap.veiculos)) {
+      escritas.push(fbPut(DB_PATH, _arrayComoObjetoPorChave(snap.veiculos, 'placa')));
+      rotulos.push('veículos');
+    }
+    if (Array.isArray(snap.checklist)) {
+      escritas.push(fbPut('/manutencao/checklist.json', _arrayComoObjetoPorChave(snap.checklist, '_ckid')));
+      rotulos.push('checklist');
+    }
+    if (snap.historico && typeof snap.historico === 'object') {
+      escritas.push(fbPut('/manutencao/historico.json', snap.historico));
+      rotulos.push('histórico');
+    }
+    if (Array.isArray(snap.indisponiveis)) {
+      const indispObj = {};
+      snap.indisponiveis.forEach(r => { if (r && r.id) indispObj[r.id] = r; });
+      escritas.push(fbPut('/manutencao/indisponiveis.json', indispObj));
+      rotulos.push('indisponíveis');
+    }
+    if (Array.isArray(snap.hist_manut)) {
+      escritas.push(fbPut('/manutencao/hist_manut.json', snap.hist_manut));
+      rotulos.push('histórico de manutenção');
+    }
+    if (Array.isArray(snap.abastecimentos)) {
+      escritas.push(fbPut('/manutencao/abastecimentos.json', snap.abastecimentos));
+      rotulos.push('abastecimentos');
+    }
+    if (snap.documentos && typeof snap.documentos === 'object') {
+      escritas.push(fbPut('/manutencao/documentos.json', snap.documentos));
+      rotulos.push('documentos');
+    }
+    if (Array.isArray(snap.corretivas)) {
+      escritas.push(fbPut('/manutencao/corretivas.json', snap.corretivas));
+      rotulos.push('corretivas');
+    }
+    if (snap.planos && typeof snap.planos === 'object') {
+      escritas.push(fbPut('/manutencao/planos.json', snap.planos));
+      rotulos.push('planos');
+    }
+
+    const resultados = await Promise.all(escritas);
+    const falhas = rotulos.filter((r, i) => !resultados[i]);
+
+    if (falhas.length) {
+      mostrarIndicador('❌ Falha ao restaurar: ' + falhas.join(', '), '#FCA5A5');
+      alert('⚠️ A restauração FALHOU nas coleções: ' + falhas.join(', ') + '.\n\n'
+        + 'NENHUM sucesso foi declarado. O backup do estado anterior à restauração foi preservado '
+        + '(chave "' + chaveAtual + '", tipo "pre-restauracao" na aba Firebase) — use-o para reverter manualmente se necessário.');
+      _encerrarRestauracaoExata();
+      return;
+    }
+
+    // ── 4. Limpa filas pendentes e caches locais (evita que valores
+    //      antigos regravem o Firebase depois da restauração) ────────────
+    ['veiculos_fila_pendente','checklist_fila_pendente','indisponiveis_fila_pendente',
+     'hist_manut_fila_pendente','documentos_fila_pendente','abastecimentos_pendentes',
+     'backup_pendente_firebase'].forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+
+    if (Array.isArray(snap.veiculos))      try { localStorage.setItem('frota_veiculos', JSON.stringify(snap.veiculos)); } catch(e) {}
+    if (Array.isArray(snap.checklist))     try { localStorage.setItem('frota_checklist_cache', JSON.stringify(snap.checklist)); } catch(e) {}
+    if (Array.isArray(snap.indisponiveis)) try { localStorage.setItem('frota_indisp_cache', JSON.stringify(snap.indisponiveis)); } catch(e) {}
+    if (Array.isArray(snap.hist_manut)) {
+      try { localStorage.setItem('hist_manut_cache', JSON.stringify(snap.hist_manut)); } catch(e) {}
+      try { localStorage.setItem('hist_manut', JSON.stringify(snap.hist_manut)); } catch(e) {}
+    }
+
+    mostrarIndicador('✅ Restauração exata concluída! Recarregando...', '#86efac');
+    console.log('[RestauracaoExataFirebase] ✅ Concluída — coleções gravadas:', rotulos.join(', '));
+
+    // ── 5. Recarrega direto do Firebase — também reconecta SSE do zero ──
+    setTimeout(() => location.reload(), 1200);
+
+  } catch (e) {
+    mostrarIndicador('❌ Erro na restauração: ' + e.message, '#FCA5A5');
+    alert('❌ Erro durante a restauração exata: ' + e.message + '\n\n'
+      + 'O backup pré-restauração foi preservado. Nenhum sucesso foi declarado.');
+    _encerrarRestauracaoExata();
+  }
+}
+
 async function excluirBackup(chave, e) {
   if (!_checkEdicao()) return;
   e.stopPropagation();
@@ -13278,7 +13453,7 @@ async function renderListaBackups() {
     const bgCard = isCompart ? '#faf5ff' : '#f8fafc';
     const borderCard = isCompart ? '#ddd6fe' : '#e2e8f0';
     return `
-    <div style="background:${bgCard};border:1px solid ${borderCard};border-left:3px solid ${cor};border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="restaurarBackup('${chave}')">
+    <div style="background:${bgCard};border:1px solid ${borderCard};border-left:3px solid ${cor};border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px">
       <div style="font-size:22px;flex-shrink:0">${icone}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:#0f172a">${dataFmt} às ${b.hora}</div>
@@ -13287,6 +13462,10 @@ async function renderListaBackups() {
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         <span style="font-size:10px;font-weight:700;background:${cor}22;color:${cor};padding:3px 8px;border-radius:999px">${label}</span>
         ${badgeExtra}
+        <button onclick="restaurarBackupFirebaseExato('${chave}', event)" title="RESTAURAR: o backup escolhido vence — sobrescreve o Firebase sem mesclar, mesmo que haja dados mais novos"
+          style="background:#dcfce7;border:none;border-radius:8px;color:#16a34a;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">↩ Restaurar</button>
+        <button onclick="restaurarBackup('${chave}', event)" title="MESCLAR: compara cada registro com o Firebase e mantém sempre a versão mais recente (não é restauração)"
+          style="background:#dbeafe;border:none;border-radius:8px;color:#1d4ed8;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">🔀 Mesclar</button>
         <button onclick="excluirBackup('${chave}', event)" title="Excluir" style="background:#fee2e2;border:none;border-radius:8px;color:#dc2626;font-size:13px;width:28px;height:28px;cursor:pointer;font-weight:700">✕</button>
       </div>
     </div>`;
@@ -13572,8 +13751,10 @@ function _renderListaEmMemoria(lista, el) {
         ${badgeExterno}
         <button onclick="subirBackupLocalFirebase(${idx})" title="Enviar para o Firebase"
           style="background:#dbeafe;border:none;border-radius:8px;color:#1d4ed8;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">☁️ Subir</button>
-        <button onclick="restaurarBackupLocal(${idx})" title="Restaurar este ponto"
+        <button onclick="restaurarBackupExato(${idx})" title="RESTAURAR: o backup escolhido vence — sobrescreve o Firebase sem mesclar, mesmo que haja dados mais novos"
           style="background:#dcfce7;border:none;border-radius:8px;color:#16a34a;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">↩ Restaurar</button>
+        <button onclick="restaurarBackupLocal(${idx})" title="MESCLAR: compara cada registro com o Firebase e mantém sempre a versão mais recente (não é restauração)"
+          style="background:#dbeafe;border:none;border-radius:8px;color:#1d4ed8;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">🔀 Mesclar</button>
         <button onclick="excluirBackupLocal(${idx})" title="Excluir"
           style="background:#fee2e2;border:none;border-radius:8px;color:#dc2626;font-size:13px;width:28px;height:28px;cursor:pointer;font-weight:700">✕</button>
       </div>
@@ -13987,7 +14168,7 @@ async function restaurarBackupLocal(idx) {
   if (!snap) return alert('Ponto de restauração não encontrado.');
 
   const dataFmt = snap.data ? snap.data.split('-').reverse().join('/') : '—';
-  if (!confirm(`🔀 Restaurar ponto de restauração local de ${dataFmt} às ${snap.hora}?\n\nO sistema vai comparar cada registro e manter sempre a versão mais recente.\nNenhum dado mais novo (criado/editado depois deste backup) será perdido.\nUm backup do estado atual será criado antes.`)) return;
+  if (!confirm(`🔀 Mesclar ponto local de ${dataFmt} às ${snap.hora} com o Firebase?\n\n(Isto é MESCLAGEM, não restauração exata: o sistema vai comparar cada registro e manter sempre a versão mais recente.\nNenhum dado mais novo — criado/editado depois deste backup — será perdido.)\nUm backup do estado atual será criado antes.`)) return;
 
   mostrarIndicador('⏳ Buscando dados atuais para mesclar...', '#93C5FD');
   try {
@@ -14065,6 +14246,180 @@ async function restaurarBackupLocal(idx) {
   } catch(e) {
     mostrarIndicador('❌ Erro ao restaurar: ' + e.message, '#FCA5A5');
     console.error('[BackupLocal] Restaurar erro:', e);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// RESTAURAÇÃO EXATA — diferente de restaurarBackupLocal() (que MESCLA e
+// nunca deixa um dado "mais novo" do Firebase perder), esta função existe
+// para restaurar um estado histórico mesmo quando o Firebase tem uma
+// edição posterior INCORRETA (ex.: KM lançado errado depois do backup).
+// O backup escolhido é a fonte de verdade — sobrescreve sem comparar
+// timestamps. Só grava as coleções que o snapshot realmente contém; não
+// inventa nem apaga coleção ausente do snapshot.
+// ════════════════════════════════════════════════════════════════════════
+window._restauracaoEmAndamento = false;
+
+function _overlayRestauracaoExata(mostrar) {
+  let ov = document.getElementById('overlay-restauracao-exata');
+  if (mostrar) {
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'overlay-restauracao-exata';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.94);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:inherit';
+      ov.innerHTML = '<div style="font-size:40px;margin-bottom:12px">⚠️</div>'
+        + '<div style="font-size:18px;font-weight:800;margin-bottom:6px">RESTAURAÇÃO EM ANDAMENTO</div>'
+        + '<div style="font-size:14px;color:#cbd5e1">NÃO FECHE ESTA PÁGINA</div>';
+      document.body.appendChild(ov);
+    }
+    ov.style.display = 'flex';
+  } else if (ov) {
+    ov.remove();
+  }
+}
+
+// Encerra o modo de restauração (usado em todo caminho de saída, sucesso ou falha)
+function _encerrarRestauracaoExata() {
+  window._restauracaoEmAndamento = false;
+  _overlayRestauracaoExata(false);
+}
+
+async function restaurarBackupExato(idx) {
+  if (!_checkEdicao()) return;
+  if (window._restauracaoEmAndamento) { alert('Já existe uma restauração em andamento.'); return; }
+
+  const lista = _lerBackupsLocais();
+  const snap = lista[idx];
+  if (!snap) return alert('Backup não encontrado.');
+
+  const dataFmt = snap.data ? snap.data.split('-').reverse().join('/') : '—';
+  const aviso = 'RESTAURAR EXATAMENTE ESTE BACKUP?\n\n'
+    + 'Data: ' + dataFmt + '\n'
+    + 'Hora: ' + (snap.hora || '—') + '\n\n'
+    + 'O sistema será retornado ao estado registrado neste backup.\n\n'
+    + 'Dados posteriores existentes nas coleções cobertas por este snapshot serão substituídos.\n\n'
+    + 'Um backup de segurança do estado atual será criado antes.\n\n'
+    + 'Digite RESTAURAR para continuar:';
+  const digitado = prompt(aviso);
+  if (digitado !== 'RESTAURAR') {
+    if (digitado !== null) alert('Confirmação incorreta. Restauração cancelada — nada foi alterado.');
+    return;
+  }
+
+  // ── 1. Backup pré-restauração OBRIGATÓRIO — aborta tudo se falhar ──────
+  mostrarIndicador('💾 Criando backup do estado atual antes de restaurar...', '#93C5FD');
+  const preRestore = salvarBackupLocal('pre_restauracao');
+  if (!preRestore || !preRestore.snap) {
+    alert('❌ Não foi possível criar o backup de segurança pré-restauração.\n\nA restauração foi ABORTADA — nenhum dado foi alterado no Firebase.');
+    return;
+  }
+  if (_abaBackupAtiva === 'local') renderListaBackupsLocais();
+
+  // ── 2. Suspende gravações automáticas, filas e SSE ──────────────────────
+  window._restauracaoEmAndamento = true;
+  _overlayRestauracaoExata(true);
+  ['_timerFBVeiculos','_timerFBChecklist','_timerFBIndisp','_timerFBHist','_timerCombRetry'].forEach(nome => {
+    try { if (window[nome]) { clearTimeout(window[nome]); window[nome] = null; } } catch(e) {}
+  });
+  try {
+    Object.keys(_sseConexoes || {}).forEach(path => { try { _sseConexoes[path].close(); } catch(e) {} });
+  } catch(e) {}
+  try {
+    if (window._backupPendenteListener) {
+      window.removeEventListener('online', window._backupPendenteListener);
+      window._backupPendenteListener = null;
+    }
+  } catch(e) {}
+
+  try {
+    mostrarIndicador('☁️ Restaurando exatamente do backup...', '#FCD34D');
+
+    // ── 3. Grava CADA coleção presente no snapshot, sem merge ────────────
+    const escritas = [];
+    const rotulos = [];
+
+    if (Array.isArray(snap.veiculos)) {
+      escritas.push(fbPut(DB_PATH, _arrayComoObjetoPorChave(snap.veiculos, 'placa')));
+      rotulos.push('veículos');
+    }
+    if (Array.isArray(snap.checklist)) {
+      escritas.push(fbPut('/manutencao/checklist.json', _arrayComoObjetoPorChave(snap.checklist, '_ckid')));
+      rotulos.push('checklist');
+    }
+    if (snap.historico && typeof snap.historico === 'object') {
+      escritas.push(fbPut('/manutencao/historico.json', snap.historico));
+      rotulos.push('histórico');
+    }
+    if (Array.isArray(snap.indisponiveis)) {
+      const indispObj = {};
+      snap.indisponiveis.forEach(r => { if (r && r.id) indispObj[r.id] = r; });
+      escritas.push(fbPut('/manutencao/indisponiveis.json', indispObj));
+      rotulos.push('indisponíveis');
+    }
+    if (Array.isArray(snap.hist_manut)) {
+      escritas.push(fbPut('/manutencao/hist_manut.json', snap.hist_manut));
+      rotulos.push('histórico de manutenção');
+    }
+    if (Array.isArray(snap.abastecimentos)) {
+      escritas.push(fbPut('/manutencao/abastecimentos.json', snap.abastecimentos));
+      rotulos.push('abastecimentos');
+    }
+    if (snap.documentos && typeof snap.documentos === 'object') {
+      escritas.push(fbPut('/manutencao/documentos.json', snap.documentos));
+      rotulos.push('documentos');
+    }
+    if (Array.isArray(snap.corretivas)) {
+      escritas.push(fbPut('/manutencao/corretivas.json', snap.corretivas));
+      rotulos.push('corretivas');
+    }
+    if (snap.planos && typeof snap.planos === 'object') {
+      escritas.push(fbPut('/manutencao/planos.json', snap.planos));
+      rotulos.push('planos');
+    }
+    if (Array.isArray(snap.indisp_excluidos)) {
+      const exclObj = {};
+      snap.indisp_excluidos.forEach(id => { if (id) exclObj[id] = Date.now(); });
+      escritas.push(fbPut(INDISP_EXCL_PATH, exclObj));
+      rotulos.push('IDs excluídos');
+    }
+
+    const resultados = await Promise.all(escritas);
+    const falhas = rotulos.filter((r, i) => !resultados[i]);
+
+    if (falhas.length) {
+      mostrarIndicador('❌ Falha ao restaurar: ' + falhas.join(', '), '#FCA5A5');
+      alert('⚠️ A restauração FALHOU nas coleções: ' + falhas.join(', ') + '.\n\n'
+        + 'NENHUM sucesso foi declarado. O backup do estado anterior à restauração foi preservado '
+        + '(tipo "pre_restauracao" na lista de backups locais) — use-o para reverter manualmente se necessário.');
+      _encerrarRestauracaoExata();
+      return;
+    }
+
+    // ── 4. Limpa filas pendentes e caches locais (evita que valores
+    //      antigos regravem o Firebase depois da restauração) ────────────
+    ['veiculos_fila_pendente','checklist_fila_pendente','indisponiveis_fila_pendente',
+     'hist_manut_fila_pendente','documentos_fila_pendente','abastecimentos_pendentes',
+     'backup_pendente_firebase'].forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+
+    if (Array.isArray(snap.veiculos))      try { localStorage.setItem('frota_veiculos', JSON.stringify(snap.veiculos)); } catch(e) {}
+    if (Array.isArray(snap.checklist))     try { localStorage.setItem('frota_checklist_cache', JSON.stringify(snap.checklist)); } catch(e) {}
+    if (Array.isArray(snap.indisponiveis)) try { localStorage.setItem('frota_indisp_cache', JSON.stringify(snap.indisponiveis)); } catch(e) {}
+    if (Array.isArray(snap.hist_manut)) {
+      try { localStorage.setItem('hist_manut_cache', JSON.stringify(snap.hist_manut)); } catch(e) {}
+      try { localStorage.setItem('hist_manut', JSON.stringify(snap.hist_manut)); } catch(e) {}
+    }
+
+    mostrarIndicador('✅ Restauração exata concluída! Recarregando...', '#86efac');
+    console.log('[RestauracaoExata] ✅ Concluída — coleções gravadas:', rotulos.join(', '));
+
+    // ── 5. Recarrega direto do Firebase — também reconecta SSE do zero ──
+    setTimeout(() => location.reload(), 1200);
+
+  } catch (e) {
+    mostrarIndicador('❌ Erro na restauração: ' + e.message, '#FCA5A5');
+    alert('❌ Erro durante a restauração exata: ' + e.message + '\n\n'
+      + 'O backup pré-restauração foi preservado. Nenhum sucesso foi declarado.');
+    _encerrarRestauracaoExata();
   }
 }
 
@@ -15952,6 +16307,7 @@ async function abrirRestauracaoSeletiva() {
 
 async function executarRestauracaoSeletiva() {
   if (!_checkEdicao()) return;
+  if (window._restauracaoEmAndamento) { alert('Já existe uma restauração em andamento.'); return; }
   const chave = document.getElementById('rest-sel-backup').value;
   const restVeiculos  = document.getElementById('rest-veiculos').checked;
   const restChecklist = document.getElementById('rest-checklist').checked;
@@ -15962,31 +16318,104 @@ async function executarRestauracaoSeletiva() {
   }
 
   const itens = [restVeiculos?'Veículos':'', restChecklist?'Checklist':'', restHistorico?'Histórico':''].filter(Boolean).join(', ');
-  if (!confirm(`Restaurar: ${itens}
-
-Esta ação substituirá os dados selecionados pelos do backup.
-O restante permanece intacto.
-
-Confirmar?`)) return;
+  const digitado = prompt(`RESTAURAR EXATAMENTE: ${itens}?\n\nDentro da(s) coleção(ões) marcada(s), o backup escolhido vence integralmente — não é mesclagem, nenhum registro mais novo é preservado.\nAs demais coleções (não marcadas) permanecem intactas.\nUm backup de segurança do estado atual será criado antes.\n\nDigite RESTAURAR para continuar:`);
+  if (digitado !== 'RESTAURAR') {
+    if (digitado !== null) alert('Confirmação incorreta. Restauração cancelada — nada foi alterado.');
+    return;
+  }
 
   const backups = await carregarBackups();
   const snap = backups[chave];
   if (!snap) { alert('Backup não encontrado.'); return; }
 
-  mostrarIndicador('⏳ Restaurando...', '#FCD34D');
+  // ── 1. Backup pré-restauração OBRIGATÓRIO — só das coleções que serão
+  //      afetadas, lido fresco do Firebase. Aborta tudo se falhar. ──────
+  mostrarIndicador('💾 Criando backup do estado atual antes de restaurar...', '#93C5FD');
+  let chaveAtual;
   try {
-    if (restVeiculos && snap.veiculos) {
-      await fetch(FIREBASE_URL + DB_PATH, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(_arrayComoObjetoPorChave(snap.veiculos, 'placa')) });
+    const [fV, fC, fH] = await Promise.all([
+      restVeiculos  ? fbGet(DB_PATH) : Promise.resolve(null),
+      restChecklist ? fbGet('/manutencao/checklist.json') : Promise.resolve(null),
+      restHistorico ? fbGet('/manutencao/historico.json') : Promise.resolve(null),
+    ]);
+    const agora = new Date();
+    chaveAtual = todayBrasilia() + '_pre_restore_' + agora.getTime();
+    const snapshotAtual = {
+      data: todayBrasilia(),
+      hora: agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/Sao_Paulo' }),
+      ts: agora.getTime(),
+      tipo: 'pre-restauracao',
+      veiculos:  restVeiculos  ? _normalizarParaArray(fV) : undefined,
+      checklist: restChecklist ? _normalizarParaArray(fC) : undefined,
+      historico: restHistorico ? (fH || {}) : undefined,
+    };
+    const rPre = await _fetchComTimeout(FIREBASE_URL + BACKUP_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
+      body: JSON.stringify({ [chaveAtual]: snapshotAtual })
+    }, 30000);
+    if (!rPre.ok) throw new Error('HTTP ' + rPre.status);
+  } catch (e) {
+    alert('❌ Não foi possível criar o backup de segurança pré-restauração.\n\nA restauração seletiva foi ABORTADA — nenhum dado foi alterado.\n\n' + e.message);
+    return;
+  }
+  if (_abaBackupAtiva === 'firebase') await renderListaBackups();
+
+  // ── 2. Suspende gravações automáticas, filas e SSE ──────────────────────
+  window._restauracaoEmAndamento = true;
+  _overlayRestauracaoExata(true);
+  ['_timerFBVeiculos','_timerFBChecklist','_timerFBIndisp','_timerFBHist','_timerCombRetry'].forEach(nome => {
+    try { if (window[nome]) { clearTimeout(window[nome]); window[nome] = null; } } catch(e) {}
+  });
+  try { Object.keys(_sseConexoes || {}).forEach(path => { try { _sseConexoes[path].close(); } catch(e) {} }); } catch(e) {}
+  try {
+    if (window._backupPendenteListener) {
+      window.removeEventListener('online', window._backupPendenteListener);
+      window._backupPendenteListener = null;
     }
-    if (restChecklist && snap.checklist) await fbPut('/manutencao/checklist.json', _arrayComoObjetoPorChave(snap.checklist, '_ckid'));
-    if (restHistorico && snap.historico) await fbPut('/manutencao/historico.json', snap.historico);
+  } catch(e) {}
+
+  mostrarIndicador('☁️ Restaurando exatamente...', '#FCD34D');
+  try {
+    const escritas = [];
+    const rotulos = [];
+    if (restVeiculos && snap.veiculos) {
+      escritas.push(fbPut(DB_PATH, _arrayComoObjetoPorChave(snap.veiculos, 'placa')));
+      rotulos.push('veículos');
+    }
+    if (restChecklist && snap.checklist) {
+      escritas.push(fbPut('/manutencao/checklist.json', _arrayComoObjetoPorChave(snap.checklist, '_ckid')));
+      rotulos.push('checklist');
+    }
+    if (restHistorico && snap.historico) {
+      escritas.push(fbPut('/manutencao/historico.json', snap.historico));
+      rotulos.push('histórico');
+    }
+
+    const resultados = await Promise.all(escritas);
+    const falhas = rotulos.filter((r, i) => !resultados[i]);
+
+    if (falhas.length) {
+      mostrarIndicador('❌ Falha ao restaurar: ' + falhas.join(', '), '#FCA5A5');
+      alert('⚠️ A restauração seletiva FALHOU em: ' + falhas.join(', ') + '.\n\n'
+        + 'NENHUM sucesso foi declarado. O backup do estado anterior (chave "' + chaveAtual + '") foi preservado.');
+      _encerrarRestauracaoExata();
+      return;
+    }
+
+    // ── Limpa só as filas das coleções restauradas ──
+    if (restVeiculos)  try { localStorage.removeItem('veiculos_fila_pendente'); } catch(e) {}
+    if (restChecklist) try { localStorage.removeItem('checklist_fila_pendente'); } catch(e) {}
+    if (restVeiculos  && snap.veiculos)  try { localStorage.setItem('frota_veiculos', JSON.stringify(snap.veiculos)); } catch(e) {}
+    if (restChecklist && snap.checklist) try { localStorage.setItem('frota_checklist_cache', JSON.stringify(snap.checklist)); } catch(e) {}
 
     mostrarIndicador('✅ Restauração seletiva concluída! Recarregando...', '#86efac');
     document.getElementById('overlay-rest-seletiva').classList.remove('open');
-    setTimeout(() => location.reload(), 1500);
+    setTimeout(() => location.reload(), 1200);
   } catch(e) {
-    alert('Erro na restauração: ' + e.message);
     mostrarIndicador('❌ Erro na restauração', '#FCA5A5');
+    alert('❌ Erro durante a restauração seletiva: ' + e.message + '\n\nO backup pré-restauração foi preservado. Nenhum sucesso foi declarado.');
+    _encerrarRestauracaoExata();
   }
 }
 

@@ -2433,6 +2433,10 @@ document.addEventListener('DOMContentLoaded', () => {
       <option value="100">100 / pág</option>
       <option value="9999">Todos</option>
     </select>
+    <select id="ordenarPorSelect" onchange="ordenarPor(this.value)" title="Critério de ordenação da tabela" style="width:150px">
+      <option value="dias">⏱️ Ordenar por Dias</option>
+      <option value="km">🔧 Ordenar por KM Vencidos</option>
+    </select>
     <span id="contador-resultados" style="font-size:11px;color:#64748b;font-weight:600;white-space:nowrap"></span>
     <button onclick="abrirModal()" class="edit-only">➕ Adicionar Veículo</button>
     <button class="btn-csv" onclick="exportarCSV()">⬇️ CSV</button>
@@ -6919,6 +6923,16 @@ function calcStatus(v) {
     else if (f!==null && f<5000) { v.st_cambio='PRÓXIMO DO VENCIMENTO'; v.cor_cambio='proximo'; }
     else                          { v.st_cambio='EM DIA';                v.cor_cambio='ok'; }
   }
+
+  // KM VENCIDO CRÍTICO — usado pela opção "Ordenar por KM Vencidos": pega o
+  // pior dos dois (motor/câmbio) e expressa como "quanto km está vencido"
+  // (positivo = km already vencido; negativo = ainda faltam esses km pra
+  // vencer). Mesma escala/convenção de "dias sem revisão" (quanto maior,
+  // pior) — assim os dois critérios de ordenação funcionam com a mesma
+  // direção (maior primeiro) e o mesmo tratamento de "sem dado" (null vai
+  // pro fim da lista).
+  const candidatosKmFalta = [v.km_falta_motor, v.km_falta_cambio].filter(x => x !== null && x !== undefined);
+  v.km_vencido_critico = candidatosKmFalta.length ? -Math.min(...candidatosKmFalta) : null;
 }
 
 VEICULOS.forEach(calcStatus);
@@ -7427,6 +7441,18 @@ function ord(campo){
   document.querySelectorAll('span[id^="arr-"]').forEach(s => s.textContent='');
   const arrEl = document.getElementById('arr-'+campo);
   if (arrEl) arrEl.textContent = ordenacao.dir===1 ? ' ▲' : ' ▼';
+  renderizar();
+}
+
+// ── ORDENAR POR (seletor no topo da tabela) — alterna entre os dois
+// critérios de urgência mais usados: "Dias sem Revisão" e "KM Vencidos"
+// (o pior entre motor/câmbio, ver km_vencido_critico em calcStatus).
+// Ambos usam dir:-1 (maior primeiro = mais urgente primeiro) e o mesmo
+// tratamento de "sem dado" (vai pro fim da lista).
+function ordenarPor(modo){
+  ordenacao = modo === 'km' ? {campo:'km_vencido_critico', dir:-1} : {campo:'dias', dir:-1};
+  document.querySelectorAll('span[id^="arr-"]').forEach(s => s.textContent='');
+  pag = 1;
   renderizar();
 }
 

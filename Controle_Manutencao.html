@@ -3006,7 +3006,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- ══════════════════════════════════════════════════
      ABA 5 · DOCUMENTOS (#pag-documentos)
      Dados em: DOCUMENTOS{}  — § 27 do JS
-     Tipos: crlv, civ, cipp, seguro, tacografo, rntrc, vistoria
+     Tipos: crlv, civ, cipp, opacidade, seguro, tacografo, rntrc, vistoria
      ══════════════════════════════════════════════════ -->
 <div class="pagina" id="pag-documentos">
 
@@ -3033,6 +3033,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <option value="rntrc">RNTRC</option>
       <option value="civ">CIV</option>
       <option value="cipp">CIPP</option>
+      <option value="opacidade">Laudo Opacidade</option>
       <option value="vistoria">Vistoria</option>
     </select>
     <button class="edit-only" onclick="abrirModalDoc()" style="background:#16A34A;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer">➕ Adicionar Documento</button>
@@ -3057,13 +3058,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <th style="background:#1e3a8a;color:#fff;padding:8px 12px;text-align:center">TIPO</th>
             <th style="background:#16a34a;color:#fff;padding:8px 12px;text-align:center">CRLV</th>
             <th style="background:#0891b2;color:#fff;padding:8px 12px;text-align:center">CIV</th>
-            <th style="background:#dc2626;color:#fff;padding:8px 12px;text-align:center;border-right:2px solid rgba(255,255,255,.5)">CIPP</th>
+            <th style="background:#dc2626;color:#fff;padding:8px 12px;text-align:center">CIPP</th>
+            <th style="background:#7c3aed;color:#fff;padding:8px 12px;text-align:center;border-right:2px solid rgba(255,255,255,.5)">LAUDO OPACIDADE</th>
             <!-- Reboque -->
             <th style="background:#0f4c7a;color:#fff;padding:8px 12px;text-align:left">REBOQUE</th>
             <th style="background:#0f4c7a;color:#fff;padding:8px 12px;text-align:center">TIPO</th>
             <th style="background:#15803d;color:#fff;padding:8px 12px;text-align:center">CRLV</th>
             <th style="background:#0e7490;color:#fff;padding:8px 12px;text-align:center">CIV</th>
-            <th style="background:#b91c1c;color:#fff;padding:8px 12px;text-align:center;border-right:2px solid rgba(255,255,255,.3)">CIPP</th>
+            <th style="background:#b91c1c;color:#fff;padding:8px 12px;text-align:center">CIPP</th>
+            <th style="background:#6d28d9;color:#fff;padding:8px 12px;text-align:center;border-right:2px solid rgba(255,255,255,.3)">LAUDO OPACIDADE</th>
             <!-- Ações -->
             <th style="background:#374151;color:#fff;padding:8px 12px;text-align:center">AÇÕES</th>
           </tr>
@@ -3719,6 +3722,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <option value="crlv">📋 CRLV — Licenciamento</option>
           <option value="civ">🔬 CIV — Inspeção Veicular</option>
           <option value="cipp">☣️ CIPP — Produtos Perigosos</option>
+          <option value="opacidade">💨 Laudo de Opacidade</option>
           <option value="seguro">🛡️ Seguro</option>
           <option value="tacografo">⏱️ Tacógrafo</option>
           <option value="rntrc">🚛 RNTRC</option>
@@ -3726,13 +3730,21 @@ document.addEventListener('DOMContentLoaded', () => {
         </select>
       </div>
       <div id="wrap-doc-emissao">
-        <label>Data de Emissão</label>
+        <label id="label-doc-emissao">Data de Emissão</label>
         <input type="date" id="doc-emissao" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:13px;background:#f8fafc">
       </div>
       <div id="wrap-doc-vencimento">
         <label id="label-doc-vencimento">Data de Vencimento</label>
         <input type="date" id="doc-vencimento" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:13px;background:#f8fafc" oninput="previewStatusDoc()">
         <div class="hint" id="doc-status-preview" style="margin-top:4px;font-weight:700"></div>
+      </div>
+      <div class="full" id="wrap-doc-resultado" style="display:none">
+        <label>Resultado / Situação</label>
+        <select id="doc-resultado" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:13px;background:#f8fafc">
+          <option value="">Não informado</option>
+          <option value="APROVADO">✅ Aprovado</option>
+          <option value="REPROVADO">🔴 Reprovado</option>
+        </select>
       </div>
       <div class="full">
         <label>Número / Apólice / Observação</label>
@@ -19006,10 +19018,14 @@ async function excluirPlacaDocExtraFirebase(key) {
 }
 let _docEditKey = null;
 
-const DOC_LABELS = { crlv:'CRLV', civ:'CIV', cipp:'CIPP', seguro:'Seguro', tacografo:'Tacógrafo', rntrc:'RNTRC', vistoria:'Vistoria' };
+const DOC_LABELS = { crlv:'CRLV', civ:'CIV', cipp:'CIPP', opacidade:'Laudo Opacidade', seguro:'Seguro', tacografo:'Tacógrafo', rntrc:'RNTRC', vistoria:'Vistoria' };
 // (DOC_ICONS removida — declarada mas nunca usada; ícones dos documentos
 // são exibidos com emoji fixo direto no HTML)
-const DOC_TIPOS  = ['crlv','civ','cipp'];
+// ⚠️ Laudo de Opacidade foi inserido logo depois de 'cipp' porque esta
+// ordem é a mesma usada para gerar as colunas da tabela (cellsCaminhao/
+// cellsReboque fazem DOC_TIPOS.map(...)) — mudar a ordem aqui muda a
+// ordem das colunas na tela.
+const DOC_TIPOS  = ['crlv','civ','cipp','opacidade'];
 
 async function carregarDocumentos() {
   const d = await fbGet('/manutencao/documentos.json');
@@ -19184,14 +19200,26 @@ function formatarData(isoDate) {
 }
 
 function toggleCamposDataDoc() {
-  const tipo    = document.getElementById('doc-tipo-doc')?.value;
-  const wrapEm  = document.getElementById('wrap-doc-emissao');
-  const wrapVen = document.getElementById('wrap-doc-vencimento');
-  const labelV  = document.getElementById('label-doc-vencimento');
-  const isCRLV  = tipo === 'crlv';
+  const tipo      = document.getElementById('doc-tipo-doc')?.value;
+  const wrapEm    = document.getElementById('wrap-doc-emissao');
+  const wrapVen   = document.getElementById('wrap-doc-vencimento');
+  const wrapRes   = document.getElementById('wrap-doc-resultado');
+  const labelV    = document.getElementById('label-doc-vencimento');
+  const labelEm   = document.getElementById('label-doc-emissao');
+  const isCRLV    = tipo === 'crlv';
+  const isOpac    = tipo === 'opacidade';
 
   if (wrapEm)  wrapEm.style.display  = isCRLV ? 'none' : '';
   if (wrapVen) wrapVen.style.display = isCRLV ? 'none' : '';
+  // Resultado (Aprovado/Reprovado) só se aplica ao Laudo de Opacidade —
+  // é um campo independente do vencimento/CIV/CIPP.
+  if (wrapRes) wrapRes.style.display = isOpac ? '' : 'none';
+
+  // Rótulos das datas mudam de nome pro Laudo de Opacidade (ensaio/validade
+  // do ensaio), mas continuam usando os mesmos campos doc-emissao/doc-vencimento
+  // — a validade do laudo é sempre o vencimento, nunca a emissão (§10 do pedido).
+  if (labelEm) labelEm.textContent = isOpac ? 'Data do Ensaio / Emissão' : 'Data de Emissão';
+  if (labelV)  labelV.textContent  = isOpac ? 'Validade do Ensaio' : 'Data de Vencimento';
 
   // Se mudou para outro tipo, limpa aviso de status
   if (!isCRLV) {
@@ -19295,6 +19323,8 @@ function abrirModalDoc(key) {
     document.getElementById('doc-vencimento').value  = doc.vencimento|| '';
     document.getElementById('doc-numero').value      = doc.numero    || '';
     document.getElementById('doc-emissor').value     = doc.emissor   || '';
+    const resEl = document.getElementById('doc-resultado');
+    if (resEl) resEl.value = doc.resultado || '';
     previewStatusDoc();
     toggleCamposDataDoc();
     if (doc.tem_pdf || doc.pdf_base64) {
@@ -19308,7 +19338,7 @@ function abrirModalDoc(key) {
   } else {
     if (titulo) titulo.textContent = '📄 Cadastrar Documento';
     if (btnExc) btnExc.style.display = 'none';
-    ['doc-emissao','doc-vencimento','doc-numero','doc-emissor'].forEach(id => {
+    ['doc-emissao','doc-vencimento','doc-numero','doc-emissor','doc-resultado'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
     const prev = document.getElementById('doc-status-preview');
@@ -19329,6 +19359,7 @@ function salvarDoc() {
   const vencimento= document.getElementById('doc-vencimento').value;
   const numero    = document.getElementById('doc-numero').value.trim();
   const emissor   = document.getElementById('doc-emissor').value.trim();
+  const resultado = document.getElementById('doc-resultado')?.value || '';
 
   // CRLV: vencimento vem do PDF — só exige placa e tipo
   if (tipo === 'crlv') {
@@ -19358,7 +19389,7 @@ function salvarDoc() {
   const temPdfExistente = !temPdfNovo && !!(DOCUMENTOS[key]?.tem_pdf || DOCUMENTOS[key]?.pdf_base64);
   const pdfNome = window._docPDFNome || (DOCUMENTOS[key]?.pdf_nome) || '';
   const pdfMime = window._docPDFMimeType || (DOCUMENTOS[key]?.pdf_mime) || 'application/pdf';
-  DOCUMENTOS[key] = { placa, tipo, emissao, vencimento, numero, emissor, ts: Date.now(), tem_pdf: temPdfNovo || temPdfExistente, pdf_nome: pdfNome, pdf_mime: pdfMime };
+  DOCUMENTOS[key] = { placa, tipo, emissao, vencimento, numero, emissor, resultado, ts: Date.now(), tem_pdf: temPdfNovo || temPdfExistente, pdf_nome: pdfNome, pdf_mime: pdfMime };
   const pdfParaSalvar = temPdfNovo ? window._docPDFBase64 : null; // só regrava o conteúdo do PDF se um NOVO foi anexado agora
   window._docPDFMimeType = null;
   window._docPDFBase64 = null;
@@ -19459,6 +19490,7 @@ function renderDocumentos() {
   let totalOk=0, totalProx=0, totalVenc=0, totalSemDado=0;
   let civOk=0, civProx=0, civVenc=0;
   let cippOk=0, cippProx=0, cippVenc=0;
+  let opacOk=0, opacProx=0, opacVenc=0;
   Object.values(DOCUMENTOS).forEach(doc => {
     const st = statusDoc(doc.vencimento);
     if (st==='ok') totalOk++;
@@ -19475,6 +19507,13 @@ function renderDocumentos() {
       else if (st==='proximo') cippProx++;
       else if (st==='vencido') cippVenc++;
     }
+    // Laudo de Opacidade — contabilizado à parte, nunca junto de CIV/CIPP
+    // (documento independente, ver §9/§21 do pedido).
+    if (doc.tipo === 'opacidade') {
+      if (st==='ok') opacOk++;
+      else if (st==='proximo') opacProx++;
+      else if (st==='vencido') opacVenc++;
+    }
   });
   const totalDocs = Object.keys(DOCUMENTOS).length;
   const vencendoMes = Object.values(DOCUMENTOS).filter(d => { const dias=diasParaVencer(d.vencimento); return dias!=null&&dias>=0&&dias<=30; }).length;
@@ -19489,8 +19528,10 @@ function renderDocumentos() {
 
   const civTotal  = civOk + civProx + civVenc;
   const cippTotal = cippOk + cippProx + cippVenc;
+  const opacTotal = opacOk + opacProx + opacVenc;
   const civBg  = civVenc  > 0 ? '#DC2626' : civProx  > 0 ? '#D97706' : '#0891b2';
   const cippBg = cippVenc > 0 ? '#DC2626' : cippProx > 0 ? '#D97706' : '#b45309';
+  const opacBg = opacVenc > 0 ? '#DC2626' : opacProx > 0 ? '#D97706' : '#7c3aed';
 
   const kpis = [
     { icon:'✅', label:'Em Dia',           valor:totalOk,    bg:'#16A34A',  sub:'' },
@@ -19499,6 +19540,7 @@ function renderDocumentos() {
     { icon:'📅', label:'Vencem este mês',  valor:vencendoMes,bg:'linear-gradient(135deg,#581c87,#7e22ce)', sub:'' },
     { icon:'🔬', label:'CIV',             valor:civTotal,   bg:civBg,      sub:kpiSubInfo(civOk, civProx, civVenc) },
     { icon:'☣️', label:'CIPP',            valor:cippTotal,  bg:cippBg,     sub:kpiSubInfo(cippOk, cippProx, cippVenc) },
+    { icon:'💨', label:'Laudo Opacidade', valor:opacTotal,  bg:opacBg,     sub:kpiSubInfo(opacOk, opacProx, opacVenc) },
     { icon:'🚛', label:'Veículos c/ Docs', valor:Object.keys(placaMap).filter(p=>Object.keys(placaMap[p].docs).length>0).length, bg:'linear-gradient(135deg,#0f766e,#0d9488)', sub:'' },
   ];
   const kpiEl = document.getElementById('doc-kpis');
@@ -20202,14 +20244,14 @@ function excluirPlacaGP(placa, fonte) {
 function exportarDocumentosExcel() {
   const wb = XLSX.utils.book_new();
   const dataHoje = todayBrasilia();
-  const rows = [['Placa','Tipo','Documento','Emissão','Vencimento','Dias Restantes','Status','Número','Emissor']];
+  const rows = [['Placa','Tipo','Documento','Emissão','Vencimento','Dias Restantes','Status','Número','Emissor','Resultado']];
   Object.values(DOCUMENTOS).sort((a,b)=>a.placa.localeCompare(b.placa)||a.tipo.localeCompare(b.tipo)).forEach(doc => {
     const st   = statusDoc(doc.vencimento);
     const dias = diasParaVencer(doc.vencimento);
     const stTxt = st==='vencido'?'VENCIDO':st==='proximo'?'PRÓXIMO':'EM DIA';
-    rows.push([doc.placa, doc.tipo.toUpperCase(), DOC_LABELS[doc.tipo]||doc.tipo, formatarData(doc.emissao), formatarData(doc.vencimento), dias??'', stTxt, doc.numero||'', doc.emissor||'']);
+    rows.push([doc.placa, doc.tipo.toUpperCase(), DOC_LABELS[doc.tipo]||doc.tipo, formatarData(doc.emissao), formatarData(doc.vencimento), dias??'', stTxt, doc.numero||'', doc.emissor||'', doc.resultado||'']);
   });
-  const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[10,12,14,12,12,14,10,16,18].map(w=>({wch:w}));
+  const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=[10,12,14,12,12,14,10,16,18,12].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'📄 Documentos');
   XLSX.writeFile(wb,`Documentos_${dataHoje}.xlsx`);
   mostrarIndicador('✅ Excel de documentos exportado!','#86efac');
@@ -20248,11 +20290,13 @@ function processarPDFDoc(input) {
   // Detectar tipo pelo nome do arquivo
   const nomeFiltrado = file.name.toUpperCase().replace(/[^A-Z0-9]/g,' ').trim();
   if (tipoEl) {
-    if (nomeFiltrado.includes('CIPP'))        tipoEl.value = 'cipp';
+    if (nomeFiltrado.includes('OPACIDADE'))   tipoEl.value = 'opacidade';
+    else if (nomeFiltrado.includes('CIPP'))   tipoEl.value = 'cipp';
     else if (nomeFiltrado.includes('CIV'))    tipoEl.value = 'civ';
     else if (nomeFiltrado.includes('CRLV'))   tipoEl.value = 'crlv';
     else if (nomeFiltrado.includes('SEGURO')) tipoEl.value = 'seguro';
     else if (nomeFiltrado.includes('RNTRC'))  tipoEl.value = 'rntrc';
+    toggleCamposDataDoc();
   }
 
   // Converter para base64
@@ -20313,6 +20357,34 @@ function processarPDFDoc(input) {
           if (tipoEl) tipoEl.value = 'crlv';
         }
 
+        // ── Detectar Laudo de Opacidade pelo conteúdo do PDF ──
+        // Documento independente de CRLV/CIV/CIPP (§21 do pedido) — só
+        // preenche os campos pra revisão, nunca grava sozinho: quem salva
+        // é sempre o botão "Salvar" do modal, como em qualquer outro tipo.
+        let numeroLaudoOpac = null, emissaoOpac = null, validadeOpac = null, resultadoOpac = null;
+        if (texto.includes('OPACIDADE')) {
+          if (tipoEl) { tipoEl.value = 'opacidade'; toggleCamposDataDoc(); }
+          // Número do laudo — padrão "NNN/AA" ou "NNN/AAAA" (ex.: 268/26)
+          const mNumero = texto.match(/\b(\d{2,5}\/\d{2,4})\b/);
+          if (mNumero) numeroLaudoOpac = mNumero[1];
+          // Datas no formato DD/MM/AAAA — a 1ª encontrada tende a ser a
+          // emissão/ensaio e a 2ª a validade, mas isso é só um chute
+          // razoável: o campo continua editável antes de salvar.
+          const datas = texto.match(/\b(\d{2}\/\d{2}\/\d{4})\b/g) || [];
+          if (datas[0]) emissaoOpac = datas[0];
+          if (datas[1]) validadeOpac = datas[1];
+          if (texto.includes('REPROVADO')) resultadoOpac = 'REPROVADO';
+          else if (texto.includes('APROVADO')) resultadoOpac = 'APROVADO';
+
+          const paraISO = br => { const [d,m,a] = br.split('/'); return `${a}-${m}-${d}`; };
+          const numEl = document.getElementById('doc-numero');
+          const resEl = document.getElementById('doc-resultado');
+          if (numeroLaudoOpac && numEl && !numEl.value) numEl.value = numeroLaudoOpac;
+          if (emissaoOpac && !document.getElementById('doc-emissao').value) document.getElementById('doc-emissao').value = paraISO(emissaoOpac);
+          if (validadeOpac && vencEl && !vencEl.value) { vencEl.value = paraISO(validadeOpac); previewStatusDoc(); }
+          if (resultadoOpac && resEl) resEl.value = resultadoOpac;
+        }
+
         // ── Aplicar dados detectados ──
         // Antes checava se a placa detectada existia entre as <option> do
         // <select> antes de aplicar. Agora o campo é um texto livre (com
@@ -20338,10 +20410,11 @@ function processarPDFDoc(input) {
 
         const tipoDetect = tipoEl?.value ? DOC_LABELS[tipoEl.value] || tipoEl.value : '';
         const infoAno    = anoDetectado ? ` · Exercício <b>${anoDetectado}</b>` : '';
+        const infoOpac   = numeroLaudoOpac || validadeOpac ? ` · Nº <b>${numeroLaudoOpac||'—'}</b> · Validade <b>${validadeOpac||'—'}</b>${resultadoOpac?' · '+resultadoOpac:''}` : '';
         if (prevEl) {
           prevEl.style.display = '';
-          if (placaDetectada || anoDetectado) {
-            prevEl.innerHTML = `✅ Detectado do PDF: ${placaDetectada ? 'Placa <b>'+placaDetectada+'</b>' : ''}${tipoDetect ? ' · Tipo <b>'+tipoDetect+'</b>' : ''}${infoAno} — verifique e complete os campos`;
+          if (placaDetectada || anoDetectado || infoOpac) {
+            prevEl.innerHTML = `✅ Detectado do PDF: ${placaDetectada ? 'Placa <b>'+placaDetectada+'</b>' : ''}${tipoDetect ? ' · Tipo <b>'+tipoDetect+'</b>' : ''}${infoAno}${infoOpac} — verifique e complete os campos`;
           } else {
             prevEl.innerHTML = `📎 PDF carregado — não foi possível detectar automaticamente. Preencha os campos manualmente.`;
             prevEl.style.color = '#d97706';
@@ -20362,6 +20435,7 @@ function processarPDFDoc(input) {
 
 // Fallback: detectar pelo nome do arquivo
 function _fallbackNomeArquivo(file, nomeFiltrado, tipoEl, vencEl, sel, prevEl, isPDF) {
+  if (nomeFiltrado.includes('OPACIDADE') && tipoEl) { tipoEl.value = 'opacidade'; toggleCamposDataDoc(); }
   const matchPlaca = nomeFiltrado.match(/\b([A-Z]{3}\d[A-Z]\d{2}|[A-Z]{3}\d{4})\b/);
   const matchAno   = file.name.match(/(20[2-3]\d)/);
   if (matchPlaca) {
@@ -23780,7 +23854,7 @@ function renderMobDoc() {
     const tipo  = tds[1].innerText.trim();
     // Build doc badges from remaining cells (skip last = actions)
     const docCells = Array.from(tds).slice(2, tds.length - 1);
-    const headers = ['CRLV', 'CIV', 'CIPP', 'Reboque', 'Tipo Reb.', 'CRLV Reb.', 'CIV Reb.', 'CIPP Reb.'];
+    const headers = ['CRLV', 'CIV', 'CIPP', 'Laudo Opacidade', 'Reboque', 'Tipo Reb.', 'CRLV Reb.', 'CIV Reb.', 'CIPP Reb.', 'Laudo Opac. Reb.'];
     const docRows = docCells.map((td, i) => {
       // Pega só o texto do "badge" (status/data), sem misturar com os
       // botões de Ver/Baixar/Excluir que também estão nessa célula.

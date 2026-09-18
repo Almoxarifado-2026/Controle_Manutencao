@@ -15419,7 +15419,12 @@ function exportarRelatorioExecutivoPDF() {
   const motorOk = VEICULOS.filter(v=>v.cor_motor==='ok').length;
   const cambioOk = VEICULOS.filter(v=>v.cor_cambio==='ok').length;
   doc.text(`Motor em dia: ${motorOk}/${VEICULOS.length}  |  Cambio em dia: ${cambioOk}/${VEICULOS.length}`, ML, y); y += 7;
-  const abertos = (typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS.filter(r => !r.saida).length : 0);
+  // Usa _saidaValida (mesmo critério do resto do app) em vez de "!r.saida"
+  // puro: um valor de saída inválido salvo como texto "null"/"undefined"
+  // passaria como "tem saída" no teste antigo e subcontaria os abertos.
+  const abertos = (typeof INDISPONIVEIS !== 'undefined' && typeof _saidaValida === 'function'
+    ? INDISPONIVEIS.filter(r => r && !_saidaValida(r.saida)).length
+    : 0);
   doc.text(`Veiculos indisponiveis agora: ${abertos}`, ML, y); y += 12;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(148,163,184);
@@ -22698,8 +22703,12 @@ async function capturarTelaIndisp() {
         </div>`;
     }
 
-    const totalIndisp = INDISPONIVEIS.length;
-    const emManutencao = INDISPONIVEIS.filter(r => !r.saida).length;
+    // Mesmo problema do relatório de texto: usar o array bruto aqui
+    // (em vez das listas interno/externo/solda já filtradas acima, que
+    // já excluem registros com saída válida) fazia o rodapé da imagem
+    // mostrar contagem maior que a soma das seções realmente exibidas.
+    const totalIndisp = interno.length + externo.length + solda.length;
+    const emManutencao = totalIndisp;
 
     const htmlCaptura = `
       <div id="captura-indisp" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#eef3f9;padding:16px;width:1600px;box-sizing:border-box">

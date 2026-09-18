@@ -22514,9 +22514,15 @@ function gerarRelatorioIndisp() {
   const hoje = new Date();
   const dataHoje = hoje.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
   const sortEntrada = (a, b) => (a.entrada ? new Date(a.entrada) : new Date(0)) - (b.entrada ? new Date(b.entrada) : new Date(0));
-  const interno = INDISPONIVEIS.filter(r => r && r.servico === 'interno').sort(sortEntrada);
-  const externo = INDISPONIVEIS.filter(r => r && r.servico === 'externo').sort(sortEntrada);
-  const solda   = INDISPONIVEIS.filter(r => r && r.servico === 'solda').sort(sortEntrada);
+  // ⚠️ Mesmo filtro usado em renderIndisponiveis() e capturarTelaIndisp():
+  // só entra no relatório quem AINDA está em manutenção de verdade
+  // (sem saída válida). Sem isso, um registro "fantasma" que sobra no
+  // array INDISPONIVEIS (ex.: race condition de sincronização com o
+  // Firebase) aparecia no relatório de WhatsApp mesmo já finalizado /
+  // sumido da tela — o relatório "inventava" veículos.
+  const interno = INDISPONIVEIS.filter(r => r && r.servico === 'interno' && !_saidaValida(r.saida)).sort(sortEntrada);
+  const externo = INDISPONIVEIS.filter(r => r && r.servico === 'externo' && !_saidaValida(r.saida)).sort(sortEntrada);
+  const solda   = INDISPONIVEIS.filter(r => r && r.servico === 'solda'   && !_saidaValida(r.saida)).sort(sortEntrada);
 
   let txt = `🚧 *VEÍCULOS INDISPONÍVEIS*\n`;
   txt += `📅 ${dataHoje.toUpperCase()}\n`;
@@ -22567,8 +22573,9 @@ function gerarRelatorioIndisp() {
     txt += `✅ Nenhum veículo indisponível hoje!\n`;
   }
 
+  const totalRelatorio = interno.length + externo.length + solda.length;
   txt += `\n${'─'.repeat(35)}\n`;
-  txt += `📊 Total: ${INDISPONIVEIS.length} | Em manutenção: ${INDISPONIVEIS.filter(r=>!r.saida).length}`;
+  txt += `📊 Total: ${totalRelatorio} | Em manutenção: ${totalRelatorio}`;
 
   document.getElementById('relatorio-texto').value = txt;
   document.getElementById('overlay-relatorio-indisp').classList.add('open');

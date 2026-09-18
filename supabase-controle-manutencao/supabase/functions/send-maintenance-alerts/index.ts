@@ -389,9 +389,22 @@ Deno.serve(async (_req: Request) => {
   }
 
   // 3) Indisponíveis há mais de N horas (configurável) e ainda sem saída
+  //
+  // ⚠️ "r.saida" puro (verdadeiro/falso) não é o mesmo critério usado no
+  // app (função _saidaValida no HTML): lá, um valor salvo como texto
+  // literal "null" ou "undefined" (dado legado) NÃO conta como saída
+  // válida — aqui contava, porque qualquer string não-vazia é "truthy"
+  // em JS. Na prática isso faria essa função pular silenciosamente um
+  // veículo que o app ainda mostra como indisponível, e o alerta nunca
+  // dispararia pra ele. Replicando o mesmo critério do front-end.
+  function temSaidaValida(s: any): boolean {
+    if (s === null || s === undefined) return false;
+    const v = String(s).trim();
+    return v !== "" && v !== "null" && v !== "undefined";
+  }
   if (config.categorias.indisponiveis) {
     for (const r of paraArray(indisponiveis)) {
-      if (!r || r.saida || !r.entrada || !r.id) continue;
+      if (!r || temSaidaValida(r.saida) || !r.entrada || !r.id) continue;
       const horas = (Date.now() - new Date(r.entrada).getTime()) / 3600000;
       if (horas < config.horas_indisponivel) continue;
       marcarSeNovo(`indisp_${r.id}`, `🚧 ${r.placa || "veículo"} indisponível há ${Math.floor(horas)}h`);

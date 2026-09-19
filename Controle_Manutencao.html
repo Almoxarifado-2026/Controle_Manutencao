@@ -5877,10 +5877,31 @@ async function salvarDados() {
       const hora = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
       mostrarIndicador('☁️ Salvo às ' + hora, '#86efac');
       _temAlteracoesPendentes = false;
-      _veiculosPlacasTocadas.clear(); // ciclo de save concluído
+      // [AUDITORIA] Mesma classe de bug já corrigida em Combustível/
+      // Indisponíveis: remove só as placas que ESTE patchVeiculos realmente
+      // enviou, não o Set inteiro. _veiculosPlacasTocadas.clear() incondicional
+      // apagava também placas tocadas por uma segunda chamada de salvarDados()
+      // ainda em andamento (o debounce de 5s não impede uma segunda chamada
+      // de rodar seu próprio ciclo completo enquanto a primeira ainda está no
+      // meio do fetch) — se essa segunda edição não tivesse entrado a tempo
+      // no patchVeiculos já montado, ficava "tocada" numa hora, mas some do
+      // controle antes de ser enviada. Na pior hipótese, o ciclo seguinte
+      // via com o Set já vazio e nem tentava reenviar — perda de dado real.
+      Object.keys(patchVeiculos).forEach(placa => { _veiculosPlacasTocadas.delete(placa); });
       _veicFalhasConsecutivas = 0;
-      localStorage.removeItem('frota_veiculos'); // já confirmado no Firebase
-      try { localStorage.removeItem(_VEIC_PENDENTES_KEY); } catch(e) {} // confirmado — não precisa mais reenviar
+      if (_veiculosPlacasTocadas.size === 0) {
+        localStorage.removeItem('frota_veiculos'); // já confirmado no Firebase
+        try { localStorage.removeItem(_VEIC_PENDENTES_KEY); } catch(e) {} // confirmado — não precisa mais reenviar
+      } else {
+        // Ainda sobra alguma placa tocada por outra chamada em andamento —
+        // atualiza a fila no localStorage removendo só o que ESTE ciclo
+        // confirmou, em vez de apagar a chave inteira.
+        try {
+          const filaAtual = JSON.parse(localStorage.getItem(_VEIC_PENDENTES_KEY) || '{}') || {};
+          Object.keys(patchVeiculos).forEach(placa => { delete filaAtual[placa]; });
+          localStorage.setItem(_VEIC_PENDENTES_KEY, JSON.stringify(filaAtual));
+        } catch(e) {}
+      }
       await _criarBackupAposEdicao(); // backup automático silencioso após toda atualização confirmada
       VEICULOS.forEach(v => { recalcularDias(v); calcStatus(v); });
       renderizar(); atualizarResumo(); atualizarBanner(); atualizarGraficos();
@@ -9804,6 +9825,11 @@ function _gerarIdChecklist() { return 'ck_' + Date.now() + '_' + Math.random().t
 
 async function salvarFB() {
   const si = document.getElementById('save-ind-global');
+  // [AUDITORIA] Guarda os IDs que o ciclo de PATCH realmente confirmou,
+  // pra limpar só esses do controle 3s depois (no finally mais abaixo) —
+  // em vez de zerar _checkIdsTocados inteiro. Ver comentário completo lá,
+  // no mesmo bug já corrigido em Veículos/Combustível/Indisponíveis.
+  let idsConfirmadosNesteCiclo = [];
   // 1) localStorage imediato — APENAS proteção temporária contra perda de
   //    digitação. NUNCA é lido de volta para exibir na tela.
   try { localStorage.setItem('checklist_data', JSON.stringify(CHECKLIST)); } catch(e) {}
@@ -10026,7 +10052,21 @@ async function salvarFB() {
         if(si){si.textContent='☁️ Salvo às '+h;si.style.color='#86efac';setTimeout(()=>si.textContent='',5000);}
         mostrarIndicador('☁️ Salvo às ' + h, '#86efac');
         localStorage.removeItem('checklist_data'); // já confirmado no Firebase
-        try { localStorage.removeItem(_CHECK_PENDENTES_KEY); } catch(e) {} // confirmado — não precisa mais reenviar
+        // [AUDITORIA] Guarda quais IDs este ciclo realmente confirmou —
+        // usado 3s depois (no finally/setTimeout abaixo) pra limpar só
+        // esses do controle, e não o Set inteiro. Ver comentário completo
+        // lá embaixo, no mesmo bug já corrigido em Veículos/Combustível/
+        // Indisponíveis.
+        idsConfirmadosNesteCiclo = Object.keys(patchCheck);
+        try {
+          const filaAtual = JSON.parse(localStorage.getItem(_CHECK_PENDENTES_KEY) || '{}') || {};
+          Object.keys(patchCheck).forEach(id => { delete filaAtual[id]; });
+          if (Object.keys(filaAtual).length) {
+            localStorage.setItem(_CHECK_PENDENTES_KEY, JSON.stringify(filaAtual));
+          } else {
+            localStorage.removeItem(_CHECK_PENDENTES_KEY);
+          }
+        } catch(e) {}
         await _criarBackupAposEdicao(); // backup automático silencioso
         contarCorretivas(); popularTipos(); renderCheck();
       } else {
@@ -10049,7 +10089,13 @@ async function salvarFB() {
       setTimeout(() => {
         _checkSyncPendente = false;
         if (!_saveFalhou) {
-          _checkIdsTocados.clear();
+          // [AUDITORIA] Remove só os IDs que este ciclo confirmou, não o
+          // Set inteiro — antes, uma segunda edição de checklist que
+          // começasse enquanto este ciclo ainda estava rodando (o guard de
+          // 3s dá uma janela grande pra isso) tinha o próprio ID apagado
+          // do controle sem nunca ter sido enviada, e podia ficar perdida
+          // pra sempre se essa segunda edição falhasse depois.
+          idsConfirmadosNesteCiclo.forEach(id => { _checkIdsTocados.delete(id); });
           _checkSaveFalhas = 0;
           // ── Reconciliação pós-trava ──
           // Enquanto _checkSyncPendente estava true (todo o ciclo de save
@@ -10494,7 +10540,13 @@ async function excluirCheck(){
     // (mesmo padrão de tempo usado em salvarFB()).
     setTimeout(() => {
       _checkSyncPendente = false;
-      _checkIdsTocados.clear();
+      // [AUDITORIA] Remove só o _ckid que ESTA exclusão tratou, não o Set
+      // inteiro — mesmo bug de condição de corrida já corrigido em
+      // salvarFB()/Veículos/Combustível/Indisponíveis: uma edição de OUTRO
+      // item de checklist que começasse enquanto esta trava de 3s ainda
+      // estivesse ativa tinha seu próprio ID apagado do controle sem nunca
+      // ter sido enviado.
+      if (ckid) _checkIdsTocados.delete(ckid);
       // Reconciliação pós-trava — mesmo motivo do salvarFB(): qualquer
       // atualização de outro dispositivo que tenha chegado enquanto a
       // trava estava ligada foi ignorada de propósito; busca o estado

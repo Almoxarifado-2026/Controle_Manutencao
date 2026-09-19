@@ -10310,18 +10310,18 @@ function renderCheck() {
       ? `<div style="font-size:9px;color:#4338CA;font-weight:700;margin-top:2px;white-space:nowrap">⏸️ PARADO ${c.data_inicio_pausa ? 'desde ' + c.data_inicio_pausa.split('-').reverse().join('/') : ''}</div>`
       : '';
     return `<tr style="${urgClass}">
-      <td>${c.programador||''}</td>
-      <td style="${placaBg(c.cavalo_bg)}font-weight:700;color:#16365C">${c.cavalo||''}</td>
-      <td>${c.tipo||''}</td>
-      <td style="${placaBg(c.reboque_bg)}font-weight:700;color:#16365C">${c.reboque||''}</td>
+      <td>${escapeHtml(c.programador)}</td>
+      <td style="${placaBg(c.cavalo_bg)}font-weight:700;color:#16365C">${escapeHtml(c.cavalo)}</td>
+      <td>${escapeHtml(c.tipo)}</td>
+      <td style="${placaBg(c.reboque_bg)}font-weight:700;color:#16365C">${escapeHtml(c.reboque)}</td>
       <td>${c.ult_prev||''}</td>
       <td>${hoje}</td>
       <td style="${diasCellStyle(c)}">${c.dias!==undefined?c.dias:''}${badgePausa}</td>
-      <td style="white-space:normal;max-width:220px">${c.obs_log||''}</td>
-      <td style="white-space:normal;max-width:220px">${c.obs_comp||''}</td>
+      <td style="white-space:normal;max-width:220px">${escapeHtml(c.obs_log)}</td>
+      <td style="white-space:normal;max-width:220px">${escapeHtml(c.obs_comp)}</td>
       <td style="text-align:center">${qtdBadge(qtdCav,c.cavalo)}</td>
       <td style="text-align:center">${qtdBadge(qtdReb,c.reboque)}</td>
-      <td style="text-align:center">${c.retorno_log||''}</td>
+      <td style="text-align:center">${escapeHtml(c.retorno_log)}</td>
       <td style="text-align:center;white-space:nowrap">
         <button class="edit-only" onclick="editarCheck(${i})" style="padding:2px 8px;border:none;border-radius:3px;background:#EFF6FF;color:#1D4ED8;font-weight:700;cursor:pointer;font-size:11px">✏️ Editar</button>
         <button class="edit-only" onclick="duplicarCheckRow(${i})" title="Duplicar este registro" style="padding:2px 6px;border:none;border-radius:3px;background:#F0FDF4;color:#16A34A;font-weight:700;cursor:pointer;font-size:11px;margin-left:3px">📋</button>
@@ -10764,12 +10764,12 @@ function verCorretivas(placa) {
         const filBg = o.filial === 'RPT' ? '#DCFCE7' : o.filial === 'MAPE' ? '#E0E7FF' : '#F1F5F9';
         const filFc = o.filial === 'RPT' ? '#15803D' : o.filial === 'MAPE' ? '#3730A3' : '#64748B';
         return `<tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
-          <td style="padding:10px 12px;font-weight:700">${o.ordem}</td>
-          <td style="padding:10px 12px">${o.servico}</td>
-          <td style="padding:10px 12px;white-space:nowrap">${o.data}</td>
-          <td style="padding:10px 12px;white-space:normal">${o.descricao}</td>
-          <td style="padding:10px 12px"><span style="background:${sitBg};color:${sitFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${o.situacao}</span></td>
-          <td style="padding:10px 12px;text-align:center">${o.filial ? `<span style="background:${filBg};color:${filFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${o.filial}</span>` : '<span style="color:#94a3b8">—</span>'}</td>
+          <td style="padding:10px 12px;font-weight:700">${escapeHtml(o.ordem)}</td>
+          <td style="padding:10px 12px">${escapeHtml(o.servico)}</td>
+          <td style="padding:10px 12px;white-space:nowrap">${escapeHtml(o.data)}</td>
+          <td style="padding:10px 12px;white-space:normal">${escapeHtml(o.descricao)}</td>
+          <td style="padding:10px 12px"><span style="background:${sitBg};color:${sitFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${escapeHtml(o.situacao)}</span></td>
+          <td style="padding:10px 12px;text-align:center">${o.filial ? `<span style="background:${filBg};color:${filFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${escapeHtml(o.filial)}</span>` : '<span style="color:#94a3b8">—</span>'}</td>
         </tr>`;
       }).join('');
   document.getElementById('overlay-ver-corr').classList.add('open');
@@ -11001,18 +11001,18 @@ function exportarPDFCheck(){
     const corrCav = c.qtd_corr_cav_auto||c.qtd_corr_cav||0;
     const corrReb = c.qtd_corr_reb_auto||c.qtd_corr_reb||0;
     return `<tr style="background:${rowBg}">
-      <td style="padding:5px 8px;font-weight:700">${c.programador||'—'}</td>
-      <td style="padding:5px 8px;font-weight:700;color:#1B3A6D">${c.cavalo||'—'}</td>
-      <td style="padding:5px 8px">${c.tipo||'—'}</td>
-      <td style="padding:5px 8px;color:#0D9488;font-weight:700">${c.reboque||'—'}</td>
+      <td style="padding:5px 8px;font-weight:700">${escapeHtml(c.programador)||'—'}</td>
+      <td style="padding:5px 8px;font-weight:700;color:#1B3A6D">${escapeHtml(c.cavalo)||'—'}</td>
+      <td style="padding:5px 8px">${escapeHtml(c.tipo)||'—'}</td>
+      <td style="padding:5px 8px;color:#0D9488;font-weight:700">${escapeHtml(c.reboque)||'—'}</td>
       <td style="padding:5px 8px;text-align:center">${c.ult_prev||'—'}</td>
       <td style="padding:5px 8px;text-align:center">${c.data||'—'}</td>
       <td style="padding:5px 8px;text-align:center"><span style="${diasBg(c.dias, c)};padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">${dias}d</span></td>
-      <td style="padding:5px 8px;white-space:normal;max-width:180px;font-size:10px">${c.obs_log||'—'}</td>
-      <td style="padding:5px 8px;white-space:normal;max-width:180px;font-size:10px">${c.obs_comp||'—'}</td>
+      <td style="padding:5px 8px;white-space:normal;max-width:180px;font-size:10px">${escapeHtml(c.obs_log)||'—'}</td>
+      <td style="padding:5px 8px;white-space:normal;max-width:180px;font-size:10px">${escapeHtml(c.obs_comp)||'—'}</td>
       <td style="padding:5px 8px;text-align:center"><span style="${corrBg(corrCav)};padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700">${corrCav}</span></td>
       <td style="padding:5px 8px;text-align:center"><span style="${corrBg(corrReb)};padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700">${corrReb}</span></td>
-      <td style="padding:5px 8px;text-align:center">${c.retorno_log||'—'}</td>
+      <td style="padding:5px 8px;text-align:center">${escapeHtml(c.retorno_log)||'—'}</td>
     </tr>`;
   }).join('');
 

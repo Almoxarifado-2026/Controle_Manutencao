@@ -22981,6 +22981,15 @@ function salvarHistLS(substituirTudo) {
   // impedia o save do histórico quando o modo edição não estava ativo
   // no momento exato da chamada interna — fazendo a finalização sumir.
 
+  // [AUDITORIA] Guarda quais ids este ciclo específico de PATCH confirmou
+  // — usado no finally mais abaixo pra limpar só esses do controle, e não
+  // _histManutIdsTocados inteiro. Mesmo bug de condição de corrida já
+  // corrigido em Veículos/Combustível/Indisponíveis/Checklist: duas
+  // finalizações de indisponível em sequência rápida (cada uma chama
+  // salvarHistLS() por dentro) podiam se sobrepor, e a que terminasse
+  // primeiro apagava do controle a outra que ainda estava em andamento.
+  let idsConfirmadosNesteCicloHist = [];
+
   // 1) localStorage imediato — proteção contra perda se a rede cair agora
   try {
     localStorage.setItem('hist_manut', JSON.stringify(HIST_MANUT));
@@ -23084,8 +23093,16 @@ function salvarHistLS(substituirTudo) {
       }
 
       // 3) SÓ remove do localStorage após confirmação do Firebase
-      try { localStorage.removeItem('hist_manut'); } catch(e) {}
-      try { localStorage.removeItem(_HIST_PENDENTES_KEY); } catch(e) {} // confirmado — não precisa mais reenviar
+      idsConfirmadosNesteCicloHist = Object.keys(patchHist);
+      try {
+        const filaAtual = JSON.parse(localStorage.getItem(_HIST_PENDENTES_KEY) || '{}') || {};
+        idsConfirmadosNesteCicloHist.forEach(id => { delete filaAtual[id]; });
+        if (Object.keys(filaAtual).length) {
+          localStorage.setItem(_HIST_PENDENTES_KEY, JSON.stringify(filaAtual));
+        } else {
+          localStorage.removeItem(_HIST_PENDENTES_KEY); // confirmado — não precisa mais reenviar
+        }
+      } catch(e) {}
       _histFalhasConsecutivas = 0;
       clearTimeout(_histRetryTimer); _histRetryTimer = null;
       const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
@@ -23120,7 +23137,19 @@ function salvarHistLS(substituirTudo) {
         // que na real nunca chegou ao Firebase — o pior cenário possível
         // (perda silenciosa, sem nem aviso de erro). Agora só limpa
         // quando o save realmente confirmou.
-        if (_histSaveOk) { _histManutIdsTocados.clear(); }
+        //
+        // [AUDITORIA] E, quando confirmou, remove só os ids que ESTE ciclo
+        // enviou (idsConfirmadosNesteCicloHist) — não o Set inteiro — pelo
+        // mesmo motivo já corrigido em Veículos/Combustível/Indisponíveis/
+        // Checklist: uma segunda finalização em andamento não pode ter seu
+        // próprio id apagado do controle antes de ter sido realmente
+        // enviada.
+        if (_histSaveOk) {
+          idsConfirmadosNesteCicloHist.forEach(id => { _histManutIdsTocados.delete(id); });
+          if (_histManutIdsTocados.size === 0) {
+            try { localStorage.removeItem('hist_manut'); } catch(e) {}
+          }
+        }
         _histSaveOk = false;
       }, 3000);
     }

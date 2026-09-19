@@ -18171,7 +18171,15 @@ async function salvarCombustivel(novosIds) {
     if (idsParaEnviar.length === 0) {
       // Nada pendente — nada a fazer (chamado só por segurança/retry vazio)
       mostrarIndicador('☁️ Combustível já sincronizado!', '#86efac');
-      try { localStorage.removeItem('abastecimentos_pendentes'); } catch(e) {}
+      // [AUDITORIA] Só limpa o localStorage se _idsPendentesEnvio estiver
+      // REALMENTE vazio agora (não só vazio no momento em que "idsParaEnviar"
+      // foi capturado) — evita apagar o backup local de outra chamada
+      // concorrente de salvarCombustivel() que tenha acabado de marcar
+      // novos IDs como pendentes. Ver comentário completo mais abaixo, no
+      // mesmo ponto após o envio bem-sucedido.
+      if (_idsPendentesEnvio.size === 0) {
+        try { localStorage.removeItem('abastecimentos_pendentes'); } catch(e) {}
+      }
       return;
     }
     idsParaEnviar.forEach(id => {
@@ -18191,7 +18199,22 @@ async function salvarCombustivel(novosIds) {
 
     mostrarIndicador('☁️ Combustível salvo!', '#86efac');
     idsParaEnviar.forEach(id => _idsPendentesEnvio.delete(id));
-    try { localStorage.removeItem('abastecimentos_pendentes'); } catch(e) {}
+    // [AUDITORIA] BUG DE CONDIÇÃO DE CORRIDA CORRIGIDO: antes, esta linha
+    // limpava o localStorage inteiro sempre que ESTA chamada terminava,
+    // mesmo que outra chamada concorrente de salvarCombustivel() (disparada
+    // por um novo lançamento manual, pelo timer de retry automático, ou pela
+    // restauração de pendentes ao abrir a página) ainda estivesse com uma
+    // requisição em andamento para OUTROS registros. Se a chamada 1
+    // terminasse primeiro e apagasse o localStorage, e a chamada 2 falhasse
+    // logo depois (timeout, rede instável), os registros da chamada 2
+    // ficavam sem nenhum backup local — se a página fosse recarregada antes
+    // de confirmar, esses abastecimentos eram perdidos de verdade. Como
+    // JavaScript roda em thread única, checar `_idsPendentesEnvio.size===0`
+    // aqui (sem nenhum "await" no meio) é uma forma segura de só limpar o
+    // localStorage quando não sobra MESMO nada pendente de nenhuma chamada.
+    if (_idsPendentesEnvio.size === 0) {
+      try { localStorage.removeItem('abastecimentos_pendentes'); } catch(e) {}
+    }
     clearTimeout(_timerCombRetry); _timerCombRetry = null; _combFalhasConsecutivas = 0;
     await _criarBackupAposEdicao();
   } catch(e) {
@@ -20950,7 +20973,17 @@ async function salvarIndisponiveisLS(delayMs) {
   INDISPONIVEIS.forEach(r => { if (r && r.id) localPorId[r.id] = r; });
   const patchBody = {};
   idsParaSalvar.forEach(id => { patchBody[id] = localPorId[id] !== undefined ? localPorId[id] : null; });
-  try { localStorage.setItem(_INDISP_PENDENTES_KEY, JSON.stringify(patchBody)); } catch(e) {}
+  // [AUDITORIA] MESCLA com o que já estava na fila, em vez de SOBRESCREVER.
+  // Antes, isso sobrescrevia a chave inteira só com os IDs desta chamada —
+  // se o usuário editasse dois registros em sequência rápida (comum: cada
+  // edição chama salvarIndisponiveisLS() sem esperar a anterior terminar),
+  // a segunda chamada apagava do localStorage o backup da primeira ANTES
+  // mesmo dela terminar de tentar enviar, ficando sem proteção nenhuma se
+  // a primeira falhasse.
+  try {
+    const filaAtualNoStorage = JSON.parse(localStorage.getItem(_INDISP_PENDENTES_KEY) || '{}') || {};
+    localStorage.setItem(_INDISP_PENDENTES_KEY, JSON.stringify({ ...filaAtualNoStorage, ...patchBody }));
+  } catch(e) {}
 
   // Cancela qualquer retry anterior — este é o mais recente
   clearTimeout(_timerFBIndisp);
@@ -21019,12 +21052,28 @@ async function salvarIndisponiveisLS(delayMs) {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
     // ── PASSO 3: SÓ remove do localStorage APÓS confirmação ──
+    // [AUDITORIA] Remove só os IDs que ESTA chamada confirmou (idsParaSalvar),
+    // não a chave inteira — e usa .delete() por item em vez de .clear() no
+    // Set de tocados. Antes, isso limpava TUDO incondicionalmente: se uma
+    // segunda chamada concorrente de salvarIndisponiveisLS() (outro registro
+    // editado logo em seguida) ainda estivesse com o PATCH em andamento
+    // quando esta terminasse, seus IDs eram apagados da fila de "pendente de
+    // confirmação" mesmo sem terem sido enviados de verdade — se aquele
+    // outro envio falhasse depois, não haveria mais rastro nem no
+    // localStorage nem no Set de retry pra tentar de novo. Dado perdido de
+    // verdade, não só atrasado.
     try {
-      localStorage.removeItem(_INDISP_PENDENTES_KEY);
+      const filaAtualNoStorage = JSON.parse(localStorage.getItem(_INDISP_PENDENTES_KEY) || '{}') || {};
+      idsParaSalvar.forEach(id => { delete filaAtualNoStorage[id]; });
+      if (Object.keys(filaAtualNoStorage).length) {
+        localStorage.setItem(_INDISP_PENDENTES_KEY, JSON.stringify(filaAtualNoStorage));
+      } else {
+        localStorage.removeItem(_INDISP_PENDENTES_KEY);
+      }
       localStorage.removeItem('indisponiveis');
     } catch(e) {}
 
-    _indispIdsTocados.clear();
+    idsParaSalvar.forEach(id => { _indispIdsTocados.delete(id); });
     _indispFalhasConsecutivas = 0;
     _limparIndispPendente();
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });

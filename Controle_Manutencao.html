@@ -4543,7 +4543,7 @@ function executarBuscaGlobal(termoRaw) {
     (r.placa||'').toUpperCase().includes(termo) || (r.reboque||'').toUpperCase().includes(termo));
   if (vIndisp.length) {
     blocos.push(_buscaSecao('🚧 Indisponíveis', '#b45309', vIndisp.map(r => {
-      const aberto = !r.saida;
+      const aberto = !_saidaValida(r.saida);
       return {
         titulo: r.placa || r.reboque || '—',
         sub: `${aberto ? '🔴 Em manutenção' : '✅ Finalizado'} · ${r.reclamacao || r.status || '—'}`,
@@ -15197,7 +15197,10 @@ function _calcDisponibilidadeMes(ano, mes, totalFrota, histArr) {
   histArr.forEach(r => {
     if (!r.entrada) return;
     const entradaDt = new Date(r.entrada);
-    const saidaDt = r.saida ? new Date(r.saida) : agora;
+    // Mesmo critério de _saidaValida usado no resto do app (ver comentário
+    // em renderExecutivo, logo acima) — evita tratar "null"/"undefined"
+    // salvo como texto como se fosse uma data de saída real.
+    const saidaDt = _saidaValida(r.saida) ? new Date(r.saida) : agora;
     const ini2 = entradaDt < inicio ? inicio : entradaDt;
     const fim2 = saidaDt > fim ? fim : saidaDt;
     const h = (fim2 - ini2) / 3600000;
@@ -15226,7 +15229,10 @@ function renderExecutivo() {
   corretivasMesAtual.forEach(r => {
     if (!r.entrada) return;
     const ini = new Date(r.entrada) < inicioMes ? inicioMes : new Date(r.entrada);
-    const fim = r.saida ? new Date(r.saida) : hoje;
+    // _saidaValida (não "r.saida" puro): mesmo critério usado em toda a
+    // aba Indisponíveis — um "saida" salvo como texto "null"/"undefined"
+    // (dado legado) não deve ser tratado como data real.
+    const fim = _saidaValida(r.saida) ? new Date(r.saida) : hoje;
     const h = (fim - ini) / 3600000;
     if (h > 0) horasParadasMes += h;
   });
@@ -15257,7 +15263,7 @@ function renderExecutivo() {
   {
     let somaH = 0, qtdComTempo = 0;
     hist.forEach(r => {
-      if (!r.entrada || !r.saida) return;
+      if (!r.entrada || !_saidaValida(r.saida)) return;
       const h = (new Date(r.saida) - new Date(r.entrada)) / 3600000;
       if (h > 0 && h < 24*60) { somaH += h; qtdComTempo++; }
     });

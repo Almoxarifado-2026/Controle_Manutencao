@@ -3916,6 +3916,34 @@ document.addEventListener('DOMContentLoaded', () => {
    Use Ctrl+F e busque "§ NN" para ir direto à seção.
    ════════════════════════════════════════════════════════════════ */
 
+/* ── Escape de HTML para campos de texto livre ──────────────────────
+   [AUDITORIA] O app não tinha NENHUMA função de escape de HTML em
+   nenhum lugar do arquivo. Vários campos de texto digitados livremente
+   (reclamação/OS, observações do checklist, observações da troca de
+   óleo, responsável) são inseridos direto dentro de innerHTML via
+   template literal (`${campo}`) — ou seja, qualquer caractere de HTML
+   digitado nesses campos (de propósito ou sem querer, ex.: "temp < 90°C")
+   é interpretado como HTML de verdade pelo navegador de QUALQUER pessoa
+   que depois visualizar aquele registro, podendo quebrar o layout da
+   tela ou, no pior caso, executar um script injetado no navegador de
+   outro usuário (XSS). Esta função converte esses caracteres especiais
+   em texto seguro para exibição, sem mudar o texto digitado (só como
+   ele é interpretado pelo navegador). Aplicada nos pontos de maior
+   exposição encontrados na auditoria (ver comentários "[AUDITORIA]"
+   espalhados pelo arquivo); não foi possível varrer 100% dos ~24 mil
+   linhas do arquivo nesta rodada — se notar um campo de texto livre
+   quebrando a tela em algum outro lugar, é um bom candidato a também
+   precisar desse escape. */
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /* ══════════════════════════════════════════════════════
    § 00 · LOGIN / MODO EDIÇÃO
    Senha única para liberar edição/exclusão. Sem login,
@@ -8256,9 +8284,9 @@ function renderTimeline() {
         </div>
         <div class="tl-info">
           ${h.km ? `<div class="tl-info-item"><div class="tl-info-label">KM</div><div class="tl-info-val">${Number(h.km).toLocaleString('pt-BR')}</div></div>` : ''}
-          ${h.responsavel ? `<div class="tl-info-item"><div class="tl-info-label">Responsável</div><div class="tl-info-val">${h.responsavel}</div></div>` : ''}
+          ${h.responsavel ? `<div class="tl-info-item"><div class="tl-info-label">Responsável</div><div class="tl-info-val">${escapeHtml(h.responsavel)}</div></div>` : ''}
         </div>
-        ${h.obs ? `<div class="tl-obs">${h.obs}</div>` : ''}
+        ${h.obs ? `<div class="tl-obs">${escapeHtml(h.obs)}</div>` : ''}
       </div>
     </div>`).join('');
 }
@@ -16206,7 +16234,7 @@ function abrirTrocasDoMes(chave, label) {
           <div style="font-size:11px;color:#64748b;margin-top:1px">
             ${r.data || '—'}${r.trocaTipo ? ' · ' + (rotuloTroca[r.trocaTipo] || r.trocaTipo) : ''}${r.responsavel ? ' · ' + r.responsavel : ''}
           </div>
-          ${r.obs ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">${r.obs}</div>` : ''}
+          ${r.obs ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">${escapeHtml(r.obs)}</div>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:13px;font-weight:700;color:#1d4ed8">${r.km ? r.km.toLocaleString('pt-BR') + ' km' : '—'}</div>
@@ -17277,6 +17305,20 @@ function saidaValida(s) {
   const v = String(s).trim();
   return v !== '' && v !== 'null' && v !== 'undefined';
 }
+// [AUDITORIA] Cópia local do escapeHtml() da página principal — esta janela
+// do Painel TV roda isolada (sem acesso às funções da página principal), e
+// os mesmos campos de texto livre (reclamação/OS, observação do checklist,
+// status) são exibidos aqui via innerHTML. Sem isso, um "<" ou ">" digitado
+// num desses campos quebra a tela do Painel TV também.
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function tickHrsLive() {
   document.querySelectorAll('[data-hrs-live]').forEach(el => {
     const ent = el.getAttribute('data-entrada');
@@ -17566,7 +17608,7 @@ function renderCheck() {
         <div style="font-size:26px;font-weight:800;color:\${cor}">\${dias}d</div>
       </div>
       <div style="font-size:11px;opacity:.6">Última preventiva: \${c.ult_prev||'—'}</div>
-      \${c.obs_log ? \`<div style="font-size:11px;color:#FCD34D;margin-top:3px">⚠️ \${c.obs_log}</div>\` : ''}
+      \${c.obs_log ? \`<div style="font-size:11px;color:#FCD34D;margin-top:3px">⚠️ \${escapeHtml(c.obs_log)}</div>\` : ''}
     </div>\`;
   }).join('') : '<div style="text-align:center;padding:60px;opacity:.4;font-size:20px">🎉 Checklist em dia!</div>';
   _ajustarParaCaber(document.getElementById('lista-check'));
@@ -17612,7 +17654,7 @@ function renderIndisp() {
       <td class="tv-tabela-td" style="color:#94A3B8;white-space:nowrap">\${fmtDT(r.entrada)}</td>
       <td class="tv-tabela-td" style="white-space:nowrap;font-weight:700;color:#F87171"><span data-saida-live>\${agora}</span></td>
       <td class="tv-tabela-td" style="font-weight:900;font-size:clamp(13px,1.3vw,17px);color:\${cor}"><span data-hrs-live data-entrada="\${r.entrada||''}">\${horasIndisp(r.entrada, r.saida)}</span></td>
-      <td class="tv-tabela-td" style="color:#E2E8F0">\${r.reclamacao||'—'}</td>
+      <td class="tv-tabela-td" style="color:#E2E8F0">\${escapeHtml(r.reclamacao)||'—'}</td>
       <td class="tv-tabela-td"><div style="background:#1e3a5f;color:#93C5FD;border-radius:8px;padding:6px 10px;font-weight:700;font-size:clamp(10px,0.9vw,12px);border-left:3px solid #2563eb;line-height:1.4">\${r.status||'—'}</div></td>
       <td class="tv-tabela-td">\${mecBadge(r)}</td>
       <td class="tv-tabela-td">\${prevBadge(r)}</td>
@@ -17633,8 +17675,8 @@ function renderIndisp() {
       <div class="tv-card-mob-row"><span class="tv-card-mob-label">Entrada</span><span class="tv-card-mob-val">\${fmtDT(r.entrada)}</span></div>
       <div class="tv-card-mob-row"><span class="tv-card-mob-label">Saída</span><span class="tv-card-mob-val" style="color:#F87171"><span data-saida-live>\${agora}</span></span></div>
       <div class="tv-card-mob-row"><span class="tv-card-mob-label">Mecânico</span><span class="tv-card-mob-val">\${mecBadge(r)}</span></div>
-      \${r.reclamacao ? \`<div class="tv-card-mob-row"><span class="tv-card-mob-label">OS</span><span class="tv-card-mob-val">\${r.reclamacao}</span></div>\` : ''}
-      \${r.status ? \`<div class="tv-card-mob-status">\${r.status}</div>\` : ''}
+      \${r.reclamacao ? \`<div class="tv-card-mob-row"><span class="tv-card-mob-label">OS</span><span class="tv-card-mob-val">\${escapeHtml(r.reclamacao)}</span></div>\` : ''}
+      \${r.status ? \`<div class="tv-card-mob-status">\${escapeHtml(r.status)}</div>\` : ''}
       <div style="margin-top:6px">\${prevBadge(r)}</div>
     </div>\`;
   }
@@ -23790,9 +23832,9 @@ function renderMobIndisp() {
         <!-- progresso das etapas -->
         ${Array.isArray(r.etapas) && r.etapas.length > 1 ? `<div style="padding:0 14px 6px"><span style="background:${r.etapas.every(e=>e.concluida)?'#DCFCE7':'#FEF3C7'};color:${r.etapas.every(e=>e.concluida)?'#166534':'#92400e'};border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800">${r.etapas.filter(e=>e.concluida).length}/${r.etapas.length} ETAPAS ✓</span></div>` : ''}
         <!-- reclamação -->
-        ${r.reclamacao ? `<div style="padding:0 14px 8px"><div style="color:#94a3b8;font-size:10px;font-weight:700;margin-bottom:4px">RECLAMAÇÃO / OS</div><div style="background:#f1f5f9;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600">${r.reclamacao}</div></div>` : ''}
+        ${r.reclamacao ? `<div style="padding:0 14px 8px"><div style="color:#94a3b8;font-size:10px;font-weight:700;margin-bottom:4px">RECLAMAÇÃO / OS</div><div style="background:#f1f5f9;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600">${escapeHtml(r.reclamacao)}</div></div>` : ''}
         <!-- status -->
-        ${r.status ? `<div style="padding:0 14px 8px"><div style="color:#94a3b8;font-size:10px;font-weight:700;margin-bottom:4px">ÚLTIMO STATUS</div><div style="background:#fef9c3;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#78350f;text-align:center">${r.status}</div></div>` : ''}
+        ${r.status ? `<div style="padding:0 14px 8px"><div style="color:#94a3b8;font-size:10px;font-weight:700;margin-bottom:4px">ÚLTIMO STATUS</div><div style="background:#fef9c3;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:#78350f;text-align:center">${escapeHtml(r.status)}</div></div>` : ''}
         <!-- ações -->
         <div style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid #f1f5f9">
           <button class="edit-only no-dark-dim" onclick="editarIndisp('${r.id}')" style="flex:1;background:#dbeafe;color:#1e3a8a;border:none;border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">✏️ Editar</button>

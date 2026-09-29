@@ -5230,13 +5230,60 @@ function _normalizarPtBR(s) {
 let DICIONARIO_CUSTOM = {}; // { 'palavrasemacento': 'Forma Correta' } — carregado do Firebase
 let _dicCustomCarregado = false;
 
-async function _carregarDicionarioCustom() {
+const _CHAVE_DIC_CACHE = 'dic_custom_cache'; // cópia local do dicionário custom (rede de segurança)
+
+function _lerCacheDicCustom() {
   try {
-    const dados = await fbGet('/manutencao/dicionario_custom.json');
-    DICIONARIO_CUSTOM = (dados && typeof dados === 'object') ? dados : {};
-  } catch(e) { DICIONARIO_CUSTOM = {}; }
+    const o = JSON.parse(localStorage.getItem(_CHAVE_DIC_CACHE) || '{}');
+    return (o && typeof o === 'object') ? o : {};
+  } catch(e) { return {}; }
+}
+function _salvarCacheDicCustom(obj) {
+  try { localStorage.setItem(_CHAVE_DIC_CACHE, JSON.stringify(obj || {})); } catch(e) {}
+}
+// Já parte da cópia local, pra lista não "piscar" com palavras antigas enquanto o Firebase responde.
+DICIONARIO_CUSTOM = _lerCacheDicCustom();
+
+// Lê o dicionário do Firebase SEM confundir "falhou a leitura" com "está
+// vazio". fbGet() devolve null nos dois casos (timeout, sem internet, erro
+// HTTP…), e era isso que fazia as palavras já adicionadas voltarem pra
+// lista: uma leitura que falhava virava "dicionário vazio". Aqui:
+//   • objeto ({} se o nó ainda não existe)  → leitura OK
+//   • undefined                              → leitura FALHOU (não confiar)
+async function _lerDicCustomRemoto() {
+  try {
+    const r = await _fetchComTimeout(FIREBASE_URL + '/manutencao/dicionario_custom.json', { cache: 'no-store' }, 12000);
+    if (!r.ok) return undefined;
+    const dados = await r.json();
+    if (dados === null) return {};
+    return (typeof dados === 'object') ? dados : undefined;
+  } catch(e) { return undefined; }
+}
+
+async function _carregarDicionarioCustom() {
+  const local = _lerCacheDicCustom();
+  const remoto = await _lerDicCustomRemoto();
+  // Junta cache local + remoto: se a leitura remota falhar, o cache local
+  // mantém as palavras já adicionadas; se der certo, o remoto complementa.
+  DICIONARIO_CUSTOM = { ...local, ...(remoto || {}) };
+  if (remoto) _salvarCacheDicCustom(DICIONARIO_CUSTOM);
+  _limparCandidatasJaAdicionadas();
   _dicCustomCarregado = true;
 }
+
+// Remove da contagem local qualquer palavra que já está no dicionário
+// (fixo ou custom) — evita lixo acumulado (ex.: "26x") de palavras já resolvidas.
+function _limparCandidatasJaAdicionadas() {
+  try {
+    const freq = _lerFreqCandidatas();
+    let mudou = false;
+    Object.keys(freq).forEach(chave => {
+      if (DICIONARIO_PTBR[chave] || DICIONARIO_CUSTOM[chave]) { delete freq[chave]; mudou = true; }
+    });
+    if (mudou) _salvarFreqCandidatas(freq);
+  } catch(e) {}
+}
+
 // ⚠️ NÃO chamar _carregarDicionarioCustom() aqui em cima — FIREBASE_URL só é
 // declarado bem mais abaixo no script (const é hoisted sem valor, dá erro
 // de "acesso antes da inicialização" se chamado cedo demais). A chamada
@@ -5303,14 +5350,14 @@ async function _adicionarCandidataDicionario(chave, formaCorreta) {
   if (_normalizarPtBR(formaCorreta) !== chave) {
     if (!confirm(`A forma que você digitou ("${formaCorreta}") não é só uma versão acentuada de "${chave}" — confirma que quer adicionar assim mesmo?`)) return;
   }
-  // Lê o dicionário custom mais atual do Firebase antes de gravar (evita
-  // sobrescrever o que outro aparelho tenha adicionado entre o carregamento
-  // desta página e agora).
-  const remoto = await fbGet('/manutencao/dicionario_custom.json');
-  const atualizado = { ...(remoto && typeof remoto === 'object' ? remoto : {}), [chave]: formaCorreta };
-  const ok = await fbPut('/manutencao/dicionario_custom.json', atualizado);
+  // Grava SÓ esta palavra (PUT na chave individual). Antes era "ler tudo →
+  // juntar → gravar tudo": se a leitura falhasse (fbGet devolve null), o
+  // PUT sobrescrevia o dicionário inteiro só com essa palavra, apagando as
+  // anteriores. Gravando por chave, nunca mais sobrescreve as outras.
+  const ok = await fbPut('/manutencao/dicionario_custom/' + encodeURIComponent(chave) + '.json', formaCorreta);
   if (!ok) { alert('Não consegui salvar agora — confira a internet e tente de novo.'); return; }
-  DICIONARIO_CUSTOM = atualizado; // já aplica neste aparelho imediatamente, sem esperar reload
+  DICIONARIO_CUSTOM = { ...DICIONARIO_CUSTOM, [chave]: formaCorreta }; // aplica neste aparelho na hora
+  _salvarCacheDicCustom(DICIONARIO_CUSTOM);
   const freq = _lerFreqCandidatas();
   delete freq[chave];
   _salvarFreqCandidatas(freq);

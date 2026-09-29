@@ -19353,13 +19353,137 @@ async function carregarDocumentos() {
 // Busca o conteúdo de um PDF sob demanda (nó separado de documentos.json —
 // ver migração em carregarDocumentos). Usado só quando alguém realmente
 // clica pra ver/baixar/reprocessar — não é carregado com o resto da aba.
-async function _buscarPdfDocumento(key) {
+//
+// ⚡ Por que "Ver" demorava: cada clique baixava o PDF inteiro (Base64, com
+// vários MB) do Firebase de novo, sem guardar nada, e uma única falha de
+// rede/timeout já resultava em erro. Agora:
+//   1) cache em memória + IndexedDB (2ª vez em diante abre na hora, até
+//      depois de fechar o app). A "assinatura" (ts + nome + tipo) garante
+//      que, se o documento/PDF for trocado em qualquer aparelho, baixa de novo;
+//   2) cliques repetidos/pré-carregamento reaproveitam o MESMO download em
+//      andamento (não dispara vários iguais);
+//   3) 2 tentativas automáticas antes de desistir.
+const _PDF_MEM = new Map();     // key -> { sig, dados }
+const _PDF_EMVOO = new Map();   // key -> Promise (download em andamento)
+const _PDF_IDB_MAX = 25;        // máx. de PDFs guardados no aparelho
+
+function _pdfSig(key) {
+  const d = DOCUMENTOS[key] || {};
+  return (d.ts || 0) + '|' + (d.pdf_nome || '') + '|' + (d.pdf_mime || '');
+}
+function _pdfIdb() {
+  return new Promise((resolve) => {
+    try {
+      const rq = indexedDB.open('pdf_docs_cache', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('pdfs', { keyPath: 'key' });
+      rq.onsuccess = () => resolve(rq.result);
+      rq.onerror = () => resolve(null);
+      rq.onblocked = () => resolve(null);
+    } catch(e) { resolve(null); }
+  });
+}
+async function _pdfIdbLer(key) {
+  const db = await _pdfIdb(); if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const rq = db.transaction('pdfs', 'readonly').objectStore('pdfs').get(key);
+      rq.onsuccess = () => { resolve(rq.result || null); db.close(); };
+      rq.onerror = () => { resolve(null); db.close(); };
+    } catch(e) { resolve(null); try { db.close(); } catch(_) {} }
+  });
+}
+async function _pdfIdbGravar(key, sig, dados) {
+  const db = await _pdfIdb(); if (!db) return;
   try {
-    const r = await _fetchComTimeout(FIREBASE_URL + '/manutencao/documentos_pdf/' + encodeURIComponent(key) + '.json', { cache: 'no-store' }, 20000);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return (d && d.base64) ? d : null;
-  } catch(e) { return null; }
+    const st = db.transaction('pdfs', 'readwrite').objectStore('pdfs');
+    st.put({ key, sig, dados, usado: Date.now() });
+    // Mantém só os mais recentes (PDFs são pesados — não deixa crescer sem limite)
+    const todos = st.getAll();
+    todos.onsuccess = () => {
+      const lista = (todos.result || []).sort((x, y) => (y.usado || 0) - (x.usado || 0));
+      lista.slice(_PDF_IDB_MAX).forEach(x => { try { st.delete(x.key); } catch(_) {} });
+    };
+    setTimeout(() => { try { db.close(); } catch(_) {} }, 2000);
+  } catch(e) { try { db.close(); } catch(_) {} }
+}
+async function _pdfIdbApagar(key) {
+  const db = await _pdfIdb(); if (!db) return;
+  try { db.transaction('pdfs', 'readwrite').objectStore('pdfs').delete(key); } catch(e) {}
+  setTimeout(() => { try { db.close(); } catch(_) {} }, 1000);
+}
+function _invalidarCachePdfDoc(key) {
+  _PDF_MEM.delete(key);
+  _PDF_EMVOO.delete(key);
+  _pdfIdbApagar(key);
+}
+
+async function _baixarPdfDaRede(key) {
+  // 2 tentativas: a 1ª com 25s; se falhar, a 2ª com 45s.
+  const tempos = [25000, 45000];
+  for (let i = 0; i < tempos.length; i++) {
+    try {
+      const r = await _fetchComTimeout(FIREBASE_URL + '/manutencao/documentos_pdf/' + encodeURIComponent(key) + '.json', { cache: 'no-store' }, tempos[i]);
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.base64) return d;
+        return null; // resposta OK mas sem PDF — não adianta insistir
+      }
+    } catch(e) { /* tenta de novo */ }
+    if (i === 0) mostrarIndicador('⏳ Conexão lenta — tentando de novo...', '#bfdbfe');
+  }
+  return null;
+}
+
+async function _buscarPdfDocumento(key) {
+  const sig = _pdfSig(key);
+
+  const mem = _PDF_MEM.get(key);
+  if (mem && mem.sig === sig) return mem.dados;
+
+  if (_PDF_EMVOO.has(key)) return _PDF_EMVOO.get(key);
+
+  const p = (async () => {
+    const salvo = await _pdfIdbLer(key);
+    if (salvo && salvo.sig === sig && salvo.dados && salvo.dados.base64) {
+      _PDF_MEM.set(key, { sig, dados: salvo.dados });
+      return salvo.dados;
+    }
+    const dados = await _baixarPdfDaRede(key);
+    if (dados) {
+      _PDF_MEM.set(key, { sig, dados });
+      _pdfIdbGravar(key, sig, dados);
+      // Evita acumular vários PDFs pesados na memória da página
+      if (_PDF_MEM.size > 6) _PDF_MEM.delete(_PDF_MEM.keys().next().value);
+    }
+    return dados;
+  })().finally(() => _PDF_EMVOO.delete(key));
+
+  _PDF_EMVOO.set(key, p);
+  return p;
+}
+
+// Começa a baixar o PDF assim que o mouse passa / o dedo encosta no botão
+// "Ver"/"Baixar" — quando o clique de fato acontece, boa parte já chegou.
+function _prefetchPdfDoc(key) {
+  const doc = DOCUMENTOS[key];
+  if (!doc || doc.pdf_base64 || !doc.tem_pdf) return;
+  const mem = _PDF_MEM.get(key);
+  if (mem && mem.sig === _pdfSig(key)) return;
+  _buscarPdfDocumento(key).catch(() => {});
+}
+
+// Converte Base64 em Blob sem travar a tela (o loop caractere-a-caractere
+// antigo bloqueava a página em PDFs grandes).
+async function _base64ParaBlob(base64, mime) {
+  try {
+    const r = await fetch('data:' + (mime || 'application/octet-stream') + ';base64,' + base64);
+    return await r.blob();
+  } catch(e) {
+    const bin = atob(base64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime || 'application/octet-stream' });
+  }
 }
 
 // Salva um lote de renomeações de chave em DOCUMENTOS (quando uma placa
@@ -19644,6 +19768,7 @@ function salvarDoc() {
   const pdfNome = window._docPDFNome || (DOCUMENTOS[key]?.pdf_nome) || '';
   const pdfMime = window._docPDFMimeType || (DOCUMENTOS[key]?.pdf_mime) || 'application/pdf';
   DOCUMENTOS[key] = { placa, tipo, emissao, vencimento, numero, emissor, resultado, ts: Date.now(), tem_pdf: temPdfNovo || temPdfExistente, pdf_nome: pdfNome, pdf_mime: pdfMime };
+  if (temPdfNovo) _invalidarCachePdfDoc(key); // PDF novo anexado — descarta a cópia antiga guardada
   const pdfParaSalvar = temPdfNovo ? window._docPDFBase64 : null; // só regrava o conteúdo do PDF se um NOVO foi anexado agora
   window._docPDFMimeType = null;
   window._docPDFBase64 = null;
@@ -19661,6 +19786,7 @@ async function excluirDoc(keyDireto) {
   const info = docInfo ? ((docInfo.placa || '') + (docInfo.tipo ? ' — ' + docInfo.tipo : '')) : 'este documento';
   if (!confirm('⚠️ EXCLUIR DEFINITIVAMENTE\n\nDocumento: ' + info + '\n\nEste registro será removido permanentemente do sistema e do Firebase.\n\nConfirmar exclusão?')) return;
   const tinhaPdf = !!(docInfo && (docInfo.tem_pdf || docInfo.pdf_base64));
+  _invalidarCachePdfDoc(key);
   delete DOCUMENTOS[key];
   mostrarIndicador('⏳ Excluindo documento...', '#FCD34D');
   const atualizados = await _docSalvarComRetry('/manutencao/documentos.json', { [key]: null }, null);
@@ -19860,8 +19986,8 @@ function renderDocumentos() {
       <button onclick="reprocessarCRLV('${key}')" style="margin-top:3px;width:100%;background:#FEF3C7;color:#92400E;border:1px solid #fcd34d;border-radius:6px;padding:3px 5px;font-size:9px;font-weight:700;cursor:pointer">🔄 Corrigir do PDF</button>` : ''}
       ${temPDF ? `
       <div style="display:flex;gap:3px;margin-top:3px">
-        <button onclick="verPDFDoc('${key}')" style="flex:1;background:#EFF6FF;color:#2563eb;border:none;border-radius:6px;padding:3px 5px;font-size:9px;font-weight:700;cursor:pointer">${(doc.pdf_mime||'').startsWith('image/')?'🖼️ Ver':'📄 Ver'}</button>
-        <button onclick="baixarPDFDoc('${key}')" style="flex:1;background:#F0FDF4;color:#16a34a;border:none;border-radius:6px;padding:3px 5px;font-size:9px;font-weight:700;cursor:pointer">⬇️ Baixar</button>
+        <button onclick="verPDFDoc('${key}')" onmouseenter="_prefetchPdfDoc('${key}')" ontouchstart="_prefetchPdfDoc('${key}')" style="flex:1;background:#EFF6FF;color:#2563eb;border:none;border-radius:6px;padding:3px 5px;font-size:9px;font-weight:700;cursor:pointer">${(doc.pdf_mime||'').startsWith('image/')?'🖼️ Ver':'📄 Ver'}</button>
+        <button onclick="baixarPDFDoc('${key}')" onmouseenter="_prefetchPdfDoc('${key}')" ontouchstart="_prefetchPdfDoc('${key}')" style="flex:1;background:#F0FDF4;color:#16a34a;border:none;border-radius:6px;padding:3px 5px;font-size:9px;font-weight:700;cursor:pointer">⬇️ Baixar</button>
       </div>` : ''}
       <button class="edit-only" onclick="event.stopPropagation();excluirDoc('${key}')" title="Excluir documento" style="margin-top:3px;width:100%;background:#FEF2F2;color:#DC2626;border:none;border-radius:6px;padding:3px 5px;font-size:9px;font-weight:700;cursor:pointer">🗑️ Excluir</button>
     </td>`;
@@ -20744,10 +20870,7 @@ async function verPDFDoc(key) {
     if (!pdf) { mostrarIndicador('❌ Não foi possível carregar o PDF — tente de novo', '#fca5a5'); return; }
     base64 = pdf.base64; mime = pdf.mime || doc.pdf_mime;
   }
-  const byteChars = atob(base64);
-  const byteArr = new Uint8Array(byteChars.length);
-  for (let i=0; i<byteChars.length; i++) byteArr[i]=byteChars.charCodeAt(i);
-  const blob = new Blob([byteArr], { type: mime || 'application/pdf' });
+  const blob = await _base64ParaBlob(base64, mime || 'application/pdf');
   const url  = URL.createObjectURL(blob);
   // Usar um <a target="_blank"> em vez de window.open(url) direto — em
   // vários navegadores móveis (iOS Safari, alguns Android) o window.open
@@ -20835,11 +20958,8 @@ async function baixarPDFDoc(key) {
     if (!pdf) { mostrarIndicador('❌ Não foi possível carregar o PDF — tente de novo', '#fca5a5'); return; }
     base64 = pdf.base64; mimeSalvo = pdf.mime || doc.pdf_mime;
   }
-  const byteChars = atob(base64);
-  const byteArr = new Uint8Array(byteChars.length);
-  for (let i=0; i<byteChars.length; i++) byteArr[i]=byteChars.charCodeAt(i);
   const mime = mimeSalvo || 'application/pdf';
-  const blob = new Blob([byteArr], { type: mime });
+  const blob = await _base64ParaBlob(base64, mime);
   const url  = URL.createObjectURL(blob);
   const ext  = mime.startsWith('image/') ? mime.split('/')[1] : 'pdf';
   const nomeBase = doc.pdf_nome || `${doc.placa}_${(doc.tipo||'doc').toUpperCase()}.${ext}`;

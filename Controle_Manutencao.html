@@ -1918,6 +1918,20 @@ table.tbl-check { min-width: min(1200px, max-content) !important; }
   max-width: 100%;
 }
 
+/* ── Filtro de dias do checklist (multi-seleção) ── */
+#filtro-dias-check-wrap { position:relative; display:inline-block; }
+#filtro-dias-check-menu { display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#fff; color:#1e293b; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.28); padding:6px; min-width:215px; z-index:9999; font-size:12px; font-weight:600; }
+#filtro-dias-check-menu.aberto { display:block; }
+.fdc-item { display:flex; align-items:center; gap:8px; padding:8px; border-radius:6px; cursor:pointer; user-select:none; -webkit-user-select:none; }
+.fdc-item:hover { background:#f1f5f9; }
+.fdc-box { width:16px; height:16px; border:2px solid #94a3b8; border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; line-height:1; color:#fff; flex-shrink:0; }
+.fdc-item.marcado .fdc-box { background:#7e22ce; border-color:#7e22ce; }
+.fdc-dica { font-size:10px; font-weight:500; color:#94a3b8; padding:4px 8px 2px; }
+@media (max-width: 767px) {
+  #filtro-dias-check-wrap { width:100%; }
+  #filtro-dias-check-menu { width:100%; }
+}
+
 /* ── Foldable estreito < 320px ── */
 @media (max-width: 319px) {
   .hist-form { grid-template-columns: 1fr !important; }
@@ -2657,13 +2671,18 @@ document.addEventListener('DOMContentLoaded', () => {
         style="padding:4px 8px;border-radius:4px;border:none;font-size:12px;background:#fff;color:#333;outline:none">
         <option value="">Todos programadores</option>
       </select>
-      <select id="filtro-dias-check" onchange="renderCheck()"
-        style="padding:4px 8px;border-radius:4px;border:none;font-size:12px;background:#fff;color:#333;outline:none">
-        <option value="">Todos os dias</option>
-        <option value="vermelho">🔴 Acima de 15 dias</option>
-        <option value="amarelo">🟡 10 a 14 dias</option>
-        <option value="verde">🟢 0 a 9 dias</option>
-      </select>
+      <div id="filtro-dias-check-wrap">
+        <button type="button" id="filtro-dias-check-btn" onclick="toggleMenuDiasCheck(event)"
+          title="Marque uma ou mais faixas de dias — vale para a tabela e para o PDF/impressão"
+          style="padding:4px 8px;border-radius:4px;border:none;font-size:12px;font-weight:400;background:#fff;color:#333;outline:none;cursor:pointer;text-align:left">Todos os dias ▾</button>
+        <div id="filtro-dias-check-menu">
+          <div class="fdc-item marcado" id="fdc-item-todos" onclick="limparFiltroDiasCheck()"><span class="fdc-box">✓</span><span class="fdc-txt">Todos os dias</span></div>
+          <div class="fdc-item" id="fdc-item-vermelho" onclick="toggleFaixaDiasCheck('vermelho')"><span class="fdc-box"></span><span class="fdc-txt">🔴 Acima de 15 dias</span></div>
+          <div class="fdc-item" id="fdc-item-amarelo" onclick="toggleFaixaDiasCheck('amarelo')"><span class="fdc-box"></span><span class="fdc-txt">🟡 10 a 14 dias</span></div>
+          <div class="fdc-item" id="fdc-item-verde" onclick="toggleFaixaDiasCheck('verde')"><span class="fdc-box"></span><span class="fdc-txt">🟢 0 a 9 dias</span></div>
+          <div class="fdc-dica">Marque quantas faixas quiser</div>
+        </div>
+      </div>
       <button class="edit-only" onclick="abrirConfigLimitesChecklist()" title="Configurar a partir de quantos dias fica amarelo e vermelho"
         style="padding:4px 8px;border-radius:4px;border:none;font-size:12px;background:#475569;color:#fff;cursor:pointer">⚙️</button>
       <label class="edit-only-hide" title="Pode selecionar mais de um arquivo de uma vez (Ctrl/Cmd+clique) — útil quando o CTAPlus exporta um Excel por filial (Matriz/Filial1); as ordens de todos são somadas, não substituem umas às outras" style="padding:4px 12px;border-radius:3px;background:#7C3AED;color:#fff;font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -7279,16 +7298,89 @@ function _adicionarExcecaoLimiteChecklist() {
   });
 }
 
-// Atualiza os textos que mostram os limites atuais — dropdown de filtro e
+// ── FILTRO DE DIAS DO CHECKLIST (multi-seleção) ──
+// Dá pra marcar mais de uma faixa ao mesmo tempo (ex.: "Acima de 15 dias" +
+// "10 a 14 dias"). Nenhuma marcada = "Todos os dias". O MESMO filtro vale
+// para a tabela, para o PDF e para a impressão (todos leem _diasCheckSelecionados()).
+// Estado em window (e não em let/const) pra não depender da ordem em que o
+// script é executado.
+const _FAIXAS_DIAS_CHECK = ['vermelho', 'amarelo', 'verde'];
+const _EMOJI_FAIXA_DIAS_CHECK = { vermelho: '🔴', amarelo: '🟡', verde: '🟢' };
+
+function _diasCheckSelecionados() {
+  const sel = window._filtroDiasCheckSel || [];
+  return _FAIXAS_DIAS_CHECK.filter(f => sel.includes(f));
+}
+
+function _textoFaixaDiasCheck(f) {
+  const { amarelo, vermelho } = CHECKLIST_LIMITES;
+  if (f === 'vermelho') return '🔴 Acima de ' + vermelho + ' dias';
+  if (f === 'amarelo')  return '🟡 ' + amarelo + ' a ' + (vermelho - 1) + ' dias';
+  return '🟢 0 a ' + (amarelo - 1) + ' dias';
+}
+
+// Esse registro passa no filtro? (sem faixa marcada = passa tudo). Usa os
+// limites da própria placa (_limitesChecklistDe), igual ao filtro antigo.
+function _diasCheckPassa(sel, c) {
+  if (!sel || !sel.length) return true;
+  const d = parseInt(c.dias) || 0;
+  const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c);
+  const faixa = d >= limV ? 'vermelho' : d >= limA ? 'amarelo' : 'verde';
+  return sel.includes(faixa);
+}
+
+function _atualizarFiltroDiasCheckUI() {
+  const sel = _diasCheckSelecionados();
+  _FAIXAS_DIAS_CHECK.forEach(f => {
+    const row = document.getElementById('fdc-item-' + f);
+    if (!row) return;
+    const on = sel.includes(f);
+    row.classList.toggle('marcado', on);
+    const box = row.querySelector('.fdc-box'); if (box) box.textContent = on ? '✓' : '';
+    const txt = row.querySelector('.fdc-txt'); if (txt) txt.textContent = _textoFaixaDiasCheck(f);
+  });
+  const todos = document.getElementById('fdc-item-todos');
+  if (todos) {
+    todos.classList.toggle('marcado', !sel.length);
+    const box = todos.querySelector('.fdc-box'); if (box) box.textContent = !sel.length ? '✓' : '';
+  }
+  const btn = document.getElementById('filtro-dias-check-btn');
+  if (btn) {
+    let txt;
+    if (!sel.length)           txt = 'Todos os dias';
+    else if (sel.length === 1) txt = _textoFaixaDiasCheck(sel[0]);
+    else                       txt = sel.map(f => _EMOJI_FAIXA_DIAS_CHECK[f]).join('') + ' ' + sel.length + ' faixas de dias';
+    btn.textContent = txt + ' ▾';
+  }
+}
+
+function toggleFaixaDiasCheck(f) {
+  const atual = _diasCheckSelecionados();
+  window._filtroDiasCheckSel = atual.includes(f) ? atual.filter(x => x !== f) : atual.concat(f);
+  _atualizarFiltroDiasCheckUI();
+  renderCheck();   // o menu continua aberto pra marcar outra faixa
+}
+function limparFiltroDiasCheck() {
+  window._filtroDiasCheckSel = [];
+  _atualizarFiltroDiasCheckUI();
+  renderCheck();
+}
+function toggleMenuDiasCheck(ev) {
+  if (ev) ev.stopPropagation();
+  const m = document.getElementById('filtro-dias-check-menu');
+  if (m) m.classList.toggle('aberto');
+}
+// Clicou fora do menu → fecha
+document.addEventListener('click', function(e) {
+  const w = document.getElementById('filtro-dias-check-wrap');
+  const m = document.getElementById('filtro-dias-check-menu');
+  if (w && m && !w.contains(e.target)) m.classList.remove('aberto');
+});
+
+// Atualiza os textos que mostram os limites atuais — filtro de dias e
 // legenda do PDF exportado — sempre que os limites mudam ou no carregamento.
 function _atualizarLabelsLimitesChecklist() {
-  const { amarelo, vermelho } = CHECKLIST_LIMITES;
-  const optV  = document.querySelector('#filtro-dias-check option[value="vermelho"]');
-  const optA  = document.querySelector('#filtro-dias-check option[value="amarelo"]');
-  const optVe = document.querySelector('#filtro-dias-check option[value="verde"]');
-  if (optV)  optV.textContent  = '🔴 Acima de ' + vermelho + ' dias';
-  if (optA)  optA.textContent  = '🟡 ' + amarelo + ' a ' + (vermelho - 1) + ' dias';
-  if (optVe) optVe.textContent = '🟢 0 a ' + (amarelo - 1) + ' dias';
+  _atualizarFiltroDiasCheckUI();
 }
 
 function abrirConfigLimitesChecklist() {
@@ -10334,7 +10426,7 @@ function renderCheck() {
   const buscaVal = (document.getElementById('busca-check')?.value || '').trim().toLowerCase();
   const tipoVal  = (document.getElementById('filtro-tipo-check')?.value || '').trim();
   const progVal  = (document.getElementById('filtro-prog-check')?.value || '').trim();
-  const diasVal  = (document.getElementById('filtro-dias-check')?.value || '').trim();
+  const diasSel  = _diasCheckSelecionados();
 
   // ── Aplicar filtros ──
   const listaFiltrada = CHECKLIST.filter((c, i) => {
@@ -10350,13 +10442,7 @@ function renderCheck() {
     // Filtro programador
     if (progVal && (c.programador || '') !== progVal) return false;
     // Filtro dias
-    if (diasVal) {
-      const d = parseInt(c.dias) || 0;
-      const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c);
-      if (diasVal === 'vermelho' && d < limV) return false;
-      if (diasVal === 'amarelo' && (d < limA || d >= limV)) return false;
-      if (diasVal === 'verde'   && d >= limA) return false;
-    }
+    if (!_diasCheckPassa(diasSel, c)) return false;
     return true;
   });
 
@@ -11045,7 +11131,7 @@ function exportarPDFCheck(){
   const buscaVal = (document.getElementById('busca-check')?.value || '').trim().toLowerCase();
   const tipoVal  = (document.getElementById('filtro-tipo-check')?.value || '').trim();
   const progVal  = (document.getElementById('filtro-prog-check')?.value || '').trim();
-  const diasVal  = (document.getElementById('filtro-dias-check')?.value || '').trim();
+  const diasSel  = _diasCheckSelecionados();
 
   const listaBase = CHECKLIST.filter(c => {
     if (buscaVal) {
@@ -11056,13 +11142,7 @@ function exportarPDFCheck(){
     }
     if (tipoVal && (c.tipo || '') !== tipoVal) return false;
     if (progVal && (c.programador || '') !== progVal) return false;
-    if (diasVal) {
-      const d = parseInt(c.dias) || 0;
-      const { amarelo: limA, vermelho: limV } = _limitesChecklistDe(c);
-      if (diasVal === 'vermelho' && d < limV) return false;
-      if (diasVal === 'amarelo' && (d < limA || d >= limV)) return false;
-      if (diasVal === 'verde'   && d >= limA) return false;
-    }
+    if (!_diasCheckPassa(diasSel, c)) return false;
     return true;
   });
 
@@ -11074,9 +11154,10 @@ function exportarPDFCheck(){
 
   // Título/subtítulo refletindo o filtro de programador selecionado
   const tituloPdf = progVal ? `📋 Checklist Preventiva — ${progVal}` : '📋 Checklist Preventiva';
+  const filtroDiasPdf = diasSel.length ? ' · Faixas de dias: ' + diasSel.map(_textoFaixaDiasCheck).join(' + ') : '';
   const subtituloPdf = progVal
-    ? `Filtrado por programador: ${progVal} · ${lista.length} registro(s) · Ordenado por dias (maior → menor)`
-    : `Relatório completo · ${lista.length} registros · Ordenado por dias (maior → menor)`;
+    ? `Filtrado por programador: ${progVal} · ${lista.length} registro(s)${filtroDiasPdf} · Ordenado por dias (maior → menor)`
+    : `${diasSel.length ? 'Relatório filtrado' : 'Relatório completo'} · ${lista.length} registros${filtroDiasPdf} · Ordenado por dias (maior → menor)`;
 
   function diasBg(dias, c) {
     const d = parseInt(dias)||0;

@@ -2434,8 +2434,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <option value="9999">Todos</option>
     </select>
     <select id="ordenarPorSelect" onchange="ordenarPor(this.value)" title="Critério de ordenação da tabela" style="width:150px">
+      <option value="km" selected>🔧 Ordenar por KM Vencidos</option>
       <option value="dias">⏱️ Ordenar por Dias</option>
-      <option value="km">🔧 Ordenar por KM Vencidos</option>
     </select>
     <span id="contador-resultados" style="font-size:11px;color:#64748b;font-weight:600;white-space:nowrap"></span>
     <button onclick="abrirModal()" class="edit-only">➕ Adicionar Veículo</button>
@@ -5623,7 +5623,9 @@ let HOJE = new Date(); // Atualizado diariamente via setInterval
 HOJE.setHours(0,0,0,0);
 
 let pag=1, POR_PAG=20;
-let ordenacao={campo:'dias',dir:-1};
+// Ordenação padrão: o veículo com o KM mais perto de vencer (ou já vencido)
+// fica no topo — pior entre motor e câmbio (ver km_vencido_critico em calcStatus).
+let ordenacao={campo:'km_vencido_critico',dir:-1};
 let cardFiltro='todos', editPlaca=null;
 let _bannerFechado = false;
 let _bannerFiltro = '';

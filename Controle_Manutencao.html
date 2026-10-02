@@ -3574,7 +3574,13 @@ document.addEventListener('DOMContentLoaded', () => {
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-orcamento">
             <input type="checkbox" id="indisp-orcamento" onchange="onPrevTipoChange()" style="accent-color:#D97706;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#475569">💰 Aguardando Orçamento</span>
-            <span style="font-size:12px;color:#94a3b8">(pendente aprovação)</span>
+            <span style="font-size:12px;color:#94a3b8">(aguardando o valor / proposta)</span>
+          </label>
+          <!-- Opção 3b: aguardando aprovação -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-aprovacao">
+            <input type="checkbox" id="indisp-aprovacao" onchange="onPrevTipoChange()" style="accent-color:#4F46E5;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569">✍️ Aguardando Aprovação</span>
+            <span style="font-size:12px;color:#94a3b8">(orçamento já chegou, falta aprovar)</span>
           </label>
           <!-- Opção 4: aguardando peça -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-peca">
@@ -3587,6 +3593,18 @@ document.addEventListener('DOMContentLoaded', () => {
             <input type="checkbox" id="indisp-envio-prestador" onchange="onPrevTipoChange()" style="accent-color:#DB2777;width:16px;height:16px;cursor:pointer">
             <span style="font-size:13px;font-weight:600;color:#475569">🚚 Aguardando Envio ao Prestador</span>
             <span style="font-size:12px;color:#94a3b8">(aguardando enviar para o prestador de serviço)</span>
+          </label>
+          <!-- Opção 4c: veículo já está no prestador (serviço externo) -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-no-prestador">
+            <input type="checkbox" id="indisp-no-prestador" onchange="onPrevTipoChange()" style="accent-color:#EA580C;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569">🔧 No Prestador</span>
+            <span style="font-size:12px;color:#94a3b8">(veículo já está lá, aguardando o serviço)</span>
+          </label>
+          <!-- Opção 4d: aguardando retorno do prestador (serviço pronto, falta buscar) -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-retorno-prestador">
+            <input type="checkbox" id="indisp-retorno-prestador" onchange="onPrevTipoChange()" style="accent-color:#0D9488;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569">↩️ Aguardando Retorno do Prestador</span>
+            <span style="font-size:12px;color:#94a3b8">(serviço pronto, falta buscar o veículo)</span>
           </label>
           <!-- Opção 5: em execução -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-execucao">
@@ -17818,8 +17836,11 @@ function renderIndisp() {
     const itens = [];
     if (r.em_diagnostico) itens.push(\`<span class="tv-prev-badge" style="background:#EDE9FE;color:#5B21B6">🔍 Diagnóstico</span>\`);
     if (r.em_orcamento)   itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">💰 Orçamento</span>\`);
+    if (r.em_aprovacao)   itens.push(\`<span class="tv-prev-badge" style="background:#E0E7FF;color:#4338CA">✍️ Aprovação</span>\`);
     if (r.em_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#E0F2FE;color:#0369a1">📦 Aguard. Peça</span>\`);
     if (r.em_envio_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#FCE7F3;color:#BE185D">🚚 Aguard. Envio</span>\`);
+    if (r.em_no_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#C2410C">🔧 No Prestador</span>\`);
+    if (r.em_retorno_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#CCFBF1;color:#0F766E">↩️ Aguard. Retorno</span>\`);
     if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.12);color:#000000">🛠️ Em Execução</span>\`);
     if (r.em_lavagem)     itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#0891B2">🧼 Lavagem/Lubrif.</span>\`);
     if (r.em_liberado)    itens.push(\`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`);
@@ -21804,8 +21825,11 @@ function onPrevTipoChange() {
   const isData  = document.getElementById('indisp-prev-tipo-data').checked;
   const isDiag  = document.getElementById('indisp-diagnostico').checked;
   const isOrc   = document.getElementById('indisp-orcamento')  && document.getElementById('indisp-orcamento').checked;
+  const isApr   = document.getElementById('indisp-aprovacao')  && document.getElementById('indisp-aprovacao').checked;
   const isPeca  = document.getElementById('indisp-peca')       && document.getElementById('indisp-peca').checked;
   const isEnv   = document.getElementById('indisp-envio-prestador') && document.getElementById('indisp-envio-prestador').checked;
+  const isNoP   = document.getElementById('indisp-no-prestador') && document.getElementById('indisp-no-prestador').checked;
+  const isRet   = document.getElementById('indisp-retorno-prestador') && document.getElementById('indisp-retorno-prestador').checked;
   const isExec  = document.getElementById('indisp-execucao')   && document.getElementById('indisp-execucao').checked;
   const isLav   = document.getElementById('indisp-lavagem')    && document.getElementById('indisp-lavagem').checked;
   const isLib   = document.getElementById('indisp-liberado')   && document.getElementById('indisp-liberado').checked;
@@ -21813,8 +21837,11 @@ function onPrevTipoChange() {
   const lblData = document.getElementById('label-prev-data');
   const lblDiag = document.getElementById('label-diagnostico');
   const lblOrc  = document.getElementById('label-orcamento');
+  const lblApr  = document.getElementById('label-aprovacao');
   const lblPeca = document.getElementById('label-peca');
   const lblEnv  = document.getElementById('label-envio-prestador');
+  const lblNoP  = document.getElementById('label-no-prestador');
+  const lblRet  = document.getElementById('label-retorno-prestador');
   const lblExec = document.getElementById('label-execucao');
   const lblLav  = document.getElementById('label-lavagem');
   const lblLib  = document.getElementById('label-liberado');
@@ -21826,8 +21853,11 @@ function onPrevTipoChange() {
   if (lblData) { lblData.style.borderColor = isData ? '#1D4ED8' : '#dbe4f0'; lblData.style.background = isData ? '#EFF6FF' : '#f8fafc'; }
   if (lblDiag) { lblDiag.style.borderColor = isDiag ? '#7C3AED' : '#dbe4f0'; lblDiag.style.background = isDiag ? '#EDE9FE' : '#f8fafc'; }
   if (lblOrc)  { lblOrc.style.borderColor  = isOrc  ? '#D97706' : '#dbe4f0'; lblOrc.style.background  = isOrc  ? '#FEF3C7' : '#f8fafc'; }
+  if (lblApr)  { lblApr.style.borderColor  = isApr  ? '#4F46E5' : '#dbe4f0'; lblApr.style.background  = isApr  ? '#E0E7FF' : '#f8fafc'; }
   if (lblPeca) { lblPeca.style.borderColor = isPeca ? '#0284C7' : '#dbe4f0'; lblPeca.style.background = isPeca ? '#E0F2FE' : '#f8fafc'; }
   if (lblEnv)  { lblEnv.style.borderColor  = isEnv  ? '#DB2777' : '#dbe4f0'; lblEnv.style.background  = isEnv  ? '#FCE7F3' : '#f8fafc'; }
+  if (lblNoP)  { lblNoP.style.borderColor  = isNoP  ? '#EA580C' : '#dbe4f0'; lblNoP.style.background  = isNoP  ? '#FFEDD5' : '#f8fafc'; }
+  if (lblRet)  { lblRet.style.borderColor  = isRet  ? '#0D9488' : '#dbe4f0'; lblRet.style.background  = isRet  ? '#CCFBF1' : '#f8fafc'; }
   if (lblExec) {
     lblExec.style.borderColor = isExec ? '#000000' : '#dbe4f0';
     lblExec.style.background  = isExec ? 'rgba(0,0,0,.12)' : '#f8fafc';
@@ -21852,6 +21882,7 @@ function _resetDiagnostico() {
   const lblData = document.getElementById('label-prev-data');
   const lblDiag = document.getElementById('label-diagnostico');
   const lblOrc  = document.getElementById('label-orcamento');
+  const lblApr  = document.getElementById('label-aprovacao');
   const lblLib  = document.getElementById('label-liberado');
   if (!rdData) return;
   rdData.checked = true;
@@ -21859,12 +21890,14 @@ function _resetDiagnostico() {
   inp.style.opacity = '1';
   const lblPeca = document.getElementById('label-peca');
   const lblEnv  = document.getElementById('label-envio-prestador');
+  const lblNoP  = document.getElementById('label-no-prestador');
+  const lblRet  = document.getElementById('label-retorno-prestador');
   const lblExec = document.getElementById('label-execucao');
   const lblLav  = document.getElementById('label-lavagem');
-  [lblDiag, lblOrc, lblPeca, lblEnv, lblExec, lblLav, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  [lblDiag, lblOrc, lblApr, lblPeca, lblEnv, lblNoP, lblRet, lblExec, lblLav, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   // Registro NOVO começa sem nenhum status marcado (antes só o destaque visual era
   // limpo e a caixinha marcada na edição anterior ia junto pro registro novo).
-  ['indisp-diagnostico','indisp-orcamento','indisp-peca','indisp-envio-prestador','indisp-execucao','indisp-lavagem','indisp-liberado']
+  ['indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-execucao','indisp-lavagem','indisp-liberado']
     .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
@@ -21899,8 +21932,11 @@ function _previsaoLiberacaoItens(r) {
   const itens = [];
   if (r.em_diagnostico) itens.push({ icon:'🔍', label:'Em Diagnóstico',        labelCurta:'Diagnóstico', cor:'#5B21B6', bg:'#EDE9FE' });
   if (r.em_orcamento)   itens.push({ icon:'💰', label:'Aguardando Orçamento',  labelCurta:'Orçamento',   cor:'#D97706', bg:'#FEF3C7' });
+  if (r.em_aprovacao)   itens.push({ icon:'✍️', label:'Aguardando Aprovação', labelCurta:'Aprovação',   cor:'#4338CA', bg:'#E0E7FF' });
   if (r.em_peca)        itens.push({ icon:'📦', label:'Aguardando Peça',       labelCurta:'Aguard. Peça',cor:'#0369a1', bg:'#E0F2FE' });
   if (r.em_envio_prestador)        itens.push({ icon:'🚚', label:'Aguardando Envio ao Prestador', labelCurta:'Aguard. Envio',cor:'#BE185D', bg:'#FCE7F3' });
+  if (r.em_no_prestador)        itens.push({ icon:'🔧', label:'No Prestador (serviço externo)', labelCurta:'No Prestador',cor:'#C2410C', bg:'#FFEDD5' });
+  if (r.em_retorno_prestador)        itens.push({ icon:'↩️', label:'Aguardando Retorno do Prestador', labelCurta:'Aguard. Retorno',cor:'#0F766E', bg:'#CCFBF1' });
   if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#000000', bg:'rgba(0,0,0,.12)' });
   if (r.em_lavagem)     itens.push({ icon:'🧼', label:'Lavagem e Lubrificação', labelCurta:'Lavagem/Lubrif.', cor:'#0891B2', bg:'#CFFAFE' });
   if (r.em_liberado)    itens.push({ icon:'✅', label:'Liberado (aguard. motorista)', labelCurta:'Liberado', cor:'#15803d', bg:'#DCFCE7' });
@@ -22042,8 +22078,11 @@ function editarIndisp(id) {
   document.getElementById('indisp-prev-tipo-data').checked = !!(r.prev_lib);
   document.getElementById('indisp-diagnostico').checked    = !!r.em_diagnostico;
   document.getElementById('indisp-orcamento').checked      = !!r.em_orcamento;
+  document.getElementById('indisp-aprovacao').checked      = !!r.em_aprovacao;
   document.getElementById('indisp-peca').checked           = !!r.em_peca;
   document.getElementById('indisp-envio-prestador').checked = !!r.em_envio_prestador;
+  document.getElementById('indisp-no-prestador').checked   = !!r.em_no_prestador;
+  document.getElementById('indisp-retorno-prestador').checked = !!r.em_retorno_prestador;
   document.getElementById('indisp-execucao').checked       = !!r.em_execucao;
   document.getElementById('indisp-lavagem').checked        = !!r.em_lavagem;
   document.getElementById('indisp-liberado').checked       = !!r.em_liberado;
@@ -22115,8 +22154,11 @@ function salvarIndisp() {
     prev_lib: document.getElementById('indisp-prev-lib').value || '',
     em_diagnostico: document.getElementById('indisp-diagnostico').checked,
     em_orcamento:   document.getElementById('indisp-orcamento') ? document.getElementById('indisp-orcamento').checked : false,
+    em_aprovacao:   document.getElementById('indisp-aprovacao') ? document.getElementById('indisp-aprovacao').checked : false,
     em_peca:        document.getElementById('indisp-peca')       ? document.getElementById('indisp-peca').checked       : false,
     em_envio_prestador: document.getElementById('indisp-envio-prestador') ? document.getElementById('indisp-envio-prestador').checked : false,
+    em_no_prestador: document.getElementById('indisp-no-prestador') ? document.getElementById('indisp-no-prestador').checked : false,
+    em_retorno_prestador: document.getElementById('indisp-retorno-prestador') ? document.getElementById('indisp-retorno-prestador').checked : false,
     em_execucao:    document.getElementById('indisp-execucao')   ? document.getElementById('indisp-execucao').checked   : false,
     em_lavagem:     document.getElementById('indisp-lavagem')    ? document.getElementById('indisp-lavagem').checked    : false,
     em_liberado:    document.getElementById('indisp-liberado')   ? document.getElementById('indisp-liberado').checked   : false,
@@ -22180,8 +22222,8 @@ function _resumirMudancasIndisp(antes, depois) {
   const labels = {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
-    em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento',
-    em_peca: 'Aguardando peça', em_envio_prestador: 'Aguardando envio ao prestador', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_liberado: 'Liberado',
+    em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento', em_aprovacao: 'Aguardando aprovação',
+    em_peca: 'Aguardando peça', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -22732,8 +22774,11 @@ function imprimirPDFIndisp() {
     const itens = [];
     if (r.em_diagnostico) itens.push('Em Diagnostico');
     if (r.em_orcamento)   itens.push('Aguard. Orcamento');
+    if (r.em_aprovacao)   itens.push('Aguard. Aprovacao');
     if (r.em_peca)        itens.push('Aguard. Peca');
     if (r.em_envio_prestador)        itens.push('Aguard. Envio ao Prestador');
+    if (r.em_no_prestador)        itens.push('No Prestador');
+    if (r.em_retorno_prestador)        itens.push('Aguard. Retorno do Prestador');
     if (r.em_execucao)    itens.push('Em Execucao');
     if (r.em_lavagem)     itens.push('Lavagem e Lubrificacao');
     if (r.em_liberado)    itens.push('Liberado (Aguard. motorista)');
@@ -24201,8 +24246,11 @@ function renderMobIndisp() {
       const prevItens = [];
       if (r.em_diagnostico) prevItens.push(`<span style="background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔍 Em Diagnóstico</span>`);
       if (r.em_orcamento)   prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 Aguard. Orçamento</span>`);
+      if (r.em_aprovacao)   prevItens.push(`<span style="background:#E0E7FF;color:#4338CA;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✍️ Aguard. Aprovação</span>`);
       if (r.em_peca)        prevItens.push(`<span style="background:#E0F2FE;color:#0369a1;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📦 Aguard. Peça</span>`);
       if (r.em_envio_prestador)        prevItens.push(`<span style="background:#FCE7F3;color:#BE185D;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🚚 Aguard. Envio ao Prestador</span>`);
+      if (r.em_no_prestador)        prevItens.push(`<span style="background:#FFEDD5;color:#C2410C;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔧 No Prestador</span>`);
+      if (r.em_retorno_prestador)        prevItens.push(`<span style="background:#CCFBF1;color:#0F766E;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">↩️ Aguard. Retorno do Prestador</span>`);
       if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.12);color:#000000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
       if (r.em_lavagem)     prevItens.push(`<span style="background:#CFFAFE;color:#0891B2;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧼 Lavagem/Lubrif.</span>`);
       if (r.em_liberado)    prevItens.push(`<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`);

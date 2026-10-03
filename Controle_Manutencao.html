@@ -3178,6 +3178,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <div style="display:flex;gap:8px;padding:14px 18px 0;background:#fff;align-items:center;flex-wrap:wrap">
   <button id="indisp-subtab-atual" class="indisp-subtab-btn active" onclick="mudarSubAbaIndisp('atual')">🚧 Em Aberto</button>
   <button id="indisp-subtab-historico" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('historico')" style="position:relative">📋 Histórico <span id="hist-badge" style="display:none;position:absolute;top:2px;right:2px;background:#DC2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;align-items:center;justify-content:center;line-height:16px">0</span></button>
+  <button id="indisp-subtab-tempo" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('tempo')">⏱️ Tempo Parado</button>
   <button onclick="abrirConfigPainelTV()" title="Modo Painel — tela cheia para TV" style="margin-left:auto;background:#581c87;color:#e9d5ff;border:none;border-radius:10px 10px 0 0;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📺 PAINEL TV</button>
 </div>
 
@@ -3352,6 +3353,55 @@ document.addEventListener('DOMContentLoaded', () => {
      clicar em "📋 Histórico" no seletor de sub-abas.
      Dados em: HIST_MANUT[]  — § 29 do JS
      ══════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════
+     SUB-ABA · TEMPO PARADO POR PLACA (#pag-tempo-parado)
+     Soma, por placa, quanto tempo ficou em manutenção (interno, externo,
+     solda; corretiva ou preventiva; finalizadas + as que ainda estão em
+     aberto). Dados: HIST_MANUT[] + INDISPONIVEIS[] sem saída.
+     ══════════════════════════════════════════════════ -->
+<div id="pag-tempo-parado" style="display:none">
+  <div class="header-principal" style="position:relative;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:14px;flex-wrap:nowrap">
+    <h1 style="margin:0">⏱️ Tempo Parado por Placa</h1>
+  </div>
+  <div style="background:#f1f5f9;padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input id="tp-busca" type="text" placeholder="🔎 Buscar placa" oninput="renderTempoParado()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;min-width:140px">
+    <select id="tp-periodo" onchange="renderTempoParado()" title="Mês a consultar" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px"></select>
+    <select id="tp-servico" onchange="renderTempoParado()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
+      <option value="">Todos os serviços</option>
+      <option value="interno">🏭 Interno</option>
+      <option value="externo">🔧 Externo</option>
+      <option value="solda">🔥 Solda</option>
+    </select>
+    <select id="tp-tipo" onchange="renderTempoParado()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
+      <option value="">Corretiva + Preventiva</option>
+      <option value="CORRETIVA">Só corretiva</option>
+      <option value="PREVENTIVA">Só preventiva</option>
+    </select>
+    <select id="tp-ordem" onchange="renderTempoParado()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
+      <option value="tempo">Ordenar: mais tempo parado</option>
+      <option value="qtd">Ordenar: mais paradas</option>
+      <option value="maior">Ordenar: maior parada</option>
+      <option value="agora">Ordenar: parados agora primeiro</option>
+      <option value="placa">Ordenar: placa (A–Z)</option>
+    </select>
+    <button onclick="exportarTempoParadoCSV()" style="margin-left:auto;background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇️ Exportar CSV</button>
+  </div>
+  <div id="tp-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 18px;background:#f1f5f9"></div>
+  <div style="padding:0 18px 24px;background:#f1f5f9">
+    <div class="tabela-wrap" style="overflow-x:auto;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(15,23,42,.08)">
+      <table id="tp-tabela" style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#0f172a;color:#fff;text-align:center">
+          <th style="padding:10px 8px">Placa</th><th style="padding:10px 8px">Situação</th><th style="padding:10px 8px">Paradas</th>
+          <th style="padding:10px 8px">Tempo total</th><th style="padding:10px 8px">🏭 Interno</th><th style="padding:10px 8px">🔧 Externo</th>
+          <th style="padding:10px 8px">🔥 Solda</th><th style="padding:10px 8px">Média/parada</th><th style="padding:10px 8px">Maior parada</th><th style="padding:10px 8px">Última entrada</th>
+        </tr></thead>
+        <tbody id="tp-tbody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:#64748b;margin-top:8px">Mostra só as placas ativas (Troca de Óleo ou Checklist). Toque numa placa para ver cada parada. Serviços ainda em aberto contam até agora. O mês atual aparece por padrão; escolha outro mês no filtro para consultar os anteriores. Só o tempo dentro do mês escolhido é somado (parada que atravessa a virada de mês é dividida).</div>
+  </div>
+</div>
+
 <div id="pag-historico" style="display:none">
   <div class="header-principal" style="position:relative;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:14px;flex-wrap:nowrap">
     <h1 style="margin:0">📋 Histórico de Manutenções</h1>
@@ -6448,7 +6498,7 @@ function _renderAbaAtiva(origem) {
   // qualquer mudança chegava de qualquer lugar. Passando _histFiltrado
   // (quando existe um filtro ativo) mantém a visão filtrada mesmo com a
   // tela atualizando em tempo real.
-  else if (idAtivo === 'indisponiveis') (_indispSubAtiva === 'historico') ? renderHistorico(_histFiltrado || undefined) : renderIndisponiveis();
+  else if (idAtivo === 'indisponiveis') (_indispSubAtiva === 'historico') ? renderHistorico(_histFiltrado || undefined) : (_indispSubAtiva === 'tempo') ? renderTempoParado() : renderIndisponiveis();
   else if (idAtivo === 'combustivel')   renderCombustivel();
   else if (idAtivo === 'dashboard')     renderDashboard();
   mostrarIndicador('🔄 Sincronizado', '#93C5FD');
@@ -9587,6 +9637,10 @@ function mudarSubAbaIndisp(sub) {
   const btnHist  = document.getElementById('indisp-subtab-historico');
   const elAtual  = document.getElementById('pag-indisponiveis-inner');
   const elHist   = document.getElementById('pag-historico');
+  const btnTempo = document.getElementById('indisp-subtab-tempo');
+  const elTempo  = document.getElementById('pag-tempo-parado');
+  if (btnTempo) btnTempo.classList.toggle('active', sub === 'tempo');
+  if (elTempo)  elTempo.style.display = (sub === 'tempo') ? '' : 'none';
   if (btnAtual) btnAtual.classList.toggle('active', sub === 'atual');
   if (btnHist)  btnHist.classList.toggle('active', sub === 'historico');
   if (elAtual)  elAtual.style.display = (sub === 'atual') ? '' : 'none';
@@ -9594,6 +9648,8 @@ function mudarSubAbaIndisp(sub) {
 
   if (sub === 'historico') {
     _ativarSubAbaIndispHistorico();
+  } else if (sub === 'tempo') {
+    _ativarSubAbaIndispTempo();
   } else {
     _ativarSubAbaIndispAtual();
   }
@@ -9653,6 +9709,192 @@ function _ativarSubAbaIndispAtual() {
   // (em Documentos ou aqui mesmo) já estejam disponíveis no datalist,
   // mesmo que esta seja a primeira aba aberta na sessão.
   carregarTiposPlacaCustom().then(popularDatalistTiposGP);
+}
+
+/* ══════════════════════════════════════════════════════
+   SUB-ABA "TEMPO PARADO POR PLACA" (Indisponíveis)
+   Soma, por placa, o tempo em manutenção de TODAS as paradas:
+   histórico finalizado (HIST_MANUT) + serviços ainda em aberto
+   (INDISPONIVEIS sem saída), em qualquer serviço (interno/externo/
+   solda) e tipo (corretiva/preventiva).
+   ══════════════════════════════════════════════════════ */
+let _tpExpandida = null;
+let _tpUltimoResultado = [];
+
+function _tpFmtDur(ms) {
+  if (!ms || ms < 0) return '—';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return min + 'min';
+  const h = Math.floor(min / 60);
+  if (h < 48) return h + 'h ' + String(min % 60).padStart(2, '0') + 'min';
+  const d = Math.floor(h / 24);
+  return d + 'd ' + (h % 24) + 'h';
+}
+
+// Janela de tempo do filtro: 'm:AAAA-MM' (um mês), 'ano' ou 'tudo'
+function _tpJanela(periodo) {
+  const agora = new Date();
+  if (periodo === 'ano') return { ini: new Date(agora.getFullYear(), 0, 1), fim: null };
+  const m = /^m:(\d{4})-(\d{2})$/.exec(periodo || '');
+  if (m) return { ini: new Date(+m[1], +m[2] - 1, 1), fim: new Date(+m[1], +m[2], 1) };
+  return { ini: null, fim: null }; // todo o período
+}
+
+// Preenche o seletor: mês atual (padrão), meses anteriores, ano e tudo
+function _tpPopularPeriodos() {
+  const sel = document.getElementById('tp-periodo');
+  if (!sel || sel.options.length) return;
+  const agora = new Date(), nomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    const o = document.createElement('option');
+    o.value = 'm:' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    o.textContent = (i === 0 ? 'Mês atual — ' : '') + nomes[d.getMonth()] + '/' + d.getFullYear();
+    sel.appendChild(o);
+  }
+  [['ano', 'Este ano inteiro'], ['tudo', 'Todo o período']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); });
+  sel.value = sel.options[0].value;
+}
+
+// Lista unificada de paradas (finalizadas + em aberto)
+function _tpRegistros() {
+  const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : [])
+    .filter(r => r && r.placa && r.entrada && _saidaValida(r.saida))
+    .map(r => Object.assign({}, r, { _aberto: false }));
+  const abertos = (typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : [])
+    .filter(r => r && r.placa && r.entrada && !_saidaValida(r.saida))
+    .map(r => Object.assign({}, r, { _aberto: true }));
+  return hist.concat(abertos);
+}
+
+function _tpCalcular() {
+  _tpPopularPeriodos();
+  const periodo = (document.getElementById('tp-periodo') || {}).value || 'tudo';
+  const fServ   = (document.getElementById('tp-servico') || {}).value || '';
+  const fTipo   = (document.getElementById('tp-tipo') || {}).value || '';
+  const busca   = _normPlaca((document.getElementById('tp-busca') || {}).value || '');
+  const { ini: ini0, fim: fim0 } = _tpJanela(periodo);
+  const agora = new Date();
+  const porPlaca = {};
+  // Só placas ATIVAS (cadastradas na Troca de Óleo ou no Checklist Preventivo).
+  // Se as duas listas ainda estiverem vazias (carregando), não filtra.
+  const ativas = new Set([
+    ...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => _normPlaca(v && v.placa)),
+    ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => _normPlaca(c && (c.cavalo || c.placa || '')))
+  ].filter(Boolean));
+
+  _tpRegistros().forEach(r => {
+    const key = _normPlaca(r.placa);
+    if (!key || (busca && !key.includes(busca))) return;
+    if (ativas.size && !ativas.has(key)) return;
+    const serv = String(r.servico || '').toLowerCase();
+    if (fServ && serv !== fServ) return;
+    if (fTipo && String(r.tipoManut || 'CORRETIVA').toUpperCase() !== fTipo) return;
+    let ini = new Date(r.entrada), fim = r._aberto ? agora : new Date(r.saida);
+    if (isNaN(ini) || isNaN(fim)) return;
+    if (ini0 && ini < ini0) ini = ini0;
+    if (fim0 && fim > fim0) fim = fim0;
+    const ms = fim - ini;
+    if (ms <= 0) return;
+    const g = porPlaca[key] || (porPlaca[key] = { key, placa: r.placa, total: 0, qtd: 0, interno: 0, externo: 0, solda: 0, outro: 0, maior: 0, aberto: false, ultimaEntrada: 0, paradas: [] });
+    g.total += ms; g.qtd++;
+    if (serv === 'interno' || serv === 'externo' || serv === 'solda') g[serv] += ms; else g.outro += ms;
+    if (ms > g.maior) g.maior = ms;
+    if (r._aberto) g.aberto = true;
+    const ent = new Date(r.entrada).getTime();
+    if (ent > g.ultimaEntrada) g.ultimaEntrada = ent;
+    g.paradas.push({ entrada: r.entrada, saida: r._aberto ? null : r.saida, servico: serv, tipo: r.tipoManut || 'CORRETIVA', reclamacao: r.reclamacao || '', ms });
+  });
+
+  const lista = Object.values(porPlaca);
+  const ordem = (document.getElementById('tp-ordem') || {}).value || 'tempo';
+  lista.sort((a, b) => {
+    if (ordem === 'qtd')   return b.qtd - a.qtd || b.total - a.total;
+    if (ordem === 'maior') return b.maior - a.maior;
+    if (ordem === 'placa') return a.placa.localeCompare(b.placa);
+    if (ordem === 'agora') return (b.aberto - a.aberto) || (b.total - a.total);
+    return b.total - a.total;
+  });
+  lista.forEach(g => g.paradas.sort((a, b) => new Date(b.entrada) - new Date(a.entrada)));
+  return lista;
+}
+
+function renderTempoParado() {
+  const tbody = document.getElementById('tp-tbody');
+  if (!tbody) return;
+  const lista = _tpCalcular();
+  _tpUltimoResultado = lista;
+
+  const totalMs = lista.reduce((s, g) => s + g.total, 0);
+  const agoraN = lista.filter(g => g.aberto).length;
+  const kpis = [
+    { v: lista.length, l: 'PLACAS COM PARADAS', bg: '#0f172a' },
+    { v: _tpFmtDur(totalMs), l: 'TEMPO TOTAL PARADO', bg: '#7f1d1d' },
+    { v: agoraN, l: 'PARADOS AGORA', bg: '#DC2626' },
+    { v: lista.length ? _tpFmtDur(totalMs / lista.length) : '—', l: 'MÉDIA POR PLACA', bg: '#1D4ED8' },
+  ];
+  const elK = document.getElementById('tp-kpis');
+  if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.8;font-weight:700">${k.l}</div></div>`).join('');
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:28px;color:#94a3b8">Nenhuma parada encontrada para esse filtro.</td></tr>';
+    return;
+  }
+  const td = 'padding:9px 8px;text-align:center;border-top:1px solid #e2e8f0';
+  const fmtD = s => { const d = new Date(s); return isNaN(d) ? '—' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+  const nomeServ = { interno: '🏭 Interno', externo: '🔧 Externo', solda: '🔥 Solda' };
+  tbody.innerHTML = lista.map(g => {
+    const aberta = _tpExpandida === g.key;
+    const situ = g.aberto
+      ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:3px 10px;font-weight:800;font-size:11px">🔴 Parado agora</span>'
+      : '<span style="background:#DCFCE7;color:#166534;border-radius:20px;padding:3px 10px;font-weight:800;font-size:11px">✅ Liberado</span>';
+    let linha = `<tr onclick="_tpAlternar('${g.key}')" style="cursor:pointer;${aberta ? 'background:#EEF2FF' : ''}">
+      <td style="${td};font-weight:800;color:#1e293b">${escapeHtml(g.placa)} <span style="color:#94a3b8;font-size:10px">${aberta ? '▲' : '▼'}</span></td>
+      <td style="${td}">${situ}</td>
+      <td style="${td}">${g.qtd}</td>
+      <td style="${td};font-weight:800;color:#B91C1C">${_tpFmtDur(g.total)}</td>
+      <td style="${td}">${g.interno ? _tpFmtDur(g.interno) : '—'}</td>
+      <td style="${td}">${g.externo ? _tpFmtDur(g.externo) : '—'}</td>
+      <td style="${td}">${g.solda ? _tpFmtDur(g.solda) : '—'}</td>
+      <td style="${td}">${_tpFmtDur(g.total / g.qtd)}</td>
+      <td style="${td}">${_tpFmtDur(g.maior)}</td>
+      <td style="${td};white-space:nowrap">${fmtD(g.ultimaEntrada)}</td>
+    </tr>`;
+    if (aberta) {
+      linha += `<tr><td colspan="10" style="padding:10px 14px;background:#F8FAFC;border-top:1px solid #e2e8f0"><div style="display:grid;gap:6px">` +
+        g.paradas.map(p => `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;font-size:11px">
+          <b>${nomeServ[p.servico] || escapeHtml(p.servico || '—')}</b>
+          <span style="color:#64748b">${escapeHtml(String(p.tipo))}</span>
+          <span>${fmtD(p.entrada)} → ${p.saida ? fmtD(p.saida) : '<b style="color:#B91C1C">em aberto</b>'}</span>
+          <b style="color:#B91C1C">${_tpFmtDur(p.ms)}</b>
+          <span style="color:#475569;flex:1 1 200px">${escapeHtml(p.reclamacao)}</span></div>`).join('') +
+        `</div></td></tr>`;
+    }
+    return linha;
+  }).join('');
+}
+
+function _tpAlternar(key) {
+  _tpExpandida = (_tpExpandida === key) ? null : key;
+  renderTempoParado();
+}
+
+function exportarTempoParadoCSV() {
+  const lista = _tpUltimoResultado || [];
+  if (!lista.length) { alert('Nada para exportar com o filtro atual.'); return; }
+  const h = v => (v / 3600000).toFixed(1).replace('.', ',');
+  const linhas = [['Placa', 'Situação', 'Paradas', 'Horas total', 'Horas interno', 'Horas externo', 'Horas solda', 'Média (h)', 'Maior parada (h)']];
+  lista.forEach(g => linhas.push([g.placa, g.aberto ? 'Parado agora' : 'Liberado', g.qtd, h(g.total), h(g.interno), h(g.externo), h(g.solda), h(g.total / g.qtd), h(g.maior)]));
+  const csv = '﻿' + linhas.map(l => l.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'Tempo_Parado_por_Placa_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+function _ativarSubAbaIndispTempo() {
+  renderTempoParado();
+  if (typeof carregarHistoricoFirebase === 'function') carregarHistoricoFirebase().then(renderTempoParado).catch(() => {});
 }
 
 function _ativarSubAbaIndispHistorico() {

@@ -19219,6 +19219,7 @@ function renderCombustivel() {
   const _diagDataInvalida = [];
   const _combPorTipo = {};  // { 'S10': {nome, abast, litros, custo} }
   const _combMatriz = {};   // { placaNormalizada: { 'S10': {abast, litros, custo} } }
+  const _grpTot = { s_s10:{litros:0,custo:0,km:0}, s_arla:{litros:0,custo:0,km:0}, s_gasolina:{litros:0,custo:0,km:0}, s_outros:{litros:0,custo:0,km:0} }; // totais da frota por produto (para os cards)
 
   ABASTECIMENTOS.forEach(a => {
     if (!a || !a.placa) return;
@@ -19265,6 +19266,7 @@ function renderCombustivel() {
     const _pt = _combPorTipo[_kc] || (_combPorTipo[_kc] = { nome: _nomeComb, abast: 0, litros: 0, custo: 0 });
     _pt.abast++; _pt.litros += (a.litros || 0); _pt.custo += (a.custo || 0);
     const _g = _combGrupo(_nomeComb);
+    _grpTot[_g].litros += (a.litros || 0); _grpTot[_g].custo += (a.custo || 0); _grpTot[_g].km += (a.distancia > 0 ? a.distancia : 0);
     v[_g] = (v[_g] || 0) + (a.custo || 0);
     v[_g + '_l'] = (v[_g + '_l'] || 0) + (a.litros || 0);
     const _mp = _combMatriz[chave] || (_combMatriz[chave] = {});
@@ -19418,10 +19420,18 @@ function renderCombustivel() {
   const maisGastao  = lista.filter(v=>v.kml>0).sort((a,b)=>a.kml-b.kml)[0];
 
   const kpis = [
-    { icon:'⛽', label:'Total Litros',    valor:totalLitros.toLocaleString('pt-BR',{maximumFractionDigits:0})+' L', bg:'linear-gradient(135deg,#1D4ED8,#3B82F6)' },
-    { icon:'💰', label:'Custo Total',     valor:'R$ '+totalCusto.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}), bg:'#DC2626' },
-    { icon:'🛣️', label:'KM Total',        valor:totalKm.toLocaleString('pt-BR',{maximumFractionDigits:0})+' km', bg:'#16A34A' },
-    { icon:'📊', label:'Média Geral',     valor:mediaKml.toFixed(2)+' km/l', bg:'#0D9488' },
+    { icon:'⛽', label:'Total Litros',    valor:totalLitros.toLocaleString('pt-BR',{maximumFractionDigits:0})+' L', sub:'todos os produtos', bg:'linear-gradient(135deg,#1D4ED8,#3B82F6)' },
+    { icon:'💰', label:'Custo Total',     valor:'R$ '+totalCusto.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}), sub:'S10 + Arla + Gasolina', bg:'#DC2626' },
+    // Um card por produto: gasto, litros e km/l daquele produto
+    ...[['s_s10','S10','#d97706'],['s_arla','Arla','#2563eb'],['s_gasolina','Gasolina','#9333ea'],['s_outros','Outros','#64748b']]
+      .filter(([g]) => g !== 's_outros' || _grpTot.s_outros.litros > 0 || _grpTot.s_outros.custo > 0)
+      .map(([g, nome, cor]) => {
+        const t = _grpTot[g], kmL = t.litros > 0 && t.km > 0 ? t.km / t.litros : 0;
+        return { icon:'🛢️', label:nome, valor:'R$ '+t.custo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
+          sub: t.litros.toLocaleString('pt-BR',{maximumFractionDigits:0}) + ' L · ' + (kmL > 0 ? kmL.toFixed(2) + ' km/l' : 'sem km/l'), bg:cor };
+      }),
+    { icon:'🛣️', label:'KM Total',        valor:totalKm.toLocaleString('pt-BR',{maximumFractionDigits:0})+' km', sub:'sem Arla', bg:'#16A34A' },
+    { icon:'📊', label:'Média Geral',     valor:mediaKml.toFixed(2)+' km/l', sub:'S10/Gasolina, sem Arla', bg:'#0D9488' },
     { icon:'💸', label:'Custo/KM Médio', valor:'R$ '+mediaCustKm.toFixed(2), bg:'#D97706' },
     { icon:'🏆', label:'Mais Econômico',  valor:maisEcon?maisEcon.placa:'—', bg:'linear-gradient(135deg,#166534,#16a34a)' },
     { icon:'⚠️', label:'Mais Gastão',     valor:maisGastao?maisGastao.placa:'—', bg:'linear-gradient(135deg,#7f1d1d,#dc2626)' },
@@ -19433,6 +19443,7 @@ function renderCombustivel() {
       <div style="position:absolute;top:-20px;right:-10px;font-size:50px;opacity:.15">${k.icon}</div>
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.8;margin-bottom:4px">${k.label}</div>
       <div style="font-size:22px;font-weight:800;line-height:1.2">${k.valor}</div>
+      ${k.sub ? `<div style="font-size:10px;opacity:.85;margin-top:3px">${k.sub}</div>` : ''}
     </div>`).join('');
 
   // ── Banner de alerta: consumo anormal (queda ≥20% vs. média histórica do próprio veículo) ──

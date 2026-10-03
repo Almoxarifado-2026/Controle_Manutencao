@@ -15478,7 +15478,7 @@ function renderKPIs() {
     { icon:'✅', valor: motorOk,   label:'Motor Em Dia',          sub:`${total ? Math.round(motorOk/total*100) : 0}% da frota`, bg:'#16A34A' },
     { icon:'🔴', valor: motorVenc, label:'Motor Vencido',         sub:`${motorProx} próximos`, bg:'#DC2626' },
     { icon:'⚙️', valor: cambioOk,  label:'Câmbio Em Dia',         sub:`${total ? Math.round(cambioOk/total*100) : 0}% da frota`, bg:'#0D9488' },
-    { icon:'⚠️', valor: cambioVenc,label:'Câmbio Vencido',        sub:`${total - cambioOk - cambioVenc} próximos`, bg:'#D97706' },
+    { icon:'⚠️', valor: cambioVenc,label:'Câmbio Vencido',        sub:`${VEICULOS.filter(v => v.cor_cambio === 'proximo').length} próximos`, bg:'#D97706' },
     { icon:'📊', valor: pctFrota+'%', label:'Saúde da Frota',    sub:'motor + câmbio em dia', bg:'linear-gradient(135deg,#581c87,#7e22ce)' },
     { icon:'🔧', valor: totalTrocas, label:'Preventivas Registradas', sub: usandoChecklistFallback ? 'baseado no checklist' : 'no histórico total', bg:'linear-gradient(135deg,#0f766e,#0d9488)' },
     { icon:'📍', valor: kmMedio ? kmMedio.toLocaleString('pt-BR') : '—', label:'KM Médio Frota', sub:'odômetro atual médio', bg:'linear-gradient(135deg,#0f172a,#1e3a8a)' },
@@ -15552,6 +15552,14 @@ function _calcDisponibilidadeMes(ano, mes, totalFrota, histArr) {
   return Math.max(0, Math.min(100, ((horasPossiveis - horasParadas) / horasPossiveis) * 100));
 }
 
+// Corretivas finalizadas + indisponíveis ainda em aberto (sem duplicar os
+// que já foram finalizados e copiados para o histórico).
+function _registrosParadaDisp(hist) {
+  const abertos = (typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : [])
+    .filter(r => r && r.entrada && !_saidaValida(r.saida));
+  return hist.concat(abertos);
+}
+
 function renderExecutivo() {
   const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : []).filter(r => r.placa);
   const totalFrota = VEICULOS.length || 1;
@@ -15568,8 +15576,13 @@ function renderExecutivo() {
     const dt = new Date(r.entrada || r.saida || r.dataFinalizacao);
     return dt >= inicioMes;
   });
+  // Tempo parado: além das corretivas finalizadas, conta os veículos que
+  // estão indisponíveis AGORA (ainda sem saída) e as que começaram antes do
+  // mês e terminaram dentro dele — antes ficavam de fora e a
+  // disponibilidade aparecia maior do que a real.
+  const paradasTodas = _registrosParadaDisp(hist);
   let horasParadasMes = 0;
-  corretivasMesAtual.forEach(r => {
+  paradasTodas.forEach(r => {
     if (!r.entrada) return;
     const ini = new Date(r.entrada) < inicioMes ? inicioMes : new Date(r.entrada);
     // _saidaValida (não "r.saida" puro): mesmo critério usado em toda a
@@ -15676,7 +15689,7 @@ function renderExecutivo() {
     const dt = new Date(r.entrada || r.saida || r.dataFinalizacao);
     return !isNaN(dt) && dt.getFullYear()===m.ano && dt.getMonth()===m.mes;
   }).length);
-  const disponibilidadePorMes = meses.map(m => _calcDisponibilidadeMes(m.ano, m.mes, totalFrota, hist));
+  const disponibilidadePorMes = meses.map(m => _calcDisponibilidadeMes(m.ano, m.mes, totalFrota, paradasTodas));
 
   const canvasComp = document.getElementById('exec-chart-comparativo');
   if (canvasComp && typeof Chart !== 'undefined') {

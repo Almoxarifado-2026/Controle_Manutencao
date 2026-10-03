@@ -2231,6 +2231,67 @@ html.dark-mode .mcb-footer button {
 
 
 
+<style id="auto-ajuste-tela">
+/* ══════════════════════════════════════════════════════════════════════
+   AUTO-AJUSTE DE TELA (camada final — vence as regras anteriores)
+   Em qualquer largura/altura de janela o sistema reduz espaços entre
+   blocos, tamanho de letras e paddings de forma contínua (clamp/vw/vh),
+   em vez de só mudar nos "degraus" dos media queries. As tabelas largas
+   são encolhidas para caber na janela pelo script "auto-ajuste-tela"
+   (no fim do arquivo). Para desligar: remova este <style> e o <script>.
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  --fit-gap: clamp(4px, 1vw, 14px);
+  --fit-pad: clamp(6px, 1.3vw, 20px);
+  --fit-fs-sm: clamp(9px, 0.95vw, 12px);
+  --fit-fs-md: clamp(10px, 1.05vw, 13px);
+}
+html, body { max-width: 100vw; overflow-x: clip; }
+*, *::before, *::after { min-width: 0; }
+img, canvas, svg, video { max-width: 100%; }
+
+/* Barra de abas: encolhe letras e espaços até caber */
+.nav-abas { padding: clamp(4px, .8vw, 10px) clamp(6px, 1.4vw, 18px) !important; gap: clamp(2px, .5vw, 6px) !important; }
+.nav-abas-links { gap: clamp(1px, .25vw, 2px) !important; }
+.nav-aba { transition: color .15s, background-color .15s !important; }  /* sem animar tamanho: o ajuste mede o layout final */
+.nav-aba { font-size: calc(clamp(9px, 1.02vw, 13px) * var(--nav-escala, 1)) !important; padding: calc(clamp(5px, .65vw, 9px) * var(--nav-escala, 1)) calc(clamp(5px, 1vw, 16px) * var(--nav-escala, 1)) !important; letter-spacing: 0 !important; }
+.btn-config-nav { flex-shrink: 0; }
+
+/* Cabeçalho, resumo e blocos principais */
+.header-principal { padding-left: var(--fit-pad) !important; padding-right: var(--fit-pad) !important; gap: var(--fit-gap) !important; }
+#graficos-section { gap: var(--fit-gap) !important; padding: var(--fit-pad) !important; }
+#graficos-section > div { padding: clamp(6px, 1vw, 14px) !important; }
+#graficos-section canvas { max-width: min(180px, 100%) !important; height: auto !important; }
+
+/* Barras de botões/filtros: quebram de linha e encolhem */
+.btn-csv, .filtros button, .toolbar button { font-size: var(--fit-fs-md); padding: clamp(4px, .5vw, 8px) clamp(6px, 1vw, 14px); }
+.filtros, .toolbar, .check-totais { gap: clamp(3px, .6vw, 8px) !important; flex-wrap: wrap; }
+input, select, textarea { max-width: 100%; }
+
+/* Tabelas: fonte e preenchimento de célula proporcionais à largura */
+.pagina table th, .pagina table td { padding-left: clamp(2px, .4vw, 6px) !important; padding-right: clamp(2px, .4vw, 6px) !important; }
+.pagina table { font-size: clamp(9px, 0.85vw, 12px); }
+
+/* Janelas (modais): sempre cabem na tela, com rolagem interna */
+.overlay { padding: clamp(4px, 1.2vw, 16px) !important; }
+.modal { padding: clamp(10px, 2vw, 24px) !important; max-width: calc(100vw - 8px) !important; max-height: calc(100vh - 8px) !important; max-height: calc(100dvh - 8px) !important; overflow-y: auto !important; box-sizing: border-box; }
+.modal-btns { flex-wrap: wrap; gap: clamp(4px, .8vw, 10px); }
+
+/* Telas baixas (notebooks pequenos, Windows com escala 125–150%) */
+@media (max-height: 760px) {
+  .header-principal { min-height: 0 !important; padding-top: 4px !important; padding-bottom: 4px !important; }
+  .header-principal h1 { font-size: clamp(13px, 2vw, 20px) !important; }
+  #graficos-section > div { padding: 6px !important; }
+  #graficos-section [id^="chart"], #chartBarras { max-height: 180px !important; }
+}
+@media (max-height: 600px) {
+  .nav-abas { position: static !important; }
+  .modal { padding: 8px !important; }
+}
+
+/* Captura "Print para WhatsApp" (capturarTelaIndisp): layout fixo de 1600px, não deve ser alterado */
+#captura-indisp, #captura-indisp * { min-width: auto; }
+</style>
 </head>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -24830,5 +24891,55 @@ window.addEventListener('resize', () => {
 
 
 
+<script id="auto-ajuste-tela-js">
+/* AUTO-AJUSTE DE TELA — encolhe (zoom) as tabelas largas para caberem na
+   janela, sem barra de rolagem lateral. Piso de 50% para o texto não ficar
+   ilegível; abaixo disso volta a usar a rolagem lateral normal. Não mexe em
+   dados nem em funções do sistema: só aplica style.zoom nas <table>. */
+(function () {
+  var MIN = 0.5, timer = null, rodando = false;
+  var SEL = '.tabela-wrap, [style*="overflow-x:auto"], [style*="overflow-x: auto"]';
+  function ajustar() {
+    if (rodando) return; rodando = true;
+    try {
+      var wraps = document.querySelectorAll(SEL), i, w, t, cw, sw, z;
+      for (i = 0; i < wraps.length; i++) {
+        w = wraps[i]; t = w.querySelector('table');
+        if (!t || (w.closest && w.closest('#captura-indisp'))) continue;
+        t.style.zoom = '';                       // mede o tamanho natural
+        if (!t.offsetParent) continue;           // oculta (modo cartões / aba fechada)
+        cw = w.clientWidth; sw = t.scrollWidth;
+        if (cw > 0 && sw > cw + 1) {
+          z = Math.max(MIN, cw / sw);
+          t.style.zoom = z.toFixed(3);
+        }
+      }
+      // Abas do topo: reduz letras/espaços em passos até caberem sem rolagem
+      var navs = document.querySelectorAll('.nav-abas'), n, L, esc;
+      for (i = 0; i < navs.length; i++) {
+        n = navs[i]; L = n.querySelector('.nav-abas-links');
+        if (!L || !n.offsetParent || !L.clientWidth) continue;   // oculta: não mexe
+        n.style.removeProperty('--nav-escala');
+        esc = 1;
+        while (L.scrollWidth > L.clientWidth + 1 && esc > 0.55) {
+          esc -= 0.04; n.style.setProperty('--nav-escala', esc.toFixed(2));
+        }
+      }
+    } catch (e) {}
+    rodando = false;
+  }
+  function agendar(ms) { clearTimeout(timer); timer = setTimeout(function () { ajustar(); setTimeout(ajustar, 450); }, ms || 120); }
+  window.ajustarTabelasATela = ajustar;
+  window.addEventListener('resize', function () { agendar(100); });
+  window.addEventListener('orientationchange', function () { agendar(250); });
+  window.addEventListener('load', function () { agendar(300); });
+  document.addEventListener('click', function () { agendar(250); }, true);   // troca de aba/filtro/ordenação
+  try {
+    new MutationObserver(function () { agendar(150); })
+      .observe(document.body, { childList: true, subtree: true });         // tabela redesenhada
+  } catch (e) {}
+  agendar(300);
+})();
+</script>
 </body>
 </html>

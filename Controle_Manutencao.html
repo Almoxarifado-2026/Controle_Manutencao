@@ -3040,6 +3040,10 @@ document.addEventListener('DOMContentLoaded', () => {
       <div style="flex:1">
         <div id="comb-chart-titulo" style="font-size:13px;font-weight:700">📆 Consumo Mensal (litros + custo)</div>
       </div>
+<select id="comb-chart-metrica" onchange="renderGraficoCombMensal()" style="padding:6px 10px;border-radius:8px;border:1px solid #475569;font-size:11px;font-weight:700;background:#1e293b;color:#fff;outline:none">
+        <option value="litros">Litros</option>
+        <option value="custo">Custo (R$)</option>
+      </select>
 <select id="comb-chart-placa" onchange="renderGraficoCombMensal()" style="padding:6px 10px;border-radius:8px;border:1px solid #475569;font-size:11px;font-weight:700;background:#1e293b;color:#fff;outline:none">
         <option value="">Toda a frota</option>
       </select>
@@ -3058,6 +3062,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <th style="background:#1e3a8a;color:#fff;padding:8px 10px;text-align:left;cursor:pointer" onclick="ordComb('placa')">PLACA <span id="carr-placa"></span></th>
             <th style="background:#1e3a8a;color:#fff;padding:8px 10px;cursor:pointer" onclick="ordComb('tipo')">TIPO <span id="carr-tipo"></span></th>
             <th style="background:#1e3a8a;color:#fff;padding:8px 10px;cursor:pointer" onclick="ordComb('abastecimentos')">ABAST. <span id="carr-abastecimentos"></span></th>
+            <th id="th-s10" style="background:#d97706;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('s_s10')">S10 <span id="carr-s_s10"></span><div id="tot-s10" style="font-size:9px;font-weight:600;opacity:.9"></div></th>
+            <th id="th-arla" style="background:#2563eb;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('s_arla')">ARLA <span id="carr-s_arla"></span><div id="tot-arla" style="font-size:9px;font-weight:600;opacity:.9"></div></th>
+            <th id="th-gasolina" style="background:#9333ea;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('s_gasolina')">GASOLINA <span id="carr-s_gasolina"></span><div id="tot-gasolina" style="font-size:9px;font-weight:600;opacity:.9"></div></th>
+            <th id="th-outros" style="background:#64748b;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('s_outros')">OUTROS <span id="carr-s_outros"></span><div id="tot-outros" style="font-size:9px;font-weight:600;opacity:.9"></div></th>
+            <th style="background:#2563eb;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('s_arla_km')">ARLA KM RODADO <span id="carr-s_arla_km"></span></th>
+            <th style="background:#2563eb;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('s_arla_kml')">ARLA KM/L MÉDIO <span id="carr-s_arla_kml"></span></th>
             <th style="background:#16a34a;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('litros')">LITROS TOTAL <span id="carr-litros"></span></th>
             <th style="background:#16a34a;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('km_rodado')">KM RODADO <span id="carr-km_rodado"></span></th>
             <th style="background:#16a34a;color:#fff;padding:8px 10px;text-align:right;cursor:pointer" onclick="ordComb('kml')">KM/L MÉDIO <span id="carr-kml"></span></th>
@@ -19131,6 +19141,23 @@ function _restaurarAvisosDiagComb() {
 }
 
 // ── Render principal ──
+// Guarda o total por tipo de combustível (usado no cabeçalho da tabela e na
+// aba extra "Por Combustível" do Excel). Respeita os filtros da aba.
+let _combTipoUltimo = null;
+function _renderCombPorTipo(porTipo, matriz, veicMap) {
+  const tipos = Object.keys(porTipo).sort((a, b) => porTipo[b].custo - porTipo[a].custo);
+  _combTipoUltimo = tipos.length ? { porTipo, matriz, veicMap, tipos } : null;
+}
+
+// Grupo de coluna para cada tipo de combustível da planilha
+function _combGrupo(nome) {
+  const k = String(nome || '').toUpperCase();
+  if (k.includes('ARLA')) return 's_arla';
+  if (k.includes('S10') || k.includes('DIESEL') || k.includes('S500')) return 's_s10';
+  if (k.includes('GASOL')) return 's_gasolina';
+  return 's_outros';
+}
+
 function renderCombustivel() {
   if (!ABASTECIMENTOS.length && !_combSyncPendente) {
     carregarCombustivel().then(() => { if(ABASTECIMENTOS.length) renderCombustivel(); });
@@ -19190,6 +19217,8 @@ function renderCombustivel() {
   //    página quando há algum caso (ver _diagAbastecOcultos mais abaixo).
   const _diagPlacaInvalida = [];
   const _diagDataInvalida = [];
+  const _combPorTipo = {};  // { 'S10': {nome, abast, litros, custo} }
+  const _combMatriz = {};   // { placaNormalizada: { 'S10': {abast, litros, custo} } }
 
   ABASTECIMENTOS.forEach(a => {
     if (!a || !a.placa) return;
@@ -19219,9 +19248,28 @@ function renderCombustivel() {
     v.abastecimentos++;
     v.litros  += a.litros;
     v.custo   += a.custo;
-    v.km_rodado += (a.distancia > 0 ? a.distancia : 0);
+    // ARLA não é combustível de rodagem: não soma km rodado nem litros do km/L
+    // (senão a média cai e o km seria contado duas vezes). Continua somando
+    // no custo e nos litros totais.
+    if (_combGrupo(a.combustivel) === 's_arla') v.s_arla_km = (v.s_arla_km || 0) + (a.distancia > 0 ? a.distancia : 0);
+    if (_combGrupo(a.combustivel) !== 's_arla') {
+      v.km_rodado += (a.distancia > 0 ? a.distancia : 0);
+      v.litros_kml = (v.litros_kml || 0) + a.litros;
+    }
     if (a.combustivel) v.combustiveis.add(a.combustivel);
     if (a.ts > v.ultima_ts) { v.ultima_ts = a.ts; v.ultima_data = a.data; }
+    // Soma separada por TIPO de combustível (S10, Arla, Gasolina...), total
+    // da frota e por placa — usa exatamente os mesmos filtros da tabela.
+    const _nomeComb = String(a.combustivel || '').trim() || 'Não informado';
+    const _kc = _nomeComb.toUpperCase();
+    const _pt = _combPorTipo[_kc] || (_combPorTipo[_kc] = { nome: _nomeComb, abast: 0, litros: 0, custo: 0 });
+    _pt.abast++; _pt.litros += (a.litros || 0); _pt.custo += (a.custo || 0);
+    const _g = _combGrupo(_nomeComb);
+    v[_g] = (v[_g] || 0) + (a.custo || 0);
+    v[_g + '_l'] = (v[_g + '_l'] || 0) + (a.litros || 0);
+    const _mp = _combMatriz[chave] || (_combMatriz[chave] = {});
+    const _mc = _mp[_kc] || (_mp[_kc] = { abast: 0, litros: 0, custo: 0 });
+    _mc.abast++; _mc.litros += (a.litros || 0); _mc.custo += (a.custo || 0);
   });
 
   // Segunda passada, só para diagnóstico — não repete o processamento
@@ -19280,7 +19328,8 @@ function renderCombustivel() {
   }
 
   const lista = Object.values(veicMap).map(v => {
-    v.kml     = v.litros > 0 && v.km_rodado > 0 ? v.km_rodado / v.litros : 0;
+    v.s_arla_kml = (v.s_arla_l || 0) > 0 && (v.s_arla_km || 0) > 0 ? v.s_arla_km / v.s_arla_l : 0;
+    v.kml     = (v.litros_kml || 0) > 0 && v.km_rodado > 0 ? v.km_rodado / v.litros_kml : 0;
     v.custo_km = v.km_rodado > 0 ? v.custo / v.km_rodado : 0;
     v.combustivel = [...v.combustiveis].join(', ');
     return v;
@@ -19290,6 +19339,8 @@ function renderCombustivel() {
   // nenhuma planilha ficam de fora da tabela, dos KPIs e dos cards mobile,
   // em vez de aparecer com tudo zerado ("0 abast., 0 L, R$ 0,00, —").
   .filter(v => v.abastecimentos > 0);
+
+  _renderCombPorTipo(_combPorTipo, _combMatriz, veicMap);
 
   /* ── Detecção de consumo anormal ──
      Compara o km/l dos ÚLTIMOS 3 abastecimentos de cada veículo com a
@@ -19305,7 +19356,7 @@ function renderCombustivel() {
     // (ex: "TZT-3B13") nunca batem contra a chave "TZT3B13" e a detecção
     // de consumo anormal fica sempre vazia pra elas.
     const registros = ABASTECIMENTOS
-      .filter(a => _normPlaca(a.placa) === placaChave && a.distancia > 0 && a.litros > 0)
+      .filter(a => _normPlaca(a.placa) === placaChave && a.distancia > 0 && a.litros > 0 && _combGrupo(a.combustivel) !== 's_arla')
       .sort((a,b) => (a.ts||0) - (b.ts||0));
     if (registros.length < 5) return; // precisa de histórico mínimo para comparar com confiança
 
@@ -19360,7 +19411,8 @@ function renderCombustivel() {
   const totalLitros = lista.reduce((s,v)=>s+v.litros,0);
   const totalCusto  = lista.reduce((s,v)=>s+v.custo,0);
   const totalKm     = lista.reduce((s,v)=>s+v.km_rodado,0);
-  const mediaKml    = totalLitros>0&&totalKm>0 ? totalKm/totalLitros : 0;
+  const totalLitrosKml = lista.reduce((s,v)=>s+(v.litros_kml||0),0); // sem Arla
+  const mediaKml    = totalLitrosKml>0&&totalKm>0 ? totalKm/totalLitrosKml : 0;
   const mediaCustKm = totalKm>0 ? totalCusto/totalKm : 0;
   const maisEcon    = lista.filter(v=>v.kml>0).sort((a,b)=>b.kml-a.kml)[0];
   const maisGastao  = lista.filter(v=>v.kml>0).sort((a,b)=>a.kml-b.kml)[0];
@@ -19428,6 +19480,9 @@ function renderCombustivel() {
       <td style="padding:8px 10px;font-weight:700;color:#1B3A6D">${v.placa}${v._alertaConsumo ? `<span title="Consumo ${v._alertaConsumo.quedaPct}% abaixo da média histórica deste veículo" style="margin-left:6px;cursor:help">⚠️</span>` : ''}</td>
       <td style="padding:8px 10px;color:#64748b">${v.tipo}</td>
       <td style="padding:8px 10px;text-align:center"><span onclick="verAbastecimentos('${v.placa}')" title="Ver ${v.abastecimentos} abastecimento(s)" style="cursor:pointer;background:#CCFBF1;color:#0F766E;font-weight:700;padding:2px 10px;border-radius:10px;display:inline-block">${v.abastecimentos}</span></td>
+      ${['s_s10','s_arla','s_gasolina','s_outros'].map(g => `<td data-g="${g}" style="padding:8px 10px;text-align:right;font-weight:600;color:${v[g] ? '#0f172a' : '#cbd5e1'}">${v[g] ? 'R$ ' + v[g].toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '<div style="font-size:10px;font-weight:500;color:#64748b">' + (v[g+'_l']||0).toLocaleString('pt-BR',{maximumFractionDigits:1}) + ' L</div>' : '—'}</td>`).join('')}
+      <td style="padding:8px 10px;text-align:right">${v.s_arla_km ? v.s_arla_km.toLocaleString('pt-BR',{maximumFractionDigits:0}) + ' km' : '—'}</td>
+      <td style="padding:8px 10px;text-align:right;font-weight:800;color:#2563eb">${v.s_arla_kml > 0 ? v.s_arla_kml.toFixed(2) + '  km/l' : '—'}</td>
       <td style="padding:8px 10px;text-align:right;font-weight:600">${v.litros.toLocaleString('pt-BR',{maximumFractionDigits:1})} L</td>
       <td style="padding:8px 10px;text-align:right">${v.km_rodado.toLocaleString('pt-BR',{maximumFractionDigits:0})} km</td>
       <td style="padding:8px 10px;text-align:right;font-weight:800;color:${corKml(v.kml)}">${v.kml>0?v.kml.toFixed(2)+'  km/l':'—'}</td>
@@ -19436,6 +19491,19 @@ function renderCombustivel() {
       <td style="padding:8px 10px;text-align:center">${v.combustivel}</td>
       <td style="padding:8px 10px;text-align:center;color:#64748b">${v.ultima_data}</td>
     </tr>`).join('');
+
+  // Totais por tipo no cabeçalho + coluna OUTROS só aparece se existir
+  const _tot = { s_s10: 0, s_arla: 0, s_gasolina: 0, s_outros: 0 };
+  lista.forEach(v => Object.keys(_tot).forEach(g => { _tot[g] += (v[g] || 0); }));
+  [['s10','s_s10'],['arla','s_arla'],['gasolina','s_gasolina'],['outros','s_outros']].forEach(([id,g]) => {
+    const t = document.getElementById('tot-' + id), h = document.getElementById('th-' + id);
+    if (t) t.textContent = 'Total R$ ' + _tot[g].toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (g === 's_outros') {
+      const mostra = _tot[g] > 0;
+      if (h) h.style.display = mostra ? '' : 'none';
+      document.querySelectorAll('#comb-tbody td[data-g="s_outros"]').forEach(td => { td.style.display = mostra ? '' : 'none'; });
+    }
+  });
 
   renderGraficosComb(lista);
   renderGraficoCombMensal();
@@ -19539,10 +19607,14 @@ function renderGraficoCombMensal() {
     } else {
       k = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
     }
-    if (!map[k]) map[k] = { litros:0, custo:0 };
-    map[k].litros += a.litros;
-    map[k].custo  += a.custo;
+    if (!map[k]) map[k] = {};
+    const g = _combGrupo(a.combustivel);          // s_s10 | s_arla | s_gasolina | s_outros
+    if (!map[k][g]) map[k][g] = { litros:0, custo:0 };
+    map[k][g].litros += (a.litros || 0);
+    map[k][g].custo  += (a.custo || 0);
   });
+  const metrica = document.getElementById('comb-chart-metrica')?.value || 'litros';
+  const sufixoTit = metrica === 'custo' ? '(R$ por produto)' : '(litros por produto)';
 
   // ── Labels e janela ──
   const tituloEl = document.getElementById('comb-chart-titulo');
@@ -19550,19 +19622,19 @@ function renderGraficoCombMensal() {
   if (granularidade === 'semana') {
     chaves = Object.keys(map).sort().slice(-16);
     labels = chaves.map(c => { const [ano, sem] = c.split('-W'); return `Sem ${parseInt(sem)}/${ano.slice(2)}`; });
-    if (tituloEl) tituloEl.textContent = '📅 Consumo Semanal (litros + custo)';
+    if (tituloEl) tituloEl.textContent = '📅 Consumo Semanal ' + sufixoTit;
   } else if (granularidade === 'ano') {
     chaves = Object.keys(map).sort().slice(-5);
     labels = chaves.slice();
-    if (tituloEl) tituloEl.textContent = '📅 Consumo Anual (litros + custo)';
+    if (tituloEl) tituloEl.textContent = '📅 Consumo Anual ' + sufixoTit;
   } else if (granularidade === 'dia') {
     chaves = Object.keys(map).sort();
     labels = chaves.map(c => { const [y,m,d] = c.split('-'); return `${d}/${m}`; });
-    if (tituloEl) tituloEl.textContent = '📅 Consumo Diário (litros + custo)';
+    if (tituloEl) tituloEl.textContent = '📅 Consumo Diário ' + sufixoTit;
   } else {
     chaves = Object.keys(map).sort().slice(-12);
     labels = chaves.map(c => { const [y,m] = c.split('-'); return `${meses[parseInt(m)-1]}/${y.slice(2)}`; });
-    if (tituloEl) tituloEl.textContent = '📆 Consumo Mensal (litros + custo)';
+    if (tituloEl) tituloEl.textContent = '📆 Consumo Mensal ' + sufixoTit;
   }
 
   if (_chartCombMensal) { _chartCombMensal.destroy(); _chartCombMensal = null; }
@@ -19572,20 +19644,24 @@ function renderGraficoCombMensal() {
     type: 'bar',
     data: {
       labels,
+      // Uma barra por produto (S10, Arla, Gasolina), lado a lado em cada dia/mês
       datasets: [
-        { label:'Litros',     data:chaves.map(c=>parseFloat((map[c]?.litros||0).toFixed(1))), backgroundColor:'#93c5fd', borderRadius:6, yAxisID:'y' },
-        { label:'Custo (R$)', data:chaves.map(c=>parseFloat((map[c]?.custo||0).toFixed(2))), type:'line', borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.1)', fill:true, tension:.3, yAxisID:'y1', pointRadius:4 }
-      ]
+        ['s_s10','S10','#d97706'], ['s_arla','Arla','#2563eb'], ['s_gasolina','Gasolina','#9333ea'], ['s_outros','Outros','#64748b']
+      ].filter(([g]) => g !== 's_outros' || chaves.some(c => map[c]?.s_outros))
+       .map(([g, nome, cor]) => ({
+         label: nome,
+         data: chaves.map(c => parseFloat(((map[c]?.[g]?.[metrica]) || 0).toFixed(metrica === 'custo' ? 2 : 1))),
+         backgroundColor: cor, borderRadius: 5
+       }))
     },
     options: {
       responsive: true,
       plugins: {
         legend: { display:true, position:'top' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.dataset.yAxisID==='y1' ? 'R$ ' : '') + ctx.parsed.y.toLocaleString('pt-BR', {maximumFractionDigits:1}) } }
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (metrica === 'custo' ? 'R$ ' : '') + ctx.parsed.y.toLocaleString('pt-BR', {maximumFractionDigits: metrica === 'custo' ? 2 : 1}) + (metrica === 'custo' ? '' : ' L') } }
       },
       scales: {
-        y:  { type:'linear', position:'left',  grid:{color:'#f1f5f9'}, title:{display:true,text:'Litros'} },
-        y1: { type:'linear', position:'right', grid:{drawOnChartArea:false}, title:{display:true,text:'Custo R$'} },
+        y:  { type:'linear', position:'left', beginAtZero:true, grid:{color:'#f1f5f9'}, title:{display:true,text: metrica === 'custo' ? 'Custo R$' : 'Litros'} },
         x:  { grid:{display:false} }
       }
     }
@@ -19602,11 +19678,12 @@ function exportarCombustivelExcel() {
   const veicMap = {};
   ABASTECIMENTOS.forEach(a => {
     if(!veicMap[a.placa]) veicMap[a.placa]={placa:a.placa,tipo:a.tipo,abastecimentos:0,litros:0,custo:0,km_rodado:0};
-    const v=veicMap[a.placa]; v.abastecimentos++; v.litros+=a.litros; v.custo+=a.custo; v.km_rodado+=(a.distancia > 0 ? a.distancia : 0);
+    const v=veicMap[a.placa]; v.abastecimentos++; v.litros+=a.litros; v.custo+=a.custo;
+    if (_combGrupo(a.combustivel) !== 's_arla') { v.km_rodado+=(a.distancia > 0 ? a.distancia : 0); v.litros_kml=(v.litros_kml||0)+a.litros; }  // Arla fora do km/L
   });
   const resumoRows = [['Placa','Tipo','Abastecimentos','Litros Total','KM Rodado','Km/L Médio','Custo Total (R$)','Custo/KM (R$)']];
   Object.values(veicMap).forEach(v => {
-    const kml=v.litros>0&&v.km_rodado>0?v.km_rodado/v.litros:0;
+    const kml=(v.litros_kml||0)>0&&v.km_rodado>0?v.km_rodado/v.litros_kml:0;
     const ckm=v.km_rodado>0?v.custo/v.km_rodado:0;
     resumoRows.push([v.placa,v.tipo,v.abastecimentos,+v.litros.toFixed(1),+v.km_rodado.toFixed(0),+kml.toFixed(2),+v.custo.toFixed(2),+ckm.toFixed(2)]);
   });
@@ -19618,6 +19695,21 @@ function exportarCombustivelExcel() {
   ABASTECIMENTOS.sort((a,b)=>a.placa.localeCompare(b.placa)).forEach(a=>detRows.push([a.placa,a.tipo,a.data,a.litros,a.custo,a.km_odometro,a.distancia,a.kml,a.custo_km,a.combustivel,a.posto||'',a.motorista]));
   const ws2=XLSX.utils.aoa_to_sheet(detRows); ws2['!cols']=[10,16,12,10,12,14,14,10,12,12,18,18].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,'📋 Detalhado');
+
+  // Aba 3: Gasto por tipo de combustível (mesmos filtros aplicados na tela)
+  if (_combTipoUltimo && _combTipoUltimo.tipos.length) {
+    const { porTipo, matriz, veicMap: vm, tipos } = _combTipoUltimo;
+    const rows = [['Placa', ...tipos.flatMap(k => [porTipo[k].nome + ' (L)', porTipo[k].nome + ' (R$)']), 'Total (R$)']];
+    Object.keys(matriz).forEach(pk => {
+      const linha = [(vm[pk] || {}).placa || pk]; let tot = 0;
+      tipos.forEach(k => { const c = matriz[pk][k]; linha.push(c ? +c.litros.toFixed(1) : 0, c ? +c.custo.toFixed(2) : 0); tot += c ? c.custo : 0; });
+      linha.push(+tot.toFixed(2)); rows.push(linha);
+    });
+    const totalGeral = tipos.reduce((s, k) => s + porTipo[k].custo, 0);
+    rows.push(['TOTAL DA FROTA', ...tipos.flatMap(k => [+porTipo[k].litros.toFixed(1), +porTipo[k].custo.toFixed(2)]), +totalGeral.toFixed(2)]);
+    const ws3 = XLSX.utils.aoa_to_sheet(rows); ws3['!cols'] = rows[0].map((_, i) => ({ wch: i === 0 ? 16 : 14 }));
+    XLSX.utils.book_append_sheet(wb, ws3, '🛢️ Por Combustível');
+  }
 
   XLSX.writeFile(wb,`Combustivel_${dataHoje}.xlsx`);
   mostrarIndicador('✅ Excel de combustível exportado!','#86efac');
@@ -24955,13 +25047,19 @@ function renderMobComb() {
     const placa  = tds[0].innerText.trim();
     const tipo   = tds[1].innerText.trim();
     const abast  = tds[2].innerText.trim();
-    const litros = tds[3].innerText.trim();
-    const km     = tds[4].innerText.trim();
-    const kml    = tds[5].innerText.trim();
-    const custo  = tds[6].innerText.trim();
-    const custkm = tds[7].innerText.trim();
-    const comb   = tds[8] ? tds[8].innerText.trim() : '—';
-    const ultAb  = tds[9] ? tds[9].innerText.trim() : '—';
+    const litros = tds[9].innerText.trim();
+    const km     = tds[10].innerText.trim();
+    const kml    = tds[11].innerText.trim();
+    const custo  = tds[12].innerText.trim();
+    const custkm = tds[13].innerText.trim();
+    const cS10   = tds[3]  ? tds[3].innerText.replace(/\s+/g,' ').trim()  : '—';
+    const cArla  = tds[4]  ? tds[4].innerText.replace(/\s+/g,' ').trim()  : '—';
+    const cGas   = tds[5]  ? tds[5].innerText.replace(/\s+/g,' ').trim()  : '—';
+    const cOut   = tds[6]  ? tds[6].innerText.replace(/\s+/g,' ').trim()  : '';
+    const cArlaKm = tds[7] ? tds[7].innerText.trim() : '—';
+    const cArlaKml = tds[8] ? tds[8].innerText.trim() : '—';
+    const comb   = tds[14] ? tds[14].innerText.trim() : '—';
+    const ultAb  = tds[15] ? tds[15].innerText.trim() : '—';
     return `<div class="mob-card-comb">
       <div class="mco-head">
         <div class="mco-placa">${placa}</div>
@@ -24974,6 +25072,12 @@ function renderMobComb() {
         <div><div class="mco-field-label">KM/L Médio</div><div class="mco-field-val">${kml}</div></div>
         <div><div class="mco-field-label">Custo Total</div><div class="mco-field-val" style="color:#dc2626">${custo}</div></div>
         <div><div class="mco-field-label">R$/KM</div><div class="mco-field-val" style="color:#dc2626">${custkm}</div></div>
+        <div><div class="mco-field-label">S10</div><div class="mco-field-val">${cS10}</div></div>
+        <div><div class="mco-field-label">Arla</div><div class="mco-field-val">${cArla}</div></div>
+        <div><div class="mco-field-label">Arla KM Rodado</div><div class="mco-field-val">${cArlaKm}</div></div>
+        <div><div class="mco-field-label">Arla KM/L</div><div class="mco-field-val">${cArlaKml}</div></div>
+        <div><div class="mco-field-label">Gasolina</div><div class="mco-field-val">${cGas}</div></div>
+        ${cOut && cOut !== '—' ? `<div><div class="mco-field-label">Outros</div><div class="mco-field-val">${cOut}</div></div>` : ''}
         <div><div class="mco-field-label">Combustível</div><div class="mco-field-val">${comb}</div></div>
         <div><div class="mco-field-label">Último Abast.</div><div class="mco-field-val">${ultAb}</div></div>
       </div>

@@ -15783,7 +15783,17 @@ function exportarRelatorioExecutivoPDF() {
 }
 
 function renderInteligencia() {
-  const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : []).filter(r => r.placa);
+  // Só entram veículos ATIVOS: os que estão cadastrados na Troca de Óleo
+  // (VEICULOS) ou no Checklist Preventivo (CHECKLIST). Placas que já saíram
+  // dos dois (vendidas/removidas) deixam de aparecer nos 4 cards, mesmo que
+  // ainda tenham corretivas no histórico. Se as duas listas ainda estiverem
+  // vazias (dados carregando), não filtra — evita painel vazio por engano.
+  const _placasAtivasIntel = new Set([
+    ...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => _normPlaca(v && v.placa)),
+    ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => _normPlaca(c && (c.cavalo || c.placa || '')))
+  ].filter(Boolean));
+  const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : [])
+    .filter(r => r.placa && (!_placasAtivasIntel.size || _placasAtivasIntel.has(_normPlaca(r.placa))));
 
   /* ── 1) PADRÕES DE FALHA RECORRENTE ──
      Agrupa por placa + categoria de falha (palavra-chave da reclamação).

@@ -20384,23 +20384,50 @@ async function excluirDoc(keyDireto) {
   const tinhaPdf = !!(docInfo && (docInfo.tem_pdf || docInfo.pdf_base64));
   _invalidarCachePdfDoc(key);
   delete DOCUMENTOS[key];
+  // ⚡ Resposta imediata: some da tela e fecha o modal NA HORA. Antes a tela
+  // só atualizava depois de baixar TODOS os documentos do Firebase, regravar
+  // o nó inteiro e esperar a resposta (podia levar vários segundos).
+  fecharModalDoc();
+  renderDocumentos();
   mostrarIndicador('⏳ Excluindo documento...', '#FCD34D');
-  const atualizados = await _docSalvarComRetry('/manutencao/documentos.json', { [key]: null }, null);
-  if (atualizados) {
-    Object.assign(DOCUMENTOS, atualizados);
+
+  const PATH = '/manutencao/documentos.json';
+  const patchNulo = { [key]: null };
+  _docFilaAdicionar(PATH, patchNulo); // protege ANTES de tentar (sobrevive a fechar/recarregar o app)
+  _docSyncPendente = true;
+  let ok = false;
+  try {
+    // UMA única requisição que remove só este registro (PATCH com null),
+    // em vez de GET do nó inteiro + PUT do nó inteiro.
+    const r = await _fetchComTimeout(FIREBASE_URL + PATH, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
+      body: JSON.stringify(patchNulo)
+    }, 15000);
+    ok = !!(r && r.ok);
+  } catch (e) { ok = false; }
+
+  if (ok) {
+    _docFalhasConsecutivas = 0;
+    _docFilaLimparPath(PATH);
+    _criarBackupAposEdicao(); // já é agendado (debounce) — não bloqueia
     mostrarIndicador('🗑 Documento excluído definitivamente!', '#86efac');
+    setTimeout(() => { _docSyncPendente = false; }, 3000);
+  } else {
+    // Falhou o caminho rápido: usa o mecanismo de sempre (GET + PUT + fila
+    // pendente + retry automático), que garante que a exclusão não se perde.
+    const atualizados = await _docSalvarComRetry(PATH, patchNulo, null);
+    if (atualizados) {
+      Object.assign(DOCUMENTOS, atualizados);
+      mostrarIndicador('🗑 Documento excluído definitivamente!', '#86efac');
+      renderDocumentos();
+    }
   }
-  // Se falhou: _docSalvarComRetry já deixou a exclusão protegida na fila
-  // pendente e agendou retry automático — não precisa fazer nada aqui,
-  // exceto não fingir sucesso.
   if (tinhaPdf) {
     _fetchComTimeout(FIREBASE_URL + '/manutencao/documentos_pdf.json', {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
       body: JSON.stringify({ [key]: null })
     }, 15000).catch(() => {}); // best-effort — não crítico se falhar, só sobra um PDF órfão sem dono
   }
-  fecharModalDoc();
-  renderDocumentos();
 }
 
 // ── Render ──

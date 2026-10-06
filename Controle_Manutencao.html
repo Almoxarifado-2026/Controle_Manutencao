@@ -3607,7 +3607,14 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- MODAL INDISPONÍVEL -->
 <div class="overlay" id="overlay-indisp">
   <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto">
-    <h2 id="indisp-modal-titulo" style="font-size:18px;font-weight:700;color:#1B3A6D;margin-bottom:18px">🚧 Registrar Veículo Indisponível</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+      <h2 id="indisp-modal-titulo" style="font-size:18px;font-weight:700;color:#1B3A6D;margin:0">🚧 Registrar Veículo Indisponível</h2>
+      <select id="indisp-tipo-servico" onchange="trocarServicoIndisp(this.value)" title="Mover este veículo para outra tabela de serviço" style="padding:8px 12px;border:1px solid #dbe4f0;border-radius:12px;font-size:12px;font-weight:700;background:#f8fafc;color:#1B3A6D;cursor:pointer">
+        <option value="interno">🏭 Serviço Interno</option>
+        <option value="externo">🔧 Serviço Externo</option>
+        <option value="solda">🔥 Serviço de Solda</option>
+      </select>
+    </div>
     <input type="hidden" id="indisp-edit-id">
     <input type="hidden" id="indisp-edit-tipo">
     <div class="fg">
@@ -22573,11 +22580,23 @@ function _indispEtapaToggleConcluida(i) {
   _renderIndispEtapasForm();
 }
 
+// Troca o tipo do serviço (Interno / Externo / Solda) com o modal aberto.
+// Só altera o campo oculto e o título; o registro muda de tabela ao salvar.
+function trocarServicoIndisp(novo) {
+  const hid = document.getElementById('indisp-edit-tipo'); if (hid) hid.value = novo;
+  const sel = document.getElementById('indisp-tipo-servico'); if (sel && sel.value !== novo) sel.value = novo;
+  const info = _infoServico(novo);
+  const acao = _indispEditId ? 'Editar' : 'Registrar';
+  const t = document.getElementById('indisp-modal-titulo');
+  if (t) t.textContent = _indispEditId ? (info.icon + ' Editar — ' + info.label) : (info.icon + ' ' + info.label + ' — Registrar');
+}
+
 function abrirModalIndisp(tipoServico) {
   _indispEditId = null;
   _indispSnapshotAoAbrir = null; // registro novo — não há conflito possível
   document.getElementById('indisp-modal-titulo').textContent = _infoServico(tipoServico).icon + ' ' + _infoServico(tipoServico).label + ' — Registrar';
   document.getElementById('indisp-edit-tipo').value = tipoServico;
+  document.getElementById('indisp-tipo-servico').value = (tipoServico || 'interno').toLowerCase();
   document.getElementById('indisp-edit-id').value = '';
   document.getElementById('indisp-btn-excluir').style.display = 'none';
   ['indisp-placa','indisp-reboque','indisp-mecanico','indisp-mecanico-input','indisp-prev-lib','indisp-numero-os'].forEach(id => document.getElementById(id).value = '');
@@ -22605,6 +22624,7 @@ function editarIndisp(id) {
   _indispSnapshotAoAbrir = JSON.parse(JSON.stringify(r));
   document.getElementById('indisp-modal-titulo').textContent = _infoServico(r.servico).icon + ' Editar — ' + _infoServico(r.servico).label;
   document.getElementById('indisp-edit-tipo').value = r.servico;
+  document.getElementById('indisp-tipo-servico').value = (r.servico || 'interno').toLowerCase();
   document.getElementById('indisp-edit-id').value = id;
   document.getElementById('indisp-btn-excluir').style.display = '';
   document.getElementById('indisp-placa').value = r.placa || '';

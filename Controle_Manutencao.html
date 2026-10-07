@@ -3778,6 +3778,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="font-size:13px;font-weight:600;color:#475569">👷 Aguardando Mecânico/Mão de Obra</span>
             <span style="font-size:12px;color:#94a3b8">(na oficina, sem mecânico disponível)</span>
           </label>
+          <!-- Nova opção: Serviço de Socorro -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-socorro">
+            <input type="checkbox" id="indisp-socorro" onchange="onPrevTipoChange()" style="accent-color:#B91C1C;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569">🆘 Serviço de Socorro</span>
+            <span style="font-size:12px;color:#94a3b8">(atendimento de socorro / veículo na estrada)</span>
+          </label>
           <!-- Opção 5: em execução -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-execucao">
             <input type="checkbox" id="indisp-execucao" onchange="onPrevTipoChange()" style="accent-color:#000000;width:16px;height:16px;cursor:pointer">
@@ -18292,6 +18298,7 @@ function renderIndisp() {
     if (r.em_no_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#C2410C">🔧 No Prestador</span>\`);
     if (r.em_retorno_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#CCFBF1;color:#0F766E">↩️ Aguard. Retorno</span>\`);
     if (r.em_mao_obra)        itens.push(\`<span class="tv-prev-badge" style="background:#DBEAFE;color:#1E3A8A">👷 Aguard. Mecânico</span>\`);
+    if (r.em_socorro)        itens.push(\`<span class="tv-prev-badge" style="background:#FEE2E2;color:#991B1B">🆘 Socorro</span>\`);
     if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.12);color:#000000">🛠️ Em Execução</span>\`);
     if (r.em_lavagem)     itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#0891B2">🧼 Lavagem/Lubrif.</span>\`);
     if (r.em_vistoria)     itens.push(\`<span class="tv-prev-badge" style="background:#FAE8FF;color:#86198F">📋 Vistoria/Laudo</span>\`);
@@ -22409,6 +22416,7 @@ function onPrevTipoChange() {
   const isNoP   = document.getElementById('indisp-no-prestador') && document.getElementById('indisp-no-prestador').checked;
   const isRet   = document.getElementById('indisp-retorno-prestador') && document.getElementById('indisp-retorno-prestador').checked;
   const isMao   = document.getElementById('indisp-mao-obra') && document.getElementById('indisp-mao-obra').checked;
+  const isSoc   = document.getElementById('indisp-socorro') && document.getElementById('indisp-socorro').checked;
   const isExec  = document.getElementById('indisp-execucao')   && document.getElementById('indisp-execucao').checked;
   const isLav   = document.getElementById('indisp-lavagem')    && document.getElementById('indisp-lavagem').checked;
   const isVis   = document.getElementById('indisp-vistoria')   && document.getElementById('indisp-vistoria').checked;
@@ -22429,6 +22437,7 @@ function onPrevTipoChange() {
   const lblNoP  = document.getElementById('label-no-prestador');
   const lblRet  = document.getElementById('label-retorno-prestador');
   const lblMao  = document.getElementById('label-mao-obra');
+  const lblSoc  = document.getElementById('label-socorro');
   const lblExec = document.getElementById('label-execucao');
   const lblLav  = document.getElementById('label-lavagem');
   const lblVis  = document.getElementById('label-vistoria');
@@ -22453,6 +22462,7 @@ function onPrevTipoChange() {
   if (lblNoP)  { lblNoP.style.borderColor  = isNoP  ? '#EA580C' : '#dbe4f0'; lblNoP.style.background  = isNoP  ? '#FFEDD5' : '#f8fafc'; }
   if (lblRet)  { lblRet.style.borderColor  = isRet  ? '#0D9488' : '#dbe4f0'; lblRet.style.background  = isRet  ? '#CCFBF1' : '#f8fafc'; }
   if (lblMao)  { lblMao.style.borderColor  = isMao  ? '#1E40AF' : '#dbe4f0'; lblMao.style.background  = isMao  ? '#DBEAFE' : '#f8fafc'; }
+  if (lblSoc)  { lblSoc.style.borderColor  = isSoc  ? '#B91C1C' : '#dbe4f0'; lblSoc.style.background  = isSoc  ? '#FEE2E2' : '#f8fafc'; }
   if (lblExec) {
     lblExec.style.borderColor = isExec ? '#000000' : '#dbe4f0';
     lblExec.style.background  = isExec ? 'rgba(0,0,0,.12)' : '#f8fafc';
@@ -22495,14 +22505,15 @@ function _resetDiagnostico() {
   const lblNoP  = document.getElementById('label-no-prestador');
   const lblRet  = document.getElementById('label-retorno-prestador');
   const lblMao  = document.getElementById('label-mao-obra');
+  const lblSoc  = document.getElementById('label-socorro');
   const lblExec = document.getElementById('label-execucao');
   const lblLav  = document.getElementById('label-lavagem');
   const lblVis  = document.getElementById('label-vistoria');
   const lblTes  = document.getElementById('label-teste');
-  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblEnv, lblNoP, lblRet, lblMao, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   // Registro NOVO começa sem nenhum status marcado (antes só o destaque visual era
   // limpo e a caixinha marcada na edição anterior ia junto pro registro novo).
-  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
+  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
     .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
@@ -22548,6 +22559,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_no_prestador)        itens.push({ icon:'🔧', label:'No Prestador (serviço externo)', labelCurta:'No Prestador',cor:'#C2410C', bg:'#FFEDD5' });
   if (r.em_retorno_prestador)        itens.push({ icon:'↩️', label:'Aguardando Retorno do Prestador', labelCurta:'Aguard. Retorno',cor:'#0F766E', bg:'#CCFBF1' });
   if (r.em_mao_obra)        itens.push({ icon:'👷', label:'Aguardando Mecânico/Mão de Obra', labelCurta:'Aguard. Mecânico',cor:'#1E3A8A', bg:'#DBEAFE' });
+  if (r.em_socorro)        itens.push({ icon:'🆘', label:'Serviço de Socorro', labelCurta:'Socorro',cor:'#991B1B', bg:'#FEE2E2' });
   if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#000000', bg:'rgba(0,0,0,.12)' });
   if (r.em_lavagem)     itens.push({ icon:'🧼', label:'Lavagem e Lubrificação', labelCurta:'Lavagem/Lubrif.', cor:'#0891B2', bg:'#CFFAFE' });
   if (r.em_vistoria)     itens.push({ icon:'📋', label:'Aguardando Vistoria/Laudo', labelCurta:'Vistoria/Laudo', cor:'#86198F', bg:'#FAE8FF' });
@@ -22720,6 +22732,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-no-prestador').checked   = !!r.em_no_prestador;
   document.getElementById('indisp-retorno-prestador').checked = !!r.em_retorno_prestador;
   document.getElementById('indisp-mao-obra').checked = !!r.em_mao_obra;
+  document.getElementById('indisp-socorro').checked = !!r.em_socorro;
   document.getElementById('indisp-execucao').checked       = !!r.em_execucao;
   document.getElementById('indisp-lavagem').checked        = !!r.em_lavagem;
   document.getElementById('indisp-vistoria').checked       = !!r.em_vistoria;
@@ -22804,6 +22817,7 @@ function salvarIndisp() {
     em_no_prestador: document.getElementById('indisp-no-prestador') ? document.getElementById('indisp-no-prestador').checked : false,
     em_retorno_prestador: document.getElementById('indisp-retorno-prestador') ? document.getElementById('indisp-retorno-prestador').checked : false,
     em_mao_obra: document.getElementById('indisp-mao-obra') ? document.getElementById('indisp-mao-obra').checked : false,
+    em_socorro: document.getElementById('indisp-socorro') ? document.getElementById('indisp-socorro').checked : false,
     em_execucao:    document.getElementById('indisp-execucao')   ? document.getElementById('indisp-execucao').checked   : false,
     em_lavagem:     document.getElementById('indisp-lavagem')    ? document.getElementById('indisp-lavagem').checked    : false,
     em_vistoria:    document.getElementById('indisp-vistoria')   ? document.getElementById('indisp-vistoria').checked   : false,
@@ -22870,7 +22884,7 @@ function _resumirMudancasIndisp(antes, depois) {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
     em_guincho: 'Aguardando guincho/reboque', em_chegada: 'Aguardando chegada do veículo', em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento', em_aprovacao: 'Aguardando aprovação',
-    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
+    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -23432,6 +23446,7 @@ function imprimirPDFIndisp() {
     if (r.em_no_prestador)        itens.push('No Prestador');
     if (r.em_retorno_prestador)        itens.push('Aguard. Retorno do Prestador');
     if (r.em_mao_obra)        itens.push('Aguard. Mecanico/Mao de Obra');
+    if (r.em_socorro)        itens.push('Servico de Socorro');
     if (r.em_execucao)    itens.push('Em Execucao');
     if (r.em_lavagem)     itens.push('Lavagem e Lubrificacao');
     if (r.em_vistoria)     itens.push('Aguard. Vistoria/Laudo');
@@ -24912,6 +24927,7 @@ function renderMobIndisp() {
       if (r.em_no_prestador)        prevItens.push(`<span style="background:#FFEDD5;color:#C2410C;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔧 No Prestador</span>`);
       if (r.em_retorno_prestador)        prevItens.push(`<span style="background:#CCFBF1;color:#0F766E;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">↩️ Aguard. Retorno do Prestador</span>`);
       if (r.em_mao_obra)        prevItens.push(`<span style="background:#DBEAFE;color:#1E3A8A;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">👷 Aguard. Mecânico/Mão de Obra</span>`);
+      if (r.em_socorro)        prevItens.push(`<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🆘 Serviço de Socorro</span>`);
       if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.12);color:#000000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
       if (r.em_lavagem)     prevItens.push(`<span style="background:#CFFAFE;color:#0891B2;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧼 Lavagem/Lubrif.</span>`);
       if (r.em_vistoria)     prevItens.push(`<span style="background:#FAE8FF;color:#86198F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📋 Aguard. Vistoria/Laudo</span>`);

@@ -7727,6 +7727,7 @@ function _carregarComRetryPersistente(fn, nomeLog) {
   if (temSalvo) {
     VEICULOS.forEach(v => { recalcularDias(v); calcStatus(v); });
     popularTipos(); renderizar(); atualizarResumo(); atualizarBanner(); atualizarGraficos();
+    _backfillHistorico().catch(() => {});
     console.log('%c[INIT] ✅ renderizar() chamado com ' + VEICULOS.length + ' veículos', 'color:#4ade80;font-weight:bold');
   } else {
     console.warn('[INIT] carregarDados() retornou false — VEICULOS permanece vazio, aguardando SSE');
@@ -8517,7 +8518,44 @@ async function carregarHistorico() {
     const r = await fetch(FIREBASE_URL + '/manutencao/historico.json', { cache: 'no-store' });
     const dados = r.ok ? await r.json() : null;
     if (dados && typeof dados === 'object') HISTORICO = dados;
+    if (r.ok) _histCarregado = true;
   } catch(e) {}
+}
+
+// ── Registro AUTOMÁTICO de trocas de óleo no histórico ──
+// Sempre que o veículo é salvo (ou ao abrir o histórico / ao iniciar, para
+// puxar o que já foi feito) a troca vigente do Motor e do Câmbio vira um
+// registro no histórico, sem duplicar (mesmo tipo + mesma data).
+let _histCarregado = false; // só mexe no histórico se o carregamento do Firebase deu certo (evita sobrescrever)
+function _sincHistDeVeiculo(v) {
+  if (!v || !v.placa || !_histCarregado) return false;
+  if (!HISTORICO[v.placa]) HISTORICO[v.placa] = [];
+  const lista = HISTORICO[v.placa];
+  let mudou = false;
+  [['motor', v.data_troca, v.km_motor, 1], ['cambio', v.data_troca_cambio, v.km_cambio, 2]].forEach(([tipo, data, km, off]) => {
+    if (!data || !/^\d{2}\/\d{2}\/\d{4}$/.test(data)) return;
+    const existe = lista.some(r => r && r.tipo === tipo && r.data === data);
+    if (existe) return;
+    const [d, m, a] = data.split('/');
+    const ts = new Date(`${a}-${m}-${d}T12:00:00`).getTime() + off;
+    lista.push({ tipo, data, km: parseInt(km) || 0, responsavel: '', obs: 'Registrado automaticamente', auto: true, ts });
+    mudou = true;
+  });
+  if (!mudou && !lista.length) delete HISTORICO[v.placa];
+  return mudou;
+}
+async function _backfillHistorico() {
+  if (!_histCarregado) return;
+  const alteradas = [];
+  VEICULOS.forEach(v => { if (_sincHistDeVeiculo(v)) alteradas.push(v.placa); });
+  if (!alteradas.length) return;
+  try {
+    const corpo = {}; alteradas.forEach(p => corpo[p] = HISTORICO[p]);
+    await _fetchComTimeout(FIREBASE_URL + '/manutencao/historico.json', {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
+      body: JSON.stringify(corpo) }, 20000);
+    console.log('[Histórico] Trocas puxadas automaticamente de', alteradas.length, 'veículo(s)');
+  } catch(e) { console.warn('[Histórico] backfill falhou:', e); }
 }
 
 let _histTrocaSyncPendente = false; // true durante o ciclo de salvar o histórico de trocas por placa
@@ -8567,6 +8605,7 @@ function abrirHistorico(placa) {
   document.getElementById('hf-resp').value = '';
   document.getElementById('hf-obs').value = '';
   document.getElementById('hf-tipo').value = 'motor';
+  if (v && _sincHistDeVeiculo(v)) salvarHistorico(placa);
   renderTimeline();
   document.getElementById('overlay-historico').classList.add('open');
 }
@@ -8921,7 +8960,9 @@ const novo={placa,tipo,km_atual:kmAtualAuto,data_troca,dias,data_troca_cambio,di
   else{if(VEICULOS.some(v=>_normPlaca(v.placa)===_normPlaca(placa))){alert('Placa já cadastrada!');return;}VEICULOS.push(novo);}
   _veiculosPlacasTocadas.add(placa);
   if (editPlaca && editPlaca !== placa) _veiculosPlacasTocadas.add(editPlaca);
+  const _histMudou = _sincHistDeVeiculo(novo); // registra a troca de óleo automaticamente no histórico
   fecharModal(); popularTipos(); renderizar(); salvarDados();
+  if (_histMudou) salvarHistorico(placa);
 }
 
 async function excluir(placa){

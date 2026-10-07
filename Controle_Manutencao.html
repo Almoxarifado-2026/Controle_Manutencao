@@ -3607,14 +3607,14 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- MODAL INDISPONÍVEL -->
 <div class="overlay" id="overlay-indisp">
   <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px">
-      <h2 id="indisp-modal-titulo" style="font-size:18px;font-weight:700;color:#1B3A6D;margin:0">🚧 Registrar Veículo Indisponível</h2>
-      <select id="indisp-tipo-servico" onchange="trocarServicoIndisp(this.value)" title="Mover este veículo para outra tabela de serviço" style="padding:8px 12px;border:1px solid #dbe4f0;border-radius:12px;font-size:12px;font-weight:700;background:#f8fafc;color:#1B3A6D;cursor:pointer">
-        <option value="interno">🏭 Serviço Interno</option>
-        <option value="externo">🔧 Serviço Externo</option>
-        <option value="solda">🔥 Serviço de Solda</option>
-      </select>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+    <h2 id="indisp-modal-titulo" style="font-size:18px;font-weight:700;color:#1B3A6D;margin:0">🚧 Registrar Veículo Indisponível</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="indisp-btn-excluir-top" onclick="excluirIndisp()" style="display:none;background:#FEF2F2;color:#DC2626;border:none;border-radius:12px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">🗑️ Excluir</button>
+      <button onclick="fecharModalIndisp()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:12px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="salvarIndisp()" style="background:#1D4ED8;color:#fff;border:none;border-radius:12px;padding:8px 18px;font-weight:700;font-size:12px;cursor:pointer">💾 Salvar</button>
     </div>
+  </div>
     <input type="hidden" id="indisp-edit-id">
     <input type="hidden" id="indisp-edit-tipo">
     <div class="fg">
@@ -3664,6 +3664,14 @@ document.addEventListener('DOMContentLoaded', () => {
       <div>
         <label>Saída da Manutenção</label>
         <input type="datetime-local" id="indisp-saida">
+      </div>
+      <div>
+        <label>Tipo de Serviço (mover entre tabelas)</label>
+        <select id="indisp-tipo-servico" onchange="trocarServicoIndisp(this.value)" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:13px;background:#f8fafc">
+          <option value="interno">🏭 Serviço Interno</option>
+          <option value="externo">🔧 Serviço Externo</option>
+          <option value="solda">🔥 Serviço de Solda</option>
+        </select>
       </div>
       <div class="full">
         <label style="display:flex;align-items:center;justify-content:space-between;text-transform:none">
@@ -3805,6 +3813,11 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <div class="modal-btns">
       <button id="indisp-btn-excluir" onclick="excluirIndisp()" style="display:none;background:#FEF2F2;color:#DC2626;border:none;border-radius:12px;padding:10px 18px;font-weight:700;cursor:pointer;margin-right:auto">🗑️ Excluir</button>
+      <select id="indisp-tipo-servico-2" onchange="trocarServicoIndisp(this.value)" title="Mover para outra tabela de serviço ao salvar" style="border:1px solid #dbe4f0;border-radius:12px;padding:10px 12px;font-weight:700;font-size:12px;background:#f8fafc;color:#1B3A6D;cursor:pointer">
+        <option value="interno">🏭 Interno</option>
+        <option value="externo">🔧 Externo</option>
+        <option value="solda">🔥 Solda</option>
+      </select>
       <button onclick="fecharModalIndisp()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:12px;padding:10px 18px;font-weight:700;cursor:pointer">Cancelar</button>
       <button onclick="salvarIndisp()" style="background:#1D4ED8;color:#fff;border:none;border-radius:12px;padding:10px 22px;font-weight:700;cursor:pointer">💾 Salvar</button>
     </div>
@@ -22584,7 +22597,7 @@ function _indispEtapaToggleConcluida(i) {
 // Só altera o campo oculto e o título; o registro muda de tabela ao salvar.
 function trocarServicoIndisp(novo) {
   const hid = document.getElementById('indisp-edit-tipo'); if (hid) hid.value = novo;
-  const sel = document.getElementById('indisp-tipo-servico'); if (sel && sel.value !== novo) sel.value = novo;
+  ['indisp-tipo-servico','indisp-tipo-servico-2'].forEach(id => { const el = document.getElementById(id); if (el && el.value !== novo) el.value = novo; });
   const info = _infoServico(novo);
   const acao = _indispEditId ? 'Editar' : 'Registrar';
   const t = document.getElementById('indisp-modal-titulo');
@@ -22596,9 +22609,9 @@ function abrirModalIndisp(tipoServico) {
   _indispSnapshotAoAbrir = null; // registro novo — não há conflito possível
   document.getElementById('indisp-modal-titulo').textContent = _infoServico(tipoServico).icon + ' ' + _infoServico(tipoServico).label + ' — Registrar';
   document.getElementById('indisp-edit-tipo').value = tipoServico;
-  document.getElementById('indisp-tipo-servico').value = (tipoServico || 'interno').toLowerCase();
+  ['indisp-tipo-servico','indisp-tipo-servico-2'].forEach(id => { document.getElementById(id).value = (tipoServico || 'interno').toLowerCase(); });
   document.getElementById('indisp-edit-id').value = '';
-  document.getElementById('indisp-btn-excluir').style.display = 'none';
+  document.getElementById('indisp-btn-excluir').style.display = 'none'; {const t=document.getElementById('indisp-btn-excluir-top'); if(t) t.style.display='none';}
   ['indisp-placa','indisp-reboque','indisp-mecanico','indisp-mecanico-input','indisp-prev-lib','indisp-numero-os'].forEach(id => document.getElementById(id).value = '');
   _indispMecanicoRenderLista();
   _indispEtapasEdit = [{ reclamacao: '', status: '', concluida: false }];
@@ -22624,9 +22637,9 @@ function editarIndisp(id) {
   _indispSnapshotAoAbrir = JSON.parse(JSON.stringify(r));
   document.getElementById('indisp-modal-titulo').textContent = _infoServico(r.servico).icon + ' Editar — ' + _infoServico(r.servico).label;
   document.getElementById('indisp-edit-tipo').value = r.servico;
-  document.getElementById('indisp-tipo-servico').value = (r.servico || 'interno').toLowerCase();
+  ['indisp-tipo-servico','indisp-tipo-servico-2'].forEach(id => { document.getElementById(id).value = (r.servico || 'interno').toLowerCase(); });
   document.getElementById('indisp-edit-id').value = id;
-  document.getElementById('indisp-btn-excluir').style.display = '';
+  document.getElementById('indisp-btn-excluir').style.display = ''; {const t=document.getElementById('indisp-btn-excluir-top'); if(t) t.style.display='';}
   document.getElementById('indisp-placa').value = r.placa || '';
   document.getElementById('indisp-reboque').value = r.reboque || '';
   document.getElementById('indisp-numero-os').value = r.numero_os || '';

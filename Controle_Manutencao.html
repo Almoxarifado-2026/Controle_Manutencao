@@ -22604,6 +22604,11 @@ function trocarServicoIndisp(novo) {
   if (t) t.textContent = _indispEditId ? (info.icon + ' Editar — ' + info.label) : (info.icon + ' ' + info.label + ' — Registrar');
 }
 
+function _indispScrollTopo() {
+  const ov = document.getElementById('overlay-indisp'); if (!ov) return;
+  const rolar = () => { ov.scrollTop = 0; const m = ov.querySelector('.modal'); if (m) m.scrollTop = 0; };
+  rolar(); requestAnimationFrame(rolar); setTimeout(rolar, 60);
+}
 function abrirModalIndisp(tipoServico) {
   _indispEditId = null;
   _indispSnapshotAoAbrir = null; // registro novo — não há conflito possível
@@ -22624,7 +22629,7 @@ function abrirModalIndisp(tipoServico) {
   agora.setSeconds(0, 0);
   document.getElementById('indisp-entrada').value = nowBrasilia();
   document.getElementById('indisp-saida').value = '';
-  document.getElementById('overlay-indisp').classList.add('open');
+  document.getElementById('overlay-indisp').classList.add('open'); _indispScrollTopo();
 }
 
 function editarIndisp(id) {
@@ -22680,7 +22685,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-teste').checked          = !!r.em_teste;
   document.getElementById('indisp-liberado').checked       = !!r.em_liberado;
   onPrevTipoChange();
-  document.getElementById('overlay-indisp').classList.add('open');
+  document.getElementById('overlay-indisp').classList.add('open'); _indispScrollTopo();
 }
 
 function fecharModalIndisp() {

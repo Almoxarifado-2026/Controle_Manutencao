@@ -3189,6 +3189,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <button id="indisp-subtab-atual" class="indisp-subtab-btn active" onclick="mudarSubAbaIndisp('atual')">🚧 Em Aberto</button>
   <button id="indisp-subtab-historico" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('historico')" style="position:relative">📋 Histórico <span id="hist-badge" style="display:none;position:absolute;top:2px;right:2px;background:#DC2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;align-items:center;justify-content:center;line-height:16px">0</span></button>
   <button id="indisp-subtab-tempo" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('tempo')">⏱️ Tempo Parado</button>
+  <button id="indisp-subtab-disp" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('disp')">📊 Disponibilidade</button>
   <button onclick="abrirConfigPainelTV()" title="Modo Painel — tela cheia para TV" style="margin-left:auto;background:#581c87;color:#e9d5ff;border:none;border-radius:10px 10px 0 0;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📺 PAINEL TV</button>
 </div>
 
@@ -3410,6 +3411,37 @@ document.addEventListener('DOMContentLoaded', () => {
       </table>
     </div>
     <div style="font-size:11px;color:#64748b;margin-top:8px">Mostra as placas ativas (Troca de Óleo ou Checklist) e todo veículo parado agora em Indisponíveis. Toque numa placa para ver cada parada. Serviços ainda em aberto contam até agora. O mês atual aparece por padrão; escolha outro mês no filtro para consultar os anteriores. Só o tempo dentro do mês escolhido é somado (parada que atravessa a virada de mês é dividida).</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SUB-ABA · DISPONIBILIDADE (#pag-disp)
+     Igual à planilha "Apontamento de Disponibilidade da Manutenção":
+     Ranking da Frota, Quadro Mensal (placa x dias), Ranking de Motoristas
+     e Escala de Motoristas. Os dados das paradas vêm de Indisponíveis
+     (abertos) + Histórico; corretiva/preventiva vem do Tipo de Manutenção.
+     ══════════════════════════════════════════════════ -->
+<div id="pag-disp" style="display:none">
+  <div class="header-principal" style="position:relative;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:14px;flex-wrap:nowrap">
+    <h1 style="margin:0">📊 Disponibilidade da Frota</h1>
+  </div>
+  <div style="background:#f1f5f9;padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <select id="disp-mes" onchange="renderDisp()" title="Mês de referência" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px"></select>
+    <label style="font-size:12px;font-weight:700;color:#475569">Meta %
+      <input id="disp-meta" type="number" min="1" max="100" step="0.5" value="95" oninput="_dispSalvarMeta();renderDisp()" style="width:64px;padding:8px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;margin-left:4px"></label>
+    <input id="disp-busca" type="text" placeholder="🔎 Buscar placa / motorista" oninput="renderDisp()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;min-width:170px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap" id="disp-views">
+      <button class="indisp-subtab-btn active" data-v="frota" onclick="_dispVer('frota')">🏆 Ranking Frota</button>
+      <button class="indisp-subtab-btn" data-v="quadro" onclick="_dispVer('quadro')">📅 Quadro Mensal</button>
+      <button class="indisp-subtab-btn" data-v="motoristas" onclick="_dispVer('motoristas')">👷 Ranking Motoristas</button>
+      <button class="indisp-subtab-btn" data-v="escala" onclick="_dispVer('escala')">🗓️ Escala Motoristas</button>
+    </div>
+    <button onclick="gerarPDFDisp()" style="margin-left:auto;background:#DC2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📄 Gerar PDF</button>
+  </div>
+  <div id="disp-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:16px 18px;background:#f1f5f9"></div>
+  <div style="padding:0 18px 24px;background:#f1f5f9">
+    <div id="disp-corpo" style="background:#fff;border-radius:14px;overflow:auto;box-shadow:0 2px 10px rgba(15,23,42,.08);max-height:70vh"></div>
+    <div id="disp-nota" style="font-size:11px;color:#64748b;margin-top:8px"></div>
   </div>
 </div>
 
@@ -9747,6 +9779,10 @@ function mudarSubAbaIndisp(sub) {
   const elHist   = document.getElementById('pag-historico');
   const btnTempo = document.getElementById('indisp-subtab-tempo');
   const elTempo  = document.getElementById('pag-tempo-parado');
+  const btnDisp = document.getElementById('indisp-subtab-disp');
+  const elDisp  = document.getElementById('pag-disp');
+  if (btnDisp) btnDisp.classList.toggle('active', sub === 'disp');
+  if (elDisp)  elDisp.style.display = (sub === 'disp') ? '' : 'none';
   if (btnTempo) btnTempo.classList.toggle('active', sub === 'tempo');
   if (elTempo)  elTempo.style.display = (sub === 'tempo') ? '' : 'none';
   if (btnAtual) btnAtual.classList.toggle('active', sub === 'atual');
@@ -9758,6 +9794,8 @@ function mudarSubAbaIndisp(sub) {
     _ativarSubAbaIndispHistorico();
   } else if (sub === 'tempo') {
     _ativarSubAbaIndispTempo();
+  } else if (sub === 'disp') {
+    _ativarSubAbaIndispDisp();
   } else {
     _ativarSubAbaIndispAtual();
   }
@@ -10135,6 +10173,327 @@ function exportarTempoParadoCSV() {
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = 'Tempo_Parado_por_Placa_' + new Date().toISOString().slice(0, 10) + '.csv';
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+
+/* ══════════════════════════════════════════════════════
+   § DISPONIBILIDADE DA FROTA (igual à planilha de apontamento)
+   Fonte das paradas: _tpRegistros() (Histórico + Indisponíveis em aberto).
+   Tipo C/P: campo tipoManut (padrão CORRETIVA).
+   Escala de motoristas: /manutencao/escala_motoristas.json (por id).
+   ══════════════════════════════════════════════════════ */
+let _dispVista = 'frota';
+let ESCALA = [];
+let _dispEscalaCarregada = false;
+let _dispUltimo = null; // dados da vista atual (para o PDF)
+
+function _dispHfmt(h) { return (Math.round(h * 10) / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'h'; }
+function _dispPct(v) { return (v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
+function _dispMeta() { const v = parseFloat((document.getElementById('disp-meta') || {}).value); return (v > 0 && v <= 100) ? v / 100 : 0.95; }
+function _dispSalvarMeta() { try { localStorage.setItem('disp_meta', (document.getElementById('disp-meta') || {}).value); } catch (e) {} }
+
+function _dispPopularMeses() {
+  const sel = document.getElementById('disp-mes');
+  if (!sel || sel.options.length) return;
+  try { const m = localStorage.getItem('disp_meta'); if (m) document.getElementById('disp-meta').value = m; } catch (e) {}
+  const agora = new Date(), nomes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    const o = document.createElement('option');
+    o.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    o.textContent = (i === 0 ? 'Mês atual — ' : '') + nomes[d.getMonth()] + '/' + d.getFullYear();
+    sel.appendChild(o);
+  }
+}
+
+function _dispJanelaMes() {
+  const v = (document.getElementById('disp-mes') || {}).value || '';
+  const [y, m] = v.split('-').map(Number);
+  const a = y ? new Date(y, m - 1, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const b = new Date(a.getFullYear(), a.getMonth() + 1, 1);
+  return { a, b, dias: Math.round((b - a) / 86400000), horasMes: Math.round((b - a) / 3600000) };
+}
+
+const _dispOv = (i1, f1, i2, f2) => Math.max(0, Math.min(f1, f2) - Math.max(i1, i2));
+const _dispTipo = r => String(r.tipoManut || 'CORRETIVA').toUpperCase().startsWith('P') ? 'P' : 'C';
+
+// Frota: uma linha por placa ativa (Troca de Óleo/Checklist) + toda placa com parada no mês
+function _dispCalcFrota() {
+  const { a, b, dias, horasMes } = _dispJanelaMes();
+  const agora = new Date(), A = +a, B = +b, N = +agora;
+  const regs = _tpRegistros().map(r => {
+    const e = new Date(r.entrada), s = r._aberto ? agora : new Date(r.saida);
+    return { key: _normPlaca(r.placa), placa: r.placa, e: +e, s: +s, aberto: !!r._aberto, tipo: _dispTipo(r), serv: String(r.servico || '').toLowerCase(), rec: r.reclamacao || '' };
+  }).filter(r => r.key && !isNaN(r.e) && !isNaN(r.s) && r.s > A && r.e < B);
+  const ativas = new Map();
+  (typeof VEICULOS !== 'undefined' ? VEICULOS : []).forEach(v => { const k = _normPlaca(v && v.placa); if (k) ativas.set(k, { placa: v.placa, modelo: v.tipo || '' }); });
+  (typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).forEach(c => { const p = c && (c.cavalo || c.placa || ''); const k = _normPlaca(p); if (k && !ativas.has(k)) ativas.set(k, { placa: p, modelo: c.tipo || '' }); });
+  const mapa = {};
+  const get = (k, placa) => mapa[k] || (mapa[k] = { key: k, placa: (ativas.get(k) || {}).placa || placa, modelo: (ativas.get(k) || {}).modelo || '', ocorr: 0, ocorrC: 0, ocorrP: 0, h: 0, hC: 0, hP: 0, aberto: false, dias: new Array(dias).fill(null).map(() => ({ h: 0, C: 0, P: 0, txt: [] })) });
+  ativas.forEach((v, k) => get(k, v.placa));
+  regs.forEach(r => {
+    const g = get(r.key, r.placa);
+    const ini = Math.max(r.e, A), fim = Math.min(r.s, B, N > A ? Math.max(N, A) : B);
+    const hr = Math.max(0, fim - ini) / 3600000;
+    if (r.e >= A && r.e < B) { g.ocorr++; if (r.tipo === 'C') g.ocorrC++; else g.ocorrP++; }
+    g.h += hr; if (r.tipo === 'C') g.hC += hr; else g.hP += hr;
+    if (r.aberto) g.aberto = true;
+    for (let d = 0; d < dias; d++) {
+      const d0 = A + d * 86400000, d1 = d0 + 86400000;
+      const ov = _dispOv(ini, fim, d0, d1) / 3600000;
+      if (ov > 0) { const c = g.dias[d]; c.h += ov; c[r.tipo] += ov; c.txt.push((r.tipo === 'C' ? 'Corretiva' : 'Preventiva') + ' (' + (r.serv || '-') + '): ' + new Date(r.e).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' → ' + (r.aberto ? 'em aberto' : new Date(r.s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))); }
+    }
+  });
+  const lista = Object.values(mapa);
+  lista.forEach(g => { g.h = Math.min(g.h, horasMes); g.disp = (horasMes - g.h) / horasMes; });
+  lista.sort((x, y) => y.disp - x.disp || x.ocorr - y.ocorr || String(x.placa).localeCompare(String(y.placa)));
+  lista.forEach((g, i) => g.pos = i + 1);
+  // motorista atual
+  lista.forEach(g => { g.motorista = _dispMotoristaEm(g.key, N); });
+  return { a, b, dias, horasMes, lista, regs };
+}
+
+function _dispMotoristaEm(key, t) {
+  let ach = null;
+  ESCALA.forEach(e => {
+    if (_normPlaca(e.placa) !== key) return;
+    const i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity;
+    if (!isNaN(i) && i <= t && t < f) ach = e.motorista;
+  });
+  return ach || 'Não atribuído';
+}
+
+// Motoristas: cada linha da escala × paradas da placa dentro do período
+function _dispCalcMotoristas(F) {
+  const A = +F.a, B = +F.b, N = Date.now();
+  const mapa = {};
+  const linhas = ESCALA.map(e => {
+    const key = _normPlaca(e.placa), i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity;
+    const w0 = Math.max(i, A), w1 = Math.min(f, B);
+    const L = { id: e.id, placa: e.placa, motorista: e.motorista, inicio: e.inicio, fim: e.fim, w0, w1, ocorr: 0, oC: 0, oP: 0, h: 0, hC: 0, hP: 0, aloc: 0, agora: false };
+    if (isNaN(w0) || w1 <= w0) return L;
+    L.aloc = (w1 - w0) / 3600000;
+    F.regs.filter(r => r.key === key).forEach(r => {
+      const ini = Math.max(r.e, w0), fim = Math.min(r.s, w1, Math.max(N, A));
+      const hr = Math.max(0, fim - ini) / 3600000;
+      if (r.e >= w0 && r.e < w1) { L.ocorr++; if (r.tipo === 'C') L.oC++; else L.oP++; }
+      L.h += hr; if (r.tipo === 'C') L.hC += hr; else L.hP += hr;
+    });
+    L.agora = !e.fim || +new Date(e.fim) > N ? F.regs.some(r => r.key === key && r.aberto) : false;
+    return L;
+  });
+  linhas.forEach(L => {
+    if (!L.motorista) return;
+    const m = mapa[L.motorista] || (mapa[L.motorista] = { motorista: L.motorista, placas: new Set(), ocorr: 0, oC: 0, oP: 0, h: 0, hC: 0, hP: 0, aloc: 0, agora: 0 });
+    if (L.aloc > 0) m.placas.add(L.placa);
+    ['ocorr', 'oC', 'oP', 'h', 'hC', 'hP', 'aloc'].forEach(c => m[c] += L[c]);
+    if (L.agora) m.agora = 1;
+  });
+  const lista = Object.values(mapa).filter(m => m.aloc > 0);
+  lista.forEach(m => { m.disp = m.aloc > 0 ? Math.max(0, (m.aloc - m.h) / m.aloc) : 1; });
+  lista.sort((x, y) => y.disp - x.disp || x.ocorr - y.ocorr || x.motorista.localeCompare(y.motorista));
+  lista.forEach((m, i) => m.pos = i + 1);
+  return { linhas, lista };
+}
+
+function _dispVer(v) {
+  _dispVista = v;
+  document.querySelectorAll('#disp-views button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
+  renderDisp();
+}
+
+function _dispKpi(v, l, bg) { return `<div style="background:${bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:20px;font-weight:800">${v}</div><div style="font-size:10px;font-weight:700;opacity:.85;margin-top:2px">${l}</div></div>`; }
+const _dispTh = 'padding:10px 8px;text-align:center;white-space:nowrap;position:sticky;top:0;background:#0f172a;color:#fff;font-size:11px;z-index:2';
+const _dispTd = 'padding:8px 8px;text-align:center;border-top:1px solid #e2e8f0;font-size:12px';
+function _dispSit(disp, meta) { return disp >= meta ? '<span style="background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">✅ ATENDE</span>' : '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">⚠️ ABAIXO</span>'; }
+
+function renderDisp() {
+  _dispPopularMeses();
+  const corpo = document.getElementById('disp-corpo'); if (!corpo) return;
+  const busca = ((document.getElementById('disp-busca') || {}).value || '').toUpperCase().trim();
+  const meta = _dispMeta();
+  const F = _dispCalcFrota();
+  const nota = document.getElementById('disp-nota'), kp = document.getElementById('disp-kpis');
+  const tot = F.lista.reduce((s, g) => ({ h: s.h + g.h, o: s.o + g.ocorr, hC: s.hC + g.hC, hP: s.hP + g.hP, ag: s.ag + (g.aberto ? 1 : 0), d: s.d + g.disp }), { h: 0, o: 0, hC: 0, hP: 0, ag: 0, d: 0 });
+  const esc = escapeHtml;
+
+  if (_dispVista === 'frota' || _dispVista === 'quadro') {
+    const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)));
+    const crit = F.lista.length ? F.lista[F.lista.length - 1].placa : '-';
+    kp.innerHTML = [
+      _dispKpi(F.lista.length, 'VEÍCULOS', '#0f172a'), _dispKpi(F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA', '#15803d'),
+      _dispKpi(_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS', '#7f1d1d'), _dispKpi(tot.o, 'Nº OCORRÊNCIAS', '#1D4ED8'),
+      _dispKpi(tot.o ? _dispHfmt(tot.h / tot.o) : '-', 'MTTR (H/OCORRÊNCIA)', '#7C3AED'), _dispKpi(tot.ag, 'EM MANUTENÇÃO AGORA', '#DC2626'),
+      _dispKpi(esc(crit), 'VEÍCULO CRÍTICO', '#B45309'), _dispKpi(_dispPct(meta), 'META', '#0f766e'),
+      _dispKpi(_dispHfmt(tot.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(tot.hP), 'HORAS PREVENTIVAS', '#1E40AF'),
+      _dispKpi((tot.hC + tot.hP) ? _dispPct(tot.hP / (tot.hC + tot.hP)) : '-', '% HORAS PREVENTIVAS', '#4338CA')].join('');
+    if (_dispVista === 'frota') {
+      const cols = ['Pos.', 'Placa', 'Modelo / Nº Frota', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
+      corpo.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((g, i) => {
+        const tp = g.hC + g.hP;
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.placa)}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd}">${esc(g.motorista)}</td>
+        <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(g.h)}</td><td style="${_dispTd}">${_dispHfmt(F.horasMes - g.h)}</td>
+        <td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td>
+        <td style="${_dispTd}">${g.aberto ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">🔴 EM MANUTENÇÃO</span>' : '<span style="color:#166534;font-weight:700">Operando</span>'}</td>
+        <td style="${_dispTd}">${_dispSit(g.disp, meta)}</td><td style="${_dispTd}">${g.ocorrC}</td><td style="${_dispTd}">${g.ocorrP}</td><td style="${_dispTd}">${_dispHfmt(g.hC)}</td><td style="${_dispTd}">${_dispHfmt(g.hP)}</td><td style="${_dispTd}">${tp ? _dispPct(g.hP / tp) : '-'}</td></tr>`;
+      }).join('') + '</tbody></table>';
+      _dispUltimo = { titulo: 'Ranking de Disponibilidade da Frota', cols, rows: lista.map(g => { const tp = g.hC + g.hP; return [g.pos + 'º', g.placa, g.modelo, g.motorista, g.ocorr, _dispHfmt(g.h), _dispHfmt(F.horasMes - g.h), _dispPct(g.disp), g.aberto ? 'Parado' : 'Operando', g.disp >= meta ? 'Atende' : 'Abaixo', g.ocorrC, g.ocorrP, _dispHfmt(g.hC), _dispHfmt(g.hP), tp ? _dispPct(g.hP / tp) : '-']; }), kpis: [[String(F.lista.length), 'VEÍCULOS'], [F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA'], [_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS'], [String(tot.o), 'OCORRÊNCIAS'], [String(tot.ag), 'EM MANUTENÇÃO AGORA']] };
+      nota.textContent = 'Disponibilidade = (horas do mês − horas indisponíveis) ÷ horas do mês. Horas contadas até agora se o mês estiver em andamento. Meta editável acima. Placas: Troca de Óleo, Checklist e qualquer placa com parada no mês.';
+    } else {
+      const hd = ['Placa', 'Modelo', 'Motorista'];
+      let th = `<th style="${_dispTh};left:0">Placa</th><th style="${_dispTh}">Motorista atual</th>`;
+      for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 3px;min-width:32px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
+      th += ['Ocorr.', 'Horas Indisp.', 'Disp.', 'Status'].map(c => `<th style="${_dispTh}">${c}</th>`).join('');
+      corpo.innerHTML = `<table style="border-collapse:collapse;width:max-content;min-width:100%"><thead><tr>${th}</tr></thead><tbody>` + lista.map((g, i) => {
+        let tds = '';
+        g.dias.forEach(c => {
+          if (c.h <= 0) { tds += `<td style="${_dispTd};padding:4px 2px;color:#cbd5e1">·</td>`; return; }
+          const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
+          tds += `<td title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help">${c.h >= 23.95 ? '24' : (Math.round(c.h * 10) / 10).toString().replace('.', ',')}</td>`;
+        });
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap">${esc(g.motorista)}</td>${tds}
+        <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C">${_dispHfmt(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
+      }).join('') + '</tbody></table>';
+      _dispUltimo = null;
+      nota.innerHTML = 'Cada célula mostra as <b>horas paradas naquele dia</b> (24 = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída.';
+    }
+    return;
+  }
+
+  const M = _dispCalcMotoristas(F);
+  if (_dispVista === 'motoristas') {
+    const lista = M.lista.filter(m => !busca || m.motorista.toUpperCase().includes(busca));
+    const sem = F.lista.filter(g => g.motorista === 'Não atribuído').length;
+    const T = M.lista.reduce((s, m) => ({ h: s.h + m.h, o: s.o + m.ocorr, hC: s.hC + m.hC, hP: s.hP + m.hP, ag: s.ag + m.agora }), { h: 0, o: 0, hC: 0, hP: 0, ag: 0 });
+    kp.innerHTML = [_dispKpi(M.lista.length, 'MOTORISTAS COM ESCALA', '#0f172a'), _dispKpi(sem, 'VEÍCULOS SEM MOTORISTA', '#B45309'), _dispKpi(_dispHfmt(T.h), 'HORAS INDISPONÍVEIS', '#7f1d1d'), _dispKpi(T.o, 'Nº OCORRÊNCIAS', '#1D4ED8'),
+      _dispKpi(T.o ? _dispHfmt(T.h / T.o) : '-', 'MTTR (H/OCORRÊNCIA)', '#7C3AED'), _dispKpi(T.ag, 'EM MANUTENÇÃO AGORA', '#DC2626'), _dispKpi(M.lista.length ? esc(M.lista[M.lista.length - 1].motorista) : '-', 'MOTORISTA CRÍTICO', '#B45309'),
+      _dispKpi(_dispPct(meta), 'META', '#0f766e'), _dispKpi(_dispHfmt(T.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(T.hP), 'HORAS PREVENTIVAS', '#1E40AF')].join('');
+    const cols = ['Pos.', 'Motorista', 'Placas no mês', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Alocadas', 'Disponibilidade', 'Em manutenção agora', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
+    corpo.innerHTML = lista.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((m, i) => { const tp = m.hC + m.hP; return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${m.pos}º</td><td style="${_dispTd};font-weight:800;text-align:left">${esc(m.motorista)}</td><td style="${_dispTd}">${[...m.placas].map(esc).join(', ')}</td><td style="${_dispTd}">${m.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(m.h)}</td><td style="${_dispTd}">${_dispHfmt(m.aloc)}</td><td style="${_dispTd};font-weight:800;color:${m.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(m.disp)}</td><td style="${_dispTd}">${m.agora ? '🔴 Sim' : '—'}</td><td style="${_dispTd}">${_dispSit(m.disp, meta)}</td><td style="${_dispTd}">${m.oC}</td><td style="${_dispTd}">${m.oP}</td><td style="${_dispTd}">${_dispHfmt(m.hC)}</td><td style="${_dispTd}">${_dispHfmt(m.hP)}</td><td style="${_dispTd}">${tp ? _dispPct(m.hP / tp) : '-'}</td></tr>`; }).join('') + '</tbody></table>'
+      : '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhum motorista com escala neste mês. Cadastre na aba "🗓️ Escala Motoristas".</div>';
+    _dispUltimo = { titulo: 'Ranking de Motoristas — Incidência de Manutenção', cols, rows: lista.map(m => { const tp = m.hC + m.hP; return [m.pos + 'º', m.motorista, [...m.placas].join(', '), m.ocorr, _dispHfmt(m.h), _dispHfmt(m.aloc), _dispPct(m.disp), m.agora ? 'Sim' : '-', m.disp >= meta ? 'Atende' : 'Abaixo', m.oC, m.oP, _dispHfmt(m.hC), _dispHfmt(m.hP), tp ? _dispPct(m.hP / tp) : '-']; }), kpis: [[String(M.lista.length), 'MOTORISTAS'], [_dispHfmt(T.h), 'HORAS INDISPONÍVEIS'], [String(T.o), 'OCORRÊNCIAS'], [String(T.ag), 'EM MANUTENÇÃO AGORA']] };
+    nota.textContent = 'Horas e ocorrências são atribuídas ao motorista que estava com o veículo no momento da parada, conforme a Escala. Disponibilidade = (horas alocadas − horas indisponíveis) ÷ horas alocadas.';
+    return;
+  }
+
+  // Escala
+  const linhas = M.linhas.filter(l => !busca || String(l.placa).toUpperCase().includes(busca) || String(l.motorista).toUpperCase().includes(busca));
+  kp.innerHTML = '';
+  const placas = [...new Set(F.lista.map(g => g.placa))].sort();
+  const mots = [...new Set(ESCALA.map(e => e.motorista).filter(Boolean))].sort();
+  const inp = 'padding:9px 10px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px';
+  corpo.innerHTML = `<div style="padding:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+    <label style="font-size:11px;font-weight:700;color:#475569">Placa<br><input id="esc-placa" list="esc-dl-placas" style="${inp};width:120px;text-transform:uppercase"></label>
+    <label style="font-size:11px;font-weight:700;color:#475569">Motorista<br><input id="esc-mot" list="esc-dl-mots" style="${inp};width:220px;text-transform:uppercase"></label>
+    <label style="font-size:11px;font-weight:700;color:#475569">Data início<br><input id="esc-ini" type="datetime-local" style="${inp}"></label>
+    <label style="font-size:11px;font-weight:700;color:#475569">Data fim (vazio = em andamento)<br><input id="esc-fim" type="datetime-local" style="${inp}"></label>
+    <input type="hidden" id="esc-id">
+    <button onclick="_escSalvar()" style="background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:12px;cursor:pointer">💾 Salvar período</button>
+    <button onclick="_escLimparForm()" style="background:#e2e8f0;color:#475569;border:none;border-radius:10px;padding:10px 14px;font-weight:700;font-size:12px;cursor:pointer">Limpar</button>
+    <datalist id="esc-dl-placas">${placas.map(p => `<option value="${esc(p)}">`).join('')}</datalist><datalist id="esc-dl-mots">${mots.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>` +
+    (linhas.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>${['Placa', 'Motorista', 'Início', 'Fim', 'Ocorr.', 'Horas Indisp.', 'Horas Alocadas', 'Em manutenção agora', 'Ocorr. C/P', 'Horas C/P', ''].map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + linhas.map((l, i) => {
+      const f = s => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '<i>em andamento</i>';
+      return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${esc(l.placa)}</td><td style="${_dispTd}">${esc(l.motorista)}</td><td style="${_dispTd}">${f(l.inicio)}</td><td style="${_dispTd}">${f(l.fim)}</td><td style="${_dispTd}">${l.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(l.h)}</td><td style="${_dispTd}">${_dispHfmt(l.aloc)}</td><td style="${_dispTd}">${l.agora ? '🔴 Sim' : '—'}</td><td style="${_dispTd}">${l.oC} / ${l.oP}</td><td style="${_dispTd}">${_dispHfmt(l.hC)} / ${_dispHfmt(l.hP)}</td>
+      <td style="${_dispTd};white-space:nowrap"><button onclick="_escEditar('${esc(l.id)}')" title="Editar" style="background:none;border:none;cursor:pointer">✏️</button><button onclick="_escExcluir('${esc(l.id)}')" title="Excluir" style="background:none;border:none;cursor:pointer">🗑️</button></td></tr>`;
+    }).join('') + '</tbody></table>' : '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhum período de escala cadastrado.</div>');
+  _dispUltimo = null;
+  nota.textContent = 'Registre uma linha por período em que o motorista esteve com a placa. Trocou de veículo? Informe a Data Fim na linha antiga e crie uma nova linha. As horas das colunas são do mês escolhido.';
+}
+
+// ── CRUD da escala (Firebase: /manutencao/escala_motoristas.json, um nó por id) ──
+const _ESC_PATH = '/manutencao/escala_motoristas.json';
+async function _escCarregar() {
+  const dados = await fbGet(_ESC_PATH);
+  if (dados && typeof dados === 'object') {
+    ESCALA = Object.entries(dados).filter(([, v]) => v && v.placa).map(([id, v]) => Object.assign({ id }, v));
+    _dispEscalaCarregada = true;
+    try { localStorage.setItem('escala_motoristas_cache', JSON.stringify(ESCALA)); } catch (e) {}
+  } else if (dados === null && !_dispEscalaCarregada) {
+    try { ESCALA = JSON.parse(localStorage.getItem('escala_motoristas_cache') || '[]'); } catch (e) { ESCALA = []; }
+  }
+}
+async function _escPatch(corpo) {
+  try {
+    const r = await _fetchComTimeout(FIREBASE_URL + _ESC_PATH, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' }, body: JSON.stringify(corpo) }, 15000);
+    return !!(r && r.ok);
+  } catch (e) { return false; }
+}
+function _escLimparForm() { ['esc-id', 'esc-placa', 'esc-mot', 'esc-ini', 'esc-fim'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; }); }
+function _escEditar(id) {
+  const e = ESCALA.find(x => x.id === id); if (!e) return;
+  document.getElementById('esc-id').value = e.id; document.getElementById('esc-placa').value = e.placa || '';
+  document.getElementById('esc-mot').value = e.motorista || ''; document.getElementById('esc-ini').value = e.inicio || ''; document.getElementById('esc-fim').value = e.fim || '';
+  document.getElementById('esc-placa').scrollIntoView({ block: 'center' });
+}
+async function _escSalvar() {
+  if (!_checkEdicao()) return;
+  const placa = document.getElementById('esc-placa').value.trim().toUpperCase();
+  const mot = document.getElementById('esc-mot').value.trim().toUpperCase();
+  const ini = document.getElementById('esc-ini').value, fim = document.getElementById('esc-fim').value;
+  if (!placa || !mot || !ini) { alert('Informe placa, motorista e data de início.'); return; }
+  if (fim && new Date(fim) <= new Date(ini)) { alert('A data fim precisa ser depois do início.'); return; }
+  const id = document.getElementById('esc-id').value || ('e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+  const reg = { placa, motorista: mot, inicio: ini, fim: fim || '' };
+  const i = ESCALA.findIndex(x => x.id === id);
+  if (i >= 0) ESCALA[i] = Object.assign({ id }, reg); else ESCALA.push(Object.assign({ id }, reg));
+  _dispEscalaCarregada = true; try { localStorage.setItem('escala_motoristas_cache', JSON.stringify(ESCALA)); } catch (e) {}
+  renderDisp();
+  mostrarIndicador('⏳ Salvando escala...', '#FCD34D');
+  const ok = await _escPatch({ [id]: reg });
+  mostrarIndicador(ok ? '☁️ Escala salva!' : '❌ Erro ao salvar escala — tente novamente', ok ? '#86efac' : '#FCA5A5');
+}
+async function _escExcluir(id) {
+  if (!_checkEdicao()) return;
+  if (!confirm('Excluir este período de escala?')) return;
+  ESCALA = ESCALA.filter(x => x.id !== id);
+  try { localStorage.setItem('escala_motoristas_cache', JSON.stringify(ESCALA)); } catch (e) {}
+  renderDisp();
+  const ok = await _escPatch({ [id]: null });
+  mostrarIndicador(ok ? '🗑 Período excluído' : '❌ Erro ao excluir — tente novamente', ok ? '#86efac' : '#FCA5A5');
+}
+
+function _ativarSubAbaIndispDisp() {
+  _dispPopularMeses();
+  renderDisp();
+  _escCarregar().then(renderDisp).catch(() => {});
+  if (typeof carregarHistoricoFirebase === 'function') carregarHistoricoFirebase().then(renderDisp).catch(() => {});
+}
+
+// ── PDF da vista atual (rankings) ──
+function gerarPDFDisp() {
+  if (!_dispUltimo) { alert('Abra "Ranking Frota" ou "Ranking Motoristas" para gerar o PDF.'); return; }
+  if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF não carregado. Aguarde e tente novamente.'); return; }
+  const { jsPDF } = window.jspdf, U = _dispUltimo;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const PW = 297, PH = 210, ML = 8, TW = PW - 16;
+  const mes = (document.getElementById('disp-mes') || {}).selectedOptions ? document.getElementById('disp-mes').selectedOptions[0].textContent.replace('Mês atual — ', '') : '';
+  const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const cab = () => { doc.setFillColor(15, 23, 42); doc.rect(0, 0, PW, 20, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(U.titulo + ' - ' + mes, ML, 9); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.text('Meta: ' + _dispPct(_dispMeta()) + '   |   Gerado em ' + agora, ML, 15.5); };
+  cab();
+  const kw = (TW - 4 * (U.kpis.length - 1)) / U.kpis.length, cores = [[15, 23, 42], [21, 128, 61], [127, 29, 29], [29, 78, 216], [220, 38, 38]];
+  U.kpis.forEach((k, i) => { const x = ML + i * (kw + 4); doc.setFillColor(...cores[i % cores.length]); doc.roundedRect(x, 24, kw, 14, 2, 2, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(String(k[0]), x + kw / 2, 31, { align: 'center' }); doc.setFontSize(6.5); doc.text(k[1], x + kw / 2, 35.5, { align: 'center' }); });
+  const nc = U.cols.length, larg = new Array(nc).fill(TW / nc);
+  const wmap = { 'Pos.': 10, 'Placa': 20, 'Motorista': 44, 'Modelo / Nº Frota': 34, 'Motorista atual': 38, 'Placas no mês': 34 };
+  let fixo = 0, livres = 0; U.cols.forEach((c, i) => { if (wmap[c]) { larg[i] = wmap[c]; fixo += wmap[c]; } else livres++; });
+  U.cols.forEach((c, i) => { if (!wmap[c]) larg[i] = (TW - fixo) / livres; });
+  let y = 42;
+  const cabT = () => { doc.setFillColor(15, 23, 42); doc.rect(ML, y, TW, 9, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(6.3); let x = ML; U.cols.forEach((c, i) => { doc.text(doc.splitTextToSize(c, larg[i] - 1), x + larg[i] / 2, y + 3.6, { align: 'center' }); x += larg[i]; }); y += 9; };
+  cabT();
+  U.rows.forEach((r, idx) => {
+    if (y + 6.6 > PH - 8) { doc.setFontSize(7); doc.setTextColor(120); doc.text('Pág. ' + doc.internal.getNumberOfPages(), PW - ML, PH - 4, { align: 'right' }); doc.addPage(); cab(); y = 24; cabT(); }
+    if (idx % 2) { doc.setFillColor(244, 247, 251); doc.rect(ML, y, TW, 6.6, 'F'); }
+    let x = ML; doc.setFontSize(7);
+    r.forEach((v, i) => { let t = String(v == null ? '' : v).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim(); const col = U.cols[i];
+      let rgb = [30, 41, 59], bold = col === 'Placa' || col === 'Motorista' || col === 'Pos.';
+      if (col === 'Disponibilidade') { bold = true; rgb = U.rows[idx][U.cols.indexOf('Situação x Meta')] === 'Atende' ? [22, 101, 52] : [185, 28, 28]; }
+      if (col === 'Situação x Meta') { bold = true; rgb = t === 'Atende' ? [22, 101, 52] : [185, 28, 28]; }
+      if (col === 'Horas Indisp.') { rgb = [185, 28, 28]; bold = true; }
+      doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...rgb);
+      const linha = doc.splitTextToSize(t, larg[i] - 1)[0] || ''; doc.text(linha, x + larg[i] / 2, y + 4.4, { align: 'center' }); x += larg[i]; });
+    doc.setDrawColor(226, 232, 240); doc.line(ML, y + 6.6, ML + TW, y + 6.6); y += 6.6;
+  });
+  doc.setFontSize(7); doc.setTextColor(120); doc.text('Pág. ' + doc.internal.getNumberOfPages(), PW - ML, PH - 4, { align: 'right' });
+  doc.save(U.titulo.replace(/[^A-Za-z0-9]+/g, '_') + '_' + new Date().toISOString().slice(0, 7) + '.pdf');
 }
 
 function _ativarSubAbaIndispTempo() {

@@ -3408,7 +3408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <tbody id="tp-tbody"></tbody>
       </table>
     </div>
-    <div style="font-size:11px;color:#64748b;margin-top:8px">Mostra só as placas ativas (Troca de Óleo ou Checklist). Toque numa placa para ver cada parada. Serviços ainda em aberto contam até agora. O mês atual aparece por padrão; escolha outro mês no filtro para consultar os anteriores. Só o tempo dentro do mês escolhido é somado (parada que atravessa a virada de mês é dividida).</div>
+    <div style="font-size:11px;color:#64748b;margin-top:8px">Mostra as placas ativas (Troca de Óleo ou Checklist) e todo veículo parado agora em Indisponíveis. Toque numa placa para ver cada parada. Serviços ainda em aberto contam até agora. O mês atual aparece por padrão; escolha outro mês no filtro para consultar os anteriores. Só o tempo dentro do mês escolhido é somado (parada que atravessa a virada de mês é dividida).</div>
   </div>
 </div>
 
@@ -9890,10 +9890,14 @@ function _tpCalcular() {
     ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => _normPlaca(c && (c.cavalo || c.placa || '')))
   ].filter(Boolean));
 
-  _tpRegistros().forEach(r => {
+  const _tpRegs = _tpRegistros();
+  // Placa parada AGORA (registro em aberto em Indisponíveis) sempre aparece,
+  // mesmo que não esteja cadastrada na Troca de Óleo/Checklist.
+  const paradasAgora = new Set(_tpRegs.filter(r => r._aberto).map(r => _normPlaca(r.placa)));
+  _tpRegs.forEach(r => {
     const key = _normPlaca(r.placa);
     if (!key || (busca && !key.includes(busca))) return;
-    if (ativas.size && !ativas.has(key)) return;
+    if (ativas.size && !ativas.has(key) && !paradasAgora.has(key)) return;
     const serv = String(r.servico || '').toLowerCase();
     if (fServ && serv !== fServ) return;
     if (fTipo && String(r.tipoManut || 'CORRETIVA').toUpperCase() !== fTipo) return;

@@ -3436,7 +3436,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="indisp-subtab-btn" data-v="motoristas" onclick="_dispVer('motoristas')">👷 Ranking Motoristas</button>
       <button class="indisp-subtab-btn" data-v="escala" onclick="_dispVer('escala')">🗓️ Escala Motoristas</button>
     </div>
-    <button onclick="gerarPDFDisp()" style="margin-left:auto;background:#DC2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📄 Gerar PDF</button>
+    <button onclick="_apAbrir()" style="margin-left:auto;background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">➕ Lançar parada</button>
+    <button onclick="gerarPDFDisp()" style="background:#DC2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📄 Gerar PDF</button>
   </div>
   <div id="disp-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:16px 18px;background:#f1f5f9"></div>
   <div style="padding:0 18px 24px;background:#f1f5f9">
@@ -9910,7 +9911,12 @@ function _tpRegistros() {
   const abertos = (typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : [])
     .filter(r => r && r.placa && r.entrada && !_saidaValida(r.saida))
     .map(r => Object.assign({}, r, { _aberto: true }));
-  return hist.concat(abertos);
+  // Lançamentos manuais (Disponibilidade → "Lançar parada"): placa + dia/hora de entrada e saída
+  const manuais = (typeof APONT_MANUAL !== 'undefined' ? APONT_MANUAL : [])
+    .filter(r => r && r.placa && r.entrada)
+    .map(r => ({ id: r.id, placa: r.placa, servico: r.servico || '', tipoManut: r.tipo === 'P' ? 'PREVENTIVA' : 'CORRETIVA',
+      entrada: r.entrada, saida: r.saida || '', reclamacao: r.obs || 'Lançamento manual', _aberto: !_saidaValida(r.saida), _manual: true }));
+  return hist.concat(abertos, manuais);
 }
 
 function _tpCalcular() {
@@ -10346,16 +10352,16 @@ function renderDisp() {
       th += ['Ocorr.', 'Horas Indisp.', 'Disp.', 'Status'].map(c => `<th style="${_dispTh}">${c}</th>`).join('');
       corpo.innerHTML = `<table style="border-collapse:collapse;width:max-content;min-width:100%"><thead><tr>${th}</tr></thead><tbody>` + lista.map((g, i) => {
         let tds = '';
-        g.dias.forEach(c => {
-          if (c.h <= 0) { tds += `<td style="${_dispTd};padding:4px 2px;color:#cbd5e1">·</td>`; return; }
+        g.dias.forEach((c, ci) => {
+          if (c.h <= 0) { tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="Clique para lançar uma parada neste dia" style="${_dispTd};padding:4px 2px;color:#cbd5e1;cursor:pointer">·</td>`; return; }
           const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
-          tds += `<td title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help">${c.h >= 23.95 ? '24' : (Math.round(c.h * 10) / 10).toString().replace('.', ',')}</td>`;
+          tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help">${c.h >= 23.95 ? '24' : (Math.round(c.h * 10) / 10).toString().replace('.', ',')}</td>`;
         });
         return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap">${esc(g.motorista)}</td>${tds}
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C">${_dispHfmt(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
-      }).join('') + '</tbody></table>';
+      }).join('') + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;
-      nota.innerHTML = 'Cada célula mostra as <b>horas paradas naquele dia</b> (24 = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída.';
+      nota.innerHTML = '<b>Clique em qualquer dia</b> para lançar uma parada (placa, dia e hora de entrada/saída). Cada célula mostra as <b>horas paradas naquele dia</b> (24 = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída.';
     }
     return;
   }
@@ -10452,10 +10458,96 @@ async function _escExcluir(id) {
   mostrarIndicador(ok ? '🗑 Período excluído' : '❌ Erro ao excluir — tente novamente', ok ? '#86efac' : '#FCA5A5');
 }
 
+
+// ── Lançamentos manuais de parada (dia/hora) ──
+// Guardados à parte (/manutencao/apontamentos_disp.json) e somados às paradas de
+// Indisponíveis/Histórico nos cálculos de Disponibilidade e Tempo Parado.
+let APONT_MANUAL = [];
+const _AP_PATH = '/manutencao/apontamentos_disp.json';
+function _apIso(d) { const z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+async function _apCarregar() {
+  const dados = await fbGet(_AP_PATH);
+  if (dados && typeof dados === 'object') {
+    APONT_MANUAL = Object.entries(dados).filter(([, v]) => v && v.placa).map(([id, v]) => Object.assign({ id }, v));
+    try { localStorage.setItem('apont_manual_cache', JSON.stringify(APONT_MANUAL)); } catch (e) {}
+  } else if (dados === null && !APONT_MANUAL.length) {
+    try { APONT_MANUAL = JSON.parse(localStorage.getItem('apont_manual_cache') || '[]'); } catch (e) { APONT_MANUAL = []; }
+  }
+}
+async function _apPatch(corpo) {
+  try {
+    const r = await _fetchComTimeout(FIREBASE_URL + _AP_PATH, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' }, body: JSON.stringify(corpo) }, 15000);
+    return !!(r && r.ok);
+  } catch (e) { return false; }
+}
+function _apListaHtml(F) {
+  const A = +F.a, B = +F.b;
+  const lista = APONT_MANUAL.filter(r => { const e = +new Date(r.entrada), s = r.saida ? +new Date(r.saida) : Date.now(); return !isNaN(e) && s > A && e < B; })
+    .sort((x, y) => new Date(y.entrada) - new Date(x.entrada));
+  const f = v => v ? new Date(v).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '<b style="color:#B91C1C">em aberto</b>';
+  return `<div style="padding:14px;border-top:3px solid #e2e8f0;background:#fff"><div style="font-weight:800;color:#1e293b;margin-bottom:8px">📝 Lançamentos manuais do mês (${lista.length})</div>` +
+    (lista.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>${['Placa', 'Tipo', 'Serviço', 'Entrada', 'Saída', 'Observação', ''].map(c => `<th style="${_dispTh};position:static">${c}</th>`).join('')}</tr></thead><tbody>` +
+      lista.map((r, i) => `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${escapeHtml(r.placa)}</td><td style="${_dispTd}">${r.tipo === 'P' ? 'Preventiva' : 'Corretiva'}</td><td style="${_dispTd}">${escapeHtml(r.servico || '-')}</td><td style="${_dispTd}">${f(r.entrada)}</td><td style="${_dispTd}">${f(r.saida)}</td><td style="${_dispTd};text-align:left">${escapeHtml(r.obs || '')}</td><td style="${_dispTd};white-space:nowrap"><button onclick="_apAbrir('${escapeHtml(r.id)}')" title="Editar / dar saída" style="background:none;border:none;cursor:pointer">✏️</button><button onclick="_apExcluir('${escapeHtml(r.id)}')" title="Excluir" style="background:none;border:none;cursor:pointer">🗑️</button></td></tr>`).join('') + '</tbody></table>'
+      : '<div style="color:#94a3b8;font-size:12px">Nenhum lançamento manual neste mês. Use "➕ Lançar parada" ou clique num dia do quadro.</div>') +
+    '<div style="font-size:11px;color:#64748b;margin-top:8px">⚠️ Se a mesma parada já foi registrada em Indisponíveis, não lance de novo aqui — ela seria contada duas vezes.</div></div>';
+}
+function _apFechar() { const o = document.getElementById('ap-overlay'); if (o) o.remove(); }
+function _apAbrir(id, placa, dia) {
+  if (!_checkEdicao()) return;
+  _apFechar();
+  const reg = id ? APONT_MANUAL.find(x => x.id === id) : null;
+  const F = _dispJanelaMes();
+  let ent = reg ? reg.entrada : '';
+  if (!reg) { const d = dia ? new Date(F.a.getFullYear(), F.a.getMonth(), dia, 8, 0) : new Date(); ent = _apIso(d); }
+  const placas = [...new Set([...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => v.placa), ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => c.cavalo || c.placa)].filter(Boolean))].sort();
+  const inp = 'width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;box-sizing:border-box';
+  const lb = 'font-size:11px;font-weight:700;color:#475569;display:block;margin:10px 0 4px';
+  const o = document.createElement('div'); o.id = 'ap-overlay';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  o.innerHTML = `<div style="background:#fff;border-radius:18px;padding:22px;width:100%;max-width:440px;max-height:92vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;font-size:17px;color:#1B3A6D">${reg ? '✏️ Editar parada' : '➕ Lançar parada'}</h2>
+      <div style="display:flex;gap:6px"><button onclick="_apFechar()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:10px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer">Cancelar</button><button onclick="_apSalvar('${reg ? escapeHtml(reg.id) : ''}')" style="background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">💾 Salvar</button></div></div>
+    <label style="${lb}">Placa</label><input id="ap-placa" list="ap-dl" value="${escapeHtml(reg ? reg.placa : (placa || ''))}" style="${inp};text-transform:uppercase"><datalist id="ap-dl">${placas.map(p => `<option value="${escapeHtml(p)}">`).join('')}</datalist>
+    <label style="${lb}">Tipo</label><select id="ap-tipo" style="${inp}"><option value="C" ${reg && reg.tipo === 'P' ? '' : 'selected'}>Corretiva (C)</option><option value="P" ${reg && reg.tipo === 'P' ? 'selected' : ''}>Preventiva (P)</option></select>
+    <label style="${lb}">Serviço</label><select id="ap-serv" style="${inp}">${[['interno', '🏭 Serviço Interno'], ['externo', '🔧 Serviço Externo'], ['solda', '🔥 Serviço de Solda']].map(([v, t]) => `<option value="${v}" ${reg && reg.servico === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <label style="${lb}">Entrada (dia e hora em que parou)</label><input id="ap-ent" type="datetime-local" value="${ent}" style="${inp}">
+    <label style="${lb}">Saída (dia e hora em que voltou — deixe vazio se ainda está parado)</label><input id="ap-sai" type="datetime-local" value="${reg && reg.saida ? reg.saida : ''}" style="${inp}">
+    <label style="${lb}">Observação (opcional)</label><input id="ap-obs" type="text" value="${escapeHtml(reg ? reg.obs || '' : '')}" placeholder="Ex.: freio, OS 7839" style="${inp}">
+    ${reg ? `<button onclick="_apExcluir('${escapeHtml(reg.id)}');_apFechar()" style="margin-top:14px;background:#FEF2F2;color:#DC2626;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:12px;cursor:pointer">🗑️ Excluir lançamento</button>` : ''}
+  </div>`;
+  document.body.appendChild(o);
+}
+async function _apSalvar(id) {
+  if (!_checkEdicao()) return;
+  const placa = document.getElementById('ap-placa').value.trim().toUpperCase();
+  const ent = document.getElementById('ap-ent').value, sai = document.getElementById('ap-sai').value;
+  if (!placa || !ent) { alert('Informe a placa e o dia/hora de entrada.'); return; }
+  if (sai && new Date(sai) <= new Date(ent)) { alert('A saída precisa ser depois da entrada.'); return; }
+  const reg = { placa, tipo: document.getElementById('ap-tipo').value, servico: document.getElementById('ap-serv').value, entrada: ent, saida: sai || '', obs: document.getElementById('ap-obs').value.trim() };
+  const nid = id || ('a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+  const i = APONT_MANUAL.findIndex(x => x.id === nid);
+  if (i >= 0) APONT_MANUAL[i] = Object.assign({ id: nid }, reg); else APONT_MANUAL.push(Object.assign({ id: nid }, reg));
+  try { localStorage.setItem('apont_manual_cache', JSON.stringify(APONT_MANUAL)); } catch (e) {}
+  _apFechar(); renderDisp(); if (typeof renderTempoParado === 'function') renderTempoParado();
+  mostrarIndicador('⏳ Salvando lançamento...', '#FCD34D');
+  const ok = await _apPatch({ [nid]: reg });
+  mostrarIndicador(ok ? '☁️ Parada lançada!' : '❌ Erro ao salvar — tente novamente', ok ? '#86efac' : '#FCA5A5');
+}
+async function _apExcluir(id) {
+  if (!_checkEdicao()) return;
+  if (!confirm('Excluir este lançamento de parada?')) return;
+  APONT_MANUAL = APONT_MANUAL.filter(x => x.id !== id);
+  try { localStorage.setItem('apont_manual_cache', JSON.stringify(APONT_MANUAL)); } catch (e) {}
+  renderDisp(); if (typeof renderTempoParado === 'function') renderTempoParado();
+  const ok = await _apPatch({ [id]: null });
+  mostrarIndicador(ok ? '🗑 Lançamento excluído' : '❌ Erro ao excluir — tente novamente', ok ? '#86efac' : '#FCA5A5');
+}
+
 function _ativarSubAbaIndispDisp() {
   _dispPopularMeses();
   renderDisp();
   _escCarregar().then(renderDisp).catch(() => {});
+  _apCarregar().then(() => { renderDisp(); if (typeof renderTempoParado === 'function') renderTempoParado(); }).catch(() => {});
   if (typeof carregarHistoricoFirebase === 'function') carregarHistoricoFirebase().then(renderDisp).catch(() => {});
 }
 

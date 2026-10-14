@@ -3394,7 +3394,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <option value="agora">Ordenar: parados agora primeiro</option>
       <option value="placa">Ordenar: placa (A–Z)</option>
     </select>
-    <button onclick="exportarTempoParadoCSV()" style="margin-left:auto;background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇️ Exportar CSV</button>
+    <button onclick="gerarPDFTempoParado()" style="margin-left:auto;background:#DC2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📄 Gerar PDF</button>
+    <button onclick="exportarTempoParadoCSV()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇️ Exportar CSV</button>
   </div>
   <div id="tp-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 18px;background:#f1f5f9"></div>
   <div style="padding:0 18px 24px;background:#f1f5f9">
@@ -9988,6 +9989,139 @@ function renderTempoParado() {
 function _tpAlternar(key) {
   _tpExpandida = (_tpExpandida === key) ? null : key;
   renderTempoParado();
+}
+
+
+// ── PDF da aba Tempo Parado (jsPDF, paisagem A4) ──
+function gerarPDFTempoParado() {
+  if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF não carregado. Aguarde e tente novamente.'); return; }
+  const lista = _tpUltimoResultado && _tpUltimoResultado.length ? _tpUltimoResultado : _tpCalcular();
+  if (!lista.length) { alert('Nada para gerar com o filtro atual.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const PW = 297, PH = 210, ML = 10, TW = PW - 20;
+  const txtSel = id => { const el = document.getElementById(id); return el && el.selectedOptions && el.selectedOptions[0] ? el.selectedOptions[0].textContent.trim() : ''; };
+  const periodo = txtSel('tp-periodo'), fServ = txtSel('tp-servico'), fTipo = txtSel('tp-tipo'), ordem = txtSel('tp-ordem');
+  const busca = ((document.getElementById('tp-busca') || {}).value || '').trim();
+  const agora = new Date();
+  const dataStr = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'long', year: 'numeric' });
+  const horaStr = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  const fmtD = v => { const d = new Date(v); return isNaN(d) ? '-' : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+  const semEmoji = t => String(t == null ? '' : t).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').trim();
+
+  const totalMs = lista.reduce((s, g) => s + g.total, 0);
+  const agoraN = lista.filter(g => g.aberto).length;
+  const maxTotal = Math.max(...lista.map(g => g.total), 1);
+
+  // Cabeçalho
+  const cabecalho = () => {
+    doc.setFillColor(15, 23, 42); doc.rect(0, 0, PW, 22, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+    doc.text('Tempo Parado por Placa', ML, 10);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    doc.text(semEmoji(periodo) + '  |  ' + fServ + '  |  ' + fTipo + (busca ? '  |  Placa: ' + busca : ''), ML, 16.5);
+    doc.text('Gerado em ' + dataStr + ' às ' + horaStr, PW - ML, 10, { align: 'right' });
+    doc.text('Ordem: ' + ordem.replace('Ordenar: ', ''), PW - ML, 16.5, { align: 'right' });
+  };
+  cabecalho();
+
+  // KPIs
+  const kpis = [
+    [String(lista.length), 'PLACAS COM PARADAS', [15, 23, 42]],
+    [_tpFmtDur(totalMs), 'TEMPO TOTAL PARADO', [127, 29, 29]],
+    [String(agoraN), 'PARADOS AGORA', [220, 38, 38]],
+    [_tpFmtDur(totalMs / lista.length), 'MÉDIA POR PLACA', [29, 78, 216]],
+  ];
+  const kw = (TW - 3 * 4) / 4;
+  kpis.forEach((k, i) => {
+    const x = ML + i * (kw + 4);
+    doc.setFillColor(...k[2]); doc.roundedRect(x, 27, kw, 17, 2.5, 2.5, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+    doc.text(k[0], x + kw / 2, 35.5, { align: 'center' });
+    doc.setFontSize(7); doc.text(k[1], x + kw / 2, 41, { align: 'center' });
+  });
+
+  // Tabela principal
+  const COLS = [
+    { h: 'PLACA', w: 24 }, { h: 'SITUAÇÃO', w: 27 }, { h: 'PARADAS', w: 17 }, { h: 'TEMPO TOTAL', w: 38 },
+    { h: 'INTERNO', w: 24 }, { h: 'EXTERNO', w: 24 }, { h: 'SOLDA', w: 22 }, { h: 'MÉDIA/PARADA', w: 27 },
+    { h: 'MAIOR PARADA', w: 27 }, { h: 'ÚLTIMA ENTRADA', w: 37 },
+  ];
+  let y = 49;
+  const cabTab = () => {
+    doc.setFillColor(15, 23, 42); doc.rect(ML, y, TW, 8, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    let x = ML; COLS.forEach(c => { doc.text(c.h, x + c.w / 2, y + 5.2, { align: 'center' }); x += c.w; });
+    y += 8;
+  };
+  const rodape = () => {
+    const n = doc.internal.getNumberOfPages();
+    doc.setFontSize(7); doc.setTextColor(120, 130, 145); doc.setFont('helvetica', 'normal');
+    doc.text('Pág. ' + n, PW - ML, PH - 4, { align: 'right' });
+    doc.text('Somente o tempo dentro do período escolhido. Serviços em aberto contam até agora.', ML, PH - 4);
+  };
+  cabTab();
+  const RH = 7.2;
+  lista.forEach((g, idx) => {
+    if (y + RH > PH - 10) { rodape(); doc.addPage(); cabecalho(); y = 28; cabTab(); }
+    if (idx % 2) { doc.setFillColor(244, 247, 251); doc.rect(ML, y, TW, RH, 'F'); }
+    doc.setDrawColor(226, 232, 240); doc.line(ML, y + RH, ML + TW, y + RH);
+    let x = ML; const cy = y + 4.8;
+    const cel = (t, i, bold, rgb) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(8); doc.setTextColor(...(rgb || [30, 41, 59])); doc.text(String(t), x + COLS[i].w / 2, cy, { align: 'center' }); x += COLS[i].w; };
+    cel(g.placa, 0, true);
+    // situação (pílula)
+    const sw = COLS[1].w - 6;
+    if (g.aberto) doc.setFillColor(254, 226, 226); else doc.setFillColor(220, 252, 231);
+    doc.roundedRect(x + 3, y + 1.4, sw, 4.4, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...(g.aberto ? [185, 28, 28] : [22, 101, 52]));
+    doc.text(g.aberto ? 'PARADO AGORA' : 'LIBERADO', x + COLS[1].w / 2, y + 4.5, { align: 'center' }); x += COLS[1].w;
+    cel(g.qtd, 2);
+    // tempo total com barra proporcional
+    const bw = (COLS[3].w - 4) * (g.total / maxTotal);
+    doc.setFillColor(254, 202, 202); doc.rect(x + 2, y + 5.6, COLS[3].w - 4, 1, 'F');
+    doc.setFillColor(220, 38, 38); doc.rect(x + 2, y + 5.6, Math.max(bw, 0.5), 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(185, 28, 28);
+    doc.text(_tpFmtDur(g.total), x + COLS[3].w / 2, y + 4.3, { align: 'center' }); x += COLS[3].w;
+    cel(g.interno ? _tpFmtDur(g.interno) : '-', 4);
+    cel(g.externo ? _tpFmtDur(g.externo) : '-', 5);
+    cel(g.solda ? _tpFmtDur(g.solda) : '-', 6);
+    cel(_tpFmtDur(g.total / g.qtd), 7);
+    cel(_tpFmtDur(g.maior), 8);
+    cel(fmtD(g.ultimaEntrada), 9);
+    y += RH;
+  });
+  rodape();
+
+  // Seção: veículos parados agora (detalhe)
+  const abertos = [];
+  lista.forEach(g => g.paradas.filter(p => !p.saida).forEach(p => abertos.push({ placa: g.placa, p })));
+  if (abertos.length) {
+    doc.addPage(); cabecalho(); y = 30;
+    doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+    doc.text('Veículos parados agora (' + abertos.length + ')', ML, y); y += 5;
+    const C2 = [{ h: 'PLACA', w: 24 }, { h: 'SERVIÇO', w: 24 }, { h: 'TIPO', w: 26 }, { h: 'ENTRADA', w: 34 }, { h: 'TEMPO PARADO', w: 34 }, { h: 'RECLAMAÇÃO / OS', w: TW - 142 }];
+    const cab2 = () => {
+      doc.setFillColor(127, 29, 29); doc.rect(ML, y, TW, 8, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+      let x = ML; C2.forEach(c => { doc.text(c.h, x + 2, y + 5.2); x += c.w; }); y += 8;
+    };
+    cab2();
+    const nomeS = { interno: 'Interno', externo: 'Externo', solda: 'Solda' };
+    abertos.forEach((a, idx) => {
+      const rec = doc.splitTextToSize(semEmoji(a.p.reclamacao) || '-', C2[5].w - 4);
+      const h = Math.max(7.2, 3.6 * rec.length + 3);
+      if (y + h > PH - 10) { rodape(); doc.addPage(); cabecalho(); y = 28; cab2(); }
+      if (idx % 2) { doc.setFillColor(254, 242, 242); doc.rect(ML, y, TW, h, 'F'); }
+      doc.setDrawColor(226, 232, 240); doc.line(ML, y + h, ML + TW, y + h);
+      let x = ML; doc.setFontSize(8);
+      const t = (v, i, b, rgb) => { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setTextColor(...(rgb || [30, 41, 59])); doc.text(String(v), x + 2, y + 4.8); x += C2[i].w; };
+      t(a.placa, 0, true); t(nomeS[a.p.servico] || a.p.servico || '-', 1); t(a.p.tipo, 2); t(fmtD(a.p.entrada), 3);
+      t(_tpFmtDur(a.p.ms), 4, true, [185, 28, 28]);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105); doc.text(rec, x + 2, y + 4.8);
+      y += h;
+    });
+    rodape();
+  }
+  doc.save('Tempo_Parado_por_Placa_' + agora.toISOString().slice(0, 10) + '.pdf');
 }
 
 function exportarTempoParadoCSV() {

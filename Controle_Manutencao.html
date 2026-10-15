@@ -10242,7 +10242,7 @@ function _dispConjuntos() {
   lista.forEach(c => { // 2ª passada: reboque sem cavalo
     const { cav, reb } = par(c), kr = _normPlaca(reb);
     if (_normPlaca(cav) || !kr || pm.has(kr)) return;
-    grupos.set(kr, { key: kr, placa: reb, reboques: [], modelo: c.tipo || '' }); pm.set(kr, kr);
+    grupos.set(kr, { key: kr, placa: reb, reboques: [], modelo: c.tipo || '', soReboque: true }); pm.set(kr, kr);
   });
   return { pm, grupos };
 }
@@ -10272,7 +10272,7 @@ function _dispCalcFrota() {
     if (fim > ini) { cov.push([ini, fim]); cov.sort((x, y) => x[0] - y[0]); for (let i = cov.length - 1; i > 0; i--) if (cov[i][0] <= cov[i - 1][1]) { cov[i - 1][1] = Math.max(cov[i - 1][1], cov[i][1]); cov.splice(i, 1); } }
   });
   const mapa = {};
-  grupos.forEach((g, k) => { mapa[k] = { key: k, placa: g.placa, reboque: g.reboques.join(' / '), modelo: g.modelo, ocorr: 0, ocorrC: 0, ocorrP: 0, h: 0, hC: 0, hP: 0, aberto: false, dias: new Array(dias).fill(null).map(() => ({ h: 0, C: 0, P: 0, txt: [] })) }; });
+  grupos.forEach((g, k) => { mapa[k] = { key: k, placa: g.placa, cavalo: g.soReboque ? '' : g.placa, reboque: g.soReboque ? g.placa : g.reboques.join(' / '), modelo: g.modelo, ocorr: 0, ocorrC: 0, ocorrP: 0, h: 0, hC: 0, hP: 0, aberto: false, dias: new Array(dias).fill(null).map(() => ({ h: 0, C: 0, P: 0, txt: [] })) }; });
   const fmtDH = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   regs.forEach(r => {
     const g = mapa[r.key]; if (!g) return;
@@ -10383,16 +10383,16 @@ function renderDisp() {
       _dispKpi(_dispHfmt(tot.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(tot.hP), 'HORAS PREVENTIVAS', '#1E40AF'),
       _dispKpi((tot.hC + tot.hP) ? _dispPct(tot.hP / (tot.hC + tot.hP)) : '-', '% HORAS PREVENTIVAS', '#4338CA')].join('');
     if (_dispVista === 'frota') {
-      const cols = ['Pos.', 'Placa', 'Reboque', 'Tipo de veículo', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
+      const cols = ['Pos.', 'Cavalo', 'Reboque', 'Tipo de veículo', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
       corpo.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((g, i) => {
         const tp = g.hC + g.hP;
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.placa)}</td><td style="${_dispTd};font-weight:700;color:#475569">${esc(g.reboque || '—')}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.cavalo || '—')}</td><td style="${_dispTd};font-weight:800;color:#1B3A6D">${esc(g.reboque || '—')}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(g.h)}</td><td style="${_dispTd}">${_dispHfmt(F.horasMes - g.h)}</td>
         <td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td>
         <td style="${_dispTd}">${g.aberto ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">🔴 EM MANUTENÇÃO</span>' : '<span style="color:#166534;font-weight:700">Operando</span>'}</td>
         <td style="${_dispTd}">${_dispSit(g.disp, meta)}</td><td style="${_dispTd}">${g.ocorrC}</td><td style="${_dispTd}">${g.ocorrP}</td><td style="${_dispTd}">${_dispHfmt(g.hC)}</td><td style="${_dispTd}">${_dispHfmt(g.hP)}</td><td style="${_dispTd}">${tp ? _dispPct(g.hP / tp) : '-'}</td></tr>`;
       }).join('') + '</tbody></table>';
-      _dispUltimo = { titulo: 'Ranking de Disponibilidade da Frota', cols, rows: lista.map(g => { const tp = g.hC + g.hP; return [g.pos + 'º', g.placa, g.reboque || '-', g.modelo, g.motorista, g.ocorr, _dispHfmt(g.h), _dispHfmt(F.horasMes - g.h), _dispPct(g.disp), g.aberto ? 'Parado' : 'Operando', g.disp >= meta ? 'Atende' : 'Abaixo', g.ocorrC, g.ocorrP, _dispHfmt(g.hC), _dispHfmt(g.hP), tp ? _dispPct(g.hP / tp) : '-']; }), kpis: [[String(F.lista.length), 'VEÍCULOS'], [F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA'], [_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS'], [String(tot.o), 'OCORRÊNCIAS'], [String(tot.ag), 'EM MANUTENÇÃO AGORA']] };
+      _dispUltimo = { titulo: 'Ranking de Disponibilidade da Frota', cols, rows: lista.map(g => { const tp = g.hC + g.hP; return [g.pos + 'º', g.cavalo || '-', g.reboque || '-', g.modelo, g.motorista, g.ocorr, _dispHfmt(g.h), _dispHfmt(F.horasMes - g.h), _dispPct(g.disp), g.aberto ? 'Parado' : 'Operando', g.disp >= meta ? 'Atende' : 'Abaixo', g.ocorrC, g.ocorrP, _dispHfmt(g.hC), _dispHfmt(g.hP), tp ? _dispPct(g.hP / tp) : '-']; }), kpis: [[String(F.lista.length), 'VEÍCULOS'], [F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA'], [_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS'], [String(tot.o), 'OCORRÊNCIAS'], [String(tot.ag), 'EM MANUTENÇÃO AGORA']] };
       nota.textContent = 'Disponibilidade = (horas do mês − horas indisponíveis) ÷ horas do mês. Horas contadas até agora se o mês estiver em andamento. Meta editável acima. Só entram as placas do 📋 CHECKLIST PREVENTIVA: cada linha é o cavalo com o seu reboque. Parada do cavalo OU do reboque conta para o conjunto (tempo simultâneo conta uma vez só).';
     } else {
       const hd = ['Placa', 'Modelo', 'Motorista'];
@@ -10685,7 +10685,7 @@ function gerarPDFDisp() {
   const kw = (TW - 4 * (U.kpis.length - 1)) / U.kpis.length, cores = [[15, 23, 42], [21, 128, 61], [127, 29, 29], [29, 78, 216], [220, 38, 38]];
   U.kpis.forEach((k, i) => { const x = ML + i * (kw + 4); doc.setFillColor(...cores[i % cores.length]); doc.roundedRect(x, 24, kw, 14, 2, 2, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(String(k[0]), x + kw / 2, 31, { align: 'center' }); doc.setFontSize(6.5); doc.text(k[1], x + kw / 2, 35.5, { align: 'center' }); });
   const nc = U.cols.length, larg = new Array(nc).fill(TW / nc);
-  const wmap = { 'Pos.': 10, 'Placa': 19, 'Reboque': 19, 'Motorista': 44, 'Tipo de veículo': 28, 'Motorista atual': 36, 'Placas no mês': 34 };
+  const wmap = { 'Pos.': 10, 'Placa': 19, 'Cavalo': 19, 'Reboque': 19, 'Motorista': 44, 'Tipo de veículo': 28, 'Motorista atual': 36, 'Placas no mês': 34 };
   let fixo = 0, livres = 0; U.cols.forEach((c, i) => { if (wmap[c]) { larg[i] = wmap[c]; fixo += wmap[c]; } else livres++; });
   U.cols.forEach((c, i) => { if (!wmap[c]) larg[i] = (TW - fixo) / livres; });
   let y = 42;
@@ -10696,7 +10696,7 @@ function gerarPDFDisp() {
     if (idx % 2) { doc.setFillColor(244, 247, 251); doc.rect(ML, y, TW, 6.6, 'F'); }
     let x = ML; doc.setFontSize(7);
     r.forEach((v, i) => { let t = String(v == null ? '' : v).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim(); const col = U.cols[i];
-      let rgb = [30, 41, 59], bold = col === 'Placa' || col === 'Motorista' || col === 'Pos.';
+      let rgb = [30, 41, 59], bold = col === 'Placa' || col === 'Cavalo' || col === 'Reboque' || col === 'Motorista' || col === 'Pos.';
       if (col === 'Disponibilidade') { bold = true; rgb = U.rows[idx][U.cols.indexOf('Situação x Meta')] === 'Atende' ? [22, 101, 52] : [185, 28, 28]; }
       if (col === 'Situação x Meta') { bold = true; rgb = t === 'Atende' ? [22, 101, 52] : [185, 28, 28]; }
       if (col === 'Horas Indisp.') { rgb = [185, 28, 28]; bold = true; }

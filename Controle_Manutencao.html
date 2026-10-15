@@ -10196,7 +10196,7 @@ let _dispUltimo = null; // dados da vista atual (para o PDF)
 
 function _dispHfmt(h) { return (Math.round(h * 10) / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'h'; }
 // horas e minutos: 8,4 h → 8h24 · 24 h → 24h · 0,9 h → 54min
-function _dispHM(h) { const t = Math.round(h * 60), hh = Math.floor(t / 60), mm = t % 60; return hh === 0 ? mm + 'min' : (mm ? hh + 'h' + String(mm).padStart(2, '0') : hh + 'h'); }
+function _dispHM(h) { const t = Math.round(h * 60), hh = Math.floor(t / 60), mm = t % 60; return t === 0 ? '0h' : hh === 0 ? mm + 'min' : (mm ? hh + 'h' + String(mm).padStart(2, '0') : hh + 'h'); }
 function _dispPct(v) { return (v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
 function _dispMeta() { const v = parseFloat((document.getElementById('disp-meta') || {}).value); return (v > 0 && v <= 100) ? v / 100 : 0.95; }
 function _dispSalvarMeta() { try { localStorage.setItem('disp_meta', (document.getElementById('disp-meta') || {}).value); } catch (e) {} }
@@ -10409,7 +10409,7 @@ function renderDisp() {
           tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help;white-space:nowrap">${c.h >= 23.99 ? '24h' : _dispHM(c.h)}</td>`;
         });
         return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};position:sticky;left:0;min-width:104px;white-space:nowrap;background:${i % 2 ? '#f8fafc' : '#fff'}"><div style="font-weight:800">${esc(g.cavalo || g.reboque)}</div>${g.cavalo ? (g.reboque ? `<div style="font-size:10px;font-weight:700;color:#64748b">Reboque: ${esc(g.reboque)}</div>` : '') : '<div style="font-size:10px;font-weight:700;color:#64748b">Reboque</div>'}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
-        <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C;white-space:nowrap">${_dispHM(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
+        <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C;white-space:nowrap">${_dispHM(g.h)}</td><td style="${_dispTd};font-weight:800;white-space:nowrap;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd};white-space:nowrap">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
       }).join('') + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;
       nota.innerHTML = '<b>Clique em qualquer dia</b> para lançar uma parada (placa, dia e hora de entrada/saída). Cada célula mostra o <b>tempo parado naquele dia</b> em horas e minutos (24h = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída.';

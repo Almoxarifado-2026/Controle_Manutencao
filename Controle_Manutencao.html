@@ -10195,6 +10195,8 @@ let _dispEscalaCarregada = false;
 let _dispUltimo = null; // dados da vista atual (para o PDF)
 
 function _dispHfmt(h) { return (Math.round(h * 10) / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'h'; }
+// horas e minutos: 8,4 h → 8h24 · 24 h → 24h · 0,9 h → 54min
+function _dispHM(h) { const t = Math.round(h * 60), hh = Math.floor(t / 60), mm = t % 60; return hh === 0 ? mm + 'min' : (mm ? hh + 'h' + String(mm).padStart(2, '0') : hh + 'h'); }
 function _dispPct(v) { return (v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
 function _dispMeta() { const v = parseFloat((document.getElementById('disp-meta') || {}).value); return (v > 0 && v <= 100) ? v / 100 : 0.95; }
 function _dispSalvarMeta() { try { localStorage.setItem('disp_meta', (document.getElementById('disp-meta') || {}).value); } catch (e) {} }
@@ -10397,20 +10399,20 @@ function renderDisp() {
     } else {
       const hd = ['Placa', 'Modelo', 'Motorista'];
       let th = `<th style="${_dispTh};left:0">Placa</th><th style="${_dispTh}">Reboque</th><th style="${_dispTh}">Motorista atual</th>`;
-      for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 3px;min-width:32px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
+      for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 3px;min-width:40px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
       th += ['Ocorr.', 'Horas Indisp.', 'Disp.', 'Status'].map(c => `<th style="${_dispTh}">${c}</th>`).join('');
       corpo.innerHTML = `<table style="border-collapse:collapse;width:max-content;min-width:100%"><thead><tr>${th}</tr></thead><tbody>` + lista.map((g, i) => {
         let tds = '';
         g.dias.forEach((c, ci) => {
           if (c.h <= 0) { tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="Clique para lançar uma parada neste dia" style="${_dispTd};padding:4px 2px;color:#cbd5e1;cursor:pointer">·</td>`; return; }
           const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
-          tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help">${c.h >= 23.95 ? '24' : (Math.round(c.h * 10) / 10).toString().replace('.', ',')}</td>`;
+          tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help;white-space:nowrap">${c.h >= 23.99 ? '24h' : _dispHM(c.h)}</td>`;
         });
         return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap;font-weight:700;color:#475569">${esc(g.reboque || '—')}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
-        <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C">${_dispHfmt(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
+        <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C;white-space:nowrap">${_dispHM(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
       }).join('') + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;
-      nota.innerHTML = '<b>Clique em qualquer dia</b> para lançar uma parada (placa, dia e hora de entrada/saída). Cada célula mostra as <b>horas paradas naquele dia</b> (24 = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída.';
+      nota.innerHTML = '<b>Clique em qualquer dia</b> para lançar uma parada (placa, dia e hora de entrada/saída). Cada célula mostra o <b>tempo parado naquele dia</b> em horas e minutos (24h = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída.';
     }
     return;
   }

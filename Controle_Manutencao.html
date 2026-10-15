@@ -3436,7 +3436,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="indisp-subtab-btn" data-v="motoristas" onclick="_dispVer('motoristas')">👷 Ranking Motoristas</button>
       <button class="indisp-subtab-btn" data-v="escala" onclick="_dispVer('escala')">🗓️ Escala Motoristas</button>
     </div>
-    <button onclick="_apAbrir()" style="margin-left:auto;background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">➕ Lançar parada</button>
+    <button onclick="_vincAbrir()" style="margin-left:auto;background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔗 Vincular motorista</button>
+    <button onclick="_apAbrir()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">➕ Lançar parada</button>
     <button onclick="gerarPDFDisp()" style="background:#DC2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📄 Gerar PDF</button>
   </div>
   <div id="disp-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:16px 18px;background:#f1f5f9"></div>
@@ -10255,7 +10256,12 @@ function _dispCalcFrota() {
   lista.sort((x, y) => y.disp - x.disp || x.ocorr - y.ocorr || String(x.placa).localeCompare(String(y.placa)));
   lista.forEach((g, i) => g.pos = i + 1);
   // motorista atual
-  lista.forEach(g => { g.motorista = _dispMotoristaEm(g.key, N); });
+  // Igual à planilha: motorista do momento da última ENTRADA da placa no mês; sem entrada = agora (limitado ao mês)
+  lista.forEach(g => {
+    let ult = -Infinity;
+    regs.forEach(r => { if (r.key === g.key && r.e >= A && r.e < B && r.e > ult) ult = r.e; });
+    g.motorista = _dispMotoristaEm(g.key, ult > -Infinity ? ult : Math.max(A, Math.min(N, B - 60000)));
+  });
   return { a, b, dias, horasMes, lista, regs };
 }
 
@@ -10297,7 +10303,7 @@ function _dispCalcMotoristas(F) {
   });
   const lista = Object.values(mapa).filter(m => m.aloc > 0);
   lista.forEach(m => { m.disp = m.aloc > 0 ? Math.max(0, (m.aloc - m.h) / m.aloc) : 1; });
-  lista.sort((x, y) => y.disp - x.disp || x.ocorr - y.ocorr || x.motorista.localeCompare(y.motorista));
+  lista.sort((x, y) => y.h - x.h || y.ocorr - x.ocorr || x.motorista.localeCompare(y.motorista)); // igual à planilha: maior incidência primeiro
   lista.forEach((m, i) => m.pos = i + 1);
   return { linhas, lista };
 }
@@ -10337,7 +10343,7 @@ function renderDisp() {
       const cols = ['Pos.', 'Placa', 'Modelo / Nº Frota', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
       corpo.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((g, i) => {
         const tp = g.hC + g.hP;
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.placa)}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd}">${esc(g.motorista)}</td>
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.placa)}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(g.h)}</td><td style="${_dispTd}">${_dispHfmt(F.horasMes - g.h)}</td>
         <td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td>
         <td style="${_dispTd}">${g.aberto ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">🔴 EM MANUTENÇÃO</span>' : '<span style="color:#166534;font-weight:700">Operando</span>'}</td>
@@ -10357,7 +10363,7 @@ function renderDisp() {
           const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
           tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help">${c.h >= 23.95 ? '24' : (Math.round(c.h * 10) / 10).toString().replace('.', ',')}</td>`;
         });
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap">${esc(g.motorista)}</td>${tds}
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C">${_dispHfmt(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
       }).join('') + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;
@@ -10372,13 +10378,13 @@ function renderDisp() {
     const sem = F.lista.filter(g => g.motorista === 'Não atribuído').length;
     const T = M.lista.reduce((s, m) => ({ h: s.h + m.h, o: s.o + m.ocorr, hC: s.hC + m.hC, hP: s.hP + m.hP, ag: s.ag + m.agora }), { h: 0, o: 0, hC: 0, hP: 0, ag: 0 });
     kp.innerHTML = [_dispKpi(M.lista.length, 'MOTORISTAS COM ESCALA', '#0f172a'), _dispKpi(sem, 'VEÍCULOS SEM MOTORISTA', '#B45309'), _dispKpi(_dispHfmt(T.h), 'HORAS INDISPONÍVEIS', '#7f1d1d'), _dispKpi(T.o, 'Nº OCORRÊNCIAS', '#1D4ED8'),
-      _dispKpi(T.o ? _dispHfmt(T.h / T.o) : '-', 'MTTR (H/OCORRÊNCIA)', '#7C3AED'), _dispKpi(T.ag, 'EM MANUTENÇÃO AGORA', '#DC2626'), _dispKpi(M.lista.length ? esc(M.lista[M.lista.length - 1].motorista) : '-', 'MOTORISTA CRÍTICO', '#B45309'),
-      _dispKpi(_dispPct(meta), 'META', '#0f766e'), _dispKpi(_dispHfmt(T.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(T.hP), 'HORAS PREVENTIVAS', '#1E40AF')].join('');
+      _dispKpi(T.o ? _dispHfmt(T.h / T.o) : '-', 'MTTR (H/OCORRÊNCIA)', '#7C3AED'), _dispKpi(T.ag, 'EM MANUTENÇÃO AGORA', '#DC2626'), _dispKpi(M.lista.length ? esc(M.lista[0].motorista) : '-', 'MOTORISTA CRÍTICO', '#B45309'),
+      _dispKpi(_dispPct(meta), 'META', '#0f766e'), _dispKpi(_dispHfmt(T.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(T.hP), 'HORAS PREVENTIVAS', '#1E40AF'), _dispKpi((T.hC + T.hP) ? _dispPct(T.hP / (T.hC + T.hP)) : '-', '% HORAS PREVENTIVAS', '#4338CA')].join('');
     const cols = ['Pos.', 'Motorista', 'Placas no mês', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Alocadas', 'Disponibilidade', 'Em manutenção agora', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
     corpo.innerHTML = lista.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((m, i) => { const tp = m.hC + m.hP; return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${m.pos}º</td><td style="${_dispTd};font-weight:800;text-align:left">${esc(m.motorista)}</td><td style="${_dispTd}">${[...m.placas].map(esc).join(', ')}</td><td style="${_dispTd}">${m.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(m.h)}</td><td style="${_dispTd}">${_dispHfmt(m.aloc)}</td><td style="${_dispTd};font-weight:800;color:${m.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(m.disp)}</td><td style="${_dispTd}">${m.agora ? '🔴 Sim' : '—'}</td><td style="${_dispTd}">${_dispSit(m.disp, meta)}</td><td style="${_dispTd}">${m.oC}</td><td style="${_dispTd}">${m.oP}</td><td style="${_dispTd}">${_dispHfmt(m.hC)}</td><td style="${_dispTd}">${_dispHfmt(m.hP)}</td><td style="${_dispTd}">${tp ? _dispPct(m.hP / tp) : '-'}</td></tr>`; }).join('') + '</tbody></table>'
       : '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhum motorista com escala neste mês. Cadastre na aba "🗓️ Escala Motoristas".</div>';
     _dispUltimo = { titulo: 'Ranking de Motoristas — Incidência de Manutenção', cols, rows: lista.map(m => { const tp = m.hC + m.hP; return [m.pos + 'º', m.motorista, [...m.placas].join(', '), m.ocorr, _dispHfmt(m.h), _dispHfmt(m.aloc), _dispPct(m.disp), m.agora ? 'Sim' : '-', m.disp >= meta ? 'Atende' : 'Abaixo', m.oC, m.oP, _dispHfmt(m.hC), _dispHfmt(m.hP), tp ? _dispPct(m.hP / tp) : '-']; }), kpis: [[String(M.lista.length), 'MOTORISTAS'], [_dispHfmt(T.h), 'HORAS INDISPONÍVEIS'], [String(T.o), 'OCORRÊNCIAS'], [String(T.ag), 'EM MANUTENÇÃO AGORA']] };
-    nota.textContent = 'Horas e ocorrências são atribuídas ao motorista que estava com o veículo no momento da parada, conforme a Escala. Disponibilidade = (horas alocadas − horas indisponíveis) ÷ horas alocadas.';
+    nota.textContent = 'Horas e ocorrências são atribuídas ao motorista que estava com o veículo no momento da parada, conforme a Escala. Ordenado por horas indisponíveis (maior primeiro) e, no empate, por nº de ocorrências. Disponibilidade = (horas alocadas − horas indisponíveis) ÷ horas alocadas.';
     return;
   }
 
@@ -10458,6 +10464,77 @@ async function _escExcluir(id) {
   mostrarIndicador(ok ? '🗑 Período excluído' : '❌ Erro ao excluir — tente novamente', ok ? '#86efac' : '#FCA5A5');
 }
 
+
+// ── Vincular motorista à placa (atalho da Escala) ──
+// Encerra o período anterior da placa (e o do motorista em outra placa) e abre um novo a partir da data/hora informada.
+function _vincFechar() { const o = document.getElementById('vinc-overlay'); if (o) o.remove(); }
+function _vincAbrir(placa) {
+  if (!_checkEdicao()) return;
+  _vincFechar();
+  const key = _normPlaca(placa || '');
+  const atual = key ? ESCALA.filter(e => _normPlaca(e.placa) === key && (!e.fim || +new Date(e.fim) > Date.now()) && +new Date(e.inicio) <= Date.now()).pop() : null;
+  const placas = [...new Set([...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => v.placa), ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => c.cavalo || c.placa), ...ESCALA.map(e => e.placa)].filter(Boolean))].sort();
+  const mots = [...new Set(ESCALA.map(e => e.motorista).filter(Boolean))].sort();
+  const inp = 'width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;box-sizing:border-box';
+  const lb = 'font-size:11px;font-weight:700;color:#475569;display:block;margin:10px 0 4px';
+  const o = document.createElement('div'); o.id = 'vinc-overlay';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  o.innerHTML = `<div style="background:#fff;border-radius:18px;padding:22px;width:100%;max-width:440px;max-height:92vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;font-size:17px;color:#1B3A6D">🔗 Vincular motorista à placa</h2>
+      <div style="display:flex;gap:6px"><button onclick="_vincFechar()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:10px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer">Cancelar</button><button onclick="_vincSalvar()" style="background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">💾 Salvar</button></div></div>
+    <div id="vinc-atual" style="margin-top:10px;font-size:12px;color:#475569"></div>
+    <label style="${lb}">Placa</label><input id="vinc-placa" list="vinc-dl-p" value="${escapeHtml(placa || '')}" oninput="_vincAtualizar()" style="${inp};text-transform:uppercase"><datalist id="vinc-dl-p">${placas.map(p => `<option value="${escapeHtml(p)}">`).join('')}</datalist>
+    <label style="${lb}">Motorista</label><input id="vinc-mot" list="vinc-dl-m" value="" placeholder="Nome do motorista" style="${inp};text-transform:uppercase"><datalist id="vinc-dl-m">${mots.map(p => `<option value="${escapeHtml(p)}">`).join('')}</datalist>
+    <label style="${lb}">A partir de (dia e hora)</label><input id="vinc-ini" type="datetime-local" value="${_apIso(new Date())}" style="${inp}">
+    <div style="font-size:11px;color:#64748b;margin-top:10px">O vínculo anterior desta placa é encerrado automaticamente na data/hora acima. Para só retirar o motorista, use "Desvincular".</div>
+    <button id="vinc-desv" onclick="_vincDesvincular()" style="margin-top:12px;background:#FEF2F2;color:#DC2626;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:12px;cursor:pointer;display:none">⛔ Desvincular motorista atual</button>
+  </div>`;
+  document.body.appendChild(o);
+  _vincAtualizar();
+}
+function _vincAtual(key) { return ESCALA.filter(e => _normPlaca(e.placa) === key && (!e.fim || +new Date(e.fim) > Date.now()) && +new Date(e.inicio) <= Date.now()).pop() || null; }
+function _vincAtualizar() {
+  const key = _normPlaca((document.getElementById('vinc-placa') || {}).value || '');
+  const a = key ? _vincAtual(key) : null;
+  const el = document.getElementById('vinc-atual'), b = document.getElementById('vinc-desv');
+  if (el) el.innerHTML = key ? (a ? 'Motorista atual desta placa: <b>' + escapeHtml(a.motorista) + '</b>' : 'Esta placa está <b>sem motorista</b> no momento.') : '';
+  if (b) b.style.display = a ? 'inline-block' : 'none';
+}
+async function _vincSalvar() {
+  if (!_checkEdicao()) return;
+  const placa = document.getElementById('vinc-placa').value.trim().toUpperCase();
+  const mot = document.getElementById('vinc-mot').value.trim().toUpperCase();
+  const ini = document.getElementById('vinc-ini').value;
+  if (!placa || !mot || !ini) { alert('Informe placa, motorista e a data/hora de início.'); return; }
+  const t = +new Date(ini), key = _normPlaca(placa);
+  const abertoEm = (e, k) => _normPlaca(e.placa) === k && +new Date(e.inicio) < t && (!e.fim || +new Date(e.fim) > t);
+  const mesmo = ESCALA.find(e => abertoEm(e, key) && e.motorista === mot && !e.fim);
+  if (mesmo) { alert(mot + ' já está vinculado a esta placa desde ' + new Date(mesmo.inicio).toLocaleString('pt-BR') + '.'); return; }
+  const outra = ESCALA.filter(e => _normPlaca(e.placa) !== key && e.motorista === mot && +new Date(e.inicio) < t && (!e.fim || +new Date(e.fim) > t));
+  if (outra.length && !confirm(mot + ' está vinculado a ' + outra.map(e => e.placa).join(', ') + '. Encerrar esse vínculo e passar para ' + placa + '?')) return;
+  const patch = {};
+  ESCALA.filter(e => abertoEm(e, key)).concat(outra).forEach(e => { e.fim = ini; patch[e.id] = { placa: e.placa, motorista: e.motorista, inicio: e.inicio, fim: ini }; });
+  const id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const reg = { placa, motorista: mot, inicio: ini, fim: '' };
+  ESCALA.push(Object.assign({ id }, reg)); patch[id] = reg;
+  _dispEscalaCarregada = true; try { localStorage.setItem('escala_motoristas_cache', JSON.stringify(ESCALA)); } catch (e) {}
+  _vincFechar(); renderDisp();
+  mostrarIndicador('⏳ Salvando vínculo...', '#FCD34D');
+  const ok = await _escPatch(patch);
+  mostrarIndicador(ok ? '🔗 ' + mot + ' vinculado a ' + placa : '❌ Erro ao salvar vínculo — tente novamente', ok ? '#86efac' : '#FCA5A5');
+}
+async function _vincDesvincular() {
+  if (!_checkEdicao()) return;
+  const placa = document.getElementById('vinc-placa').value.trim().toUpperCase(), key = _normPlaca(placa);
+  const a = _vincAtual(key); if (!a) return;
+  if (!confirm('Desvincular ' + a.motorista + ' da placa ' + placa + ' agora?')) return;
+  const agora = _apIso(new Date()), patch = {};
+  ESCALA.filter(e => _normPlaca(e.placa) === key && (!e.fim || +new Date(e.fim) > Date.now())).forEach(e => { e.fim = agora; patch[e.id] = { placa: e.placa, motorista: e.motorista, inicio: e.inicio, fim: agora }; });
+  try { localStorage.setItem('escala_motoristas_cache', JSON.stringify(ESCALA)); } catch (e) {}
+  _vincFechar(); renderDisp();
+  const ok = await _escPatch(patch);
+  mostrarIndicador(ok ? '⛔ Motorista desvinculado' : '❌ Erro ao salvar — tente novamente', ok ? '#86efac' : '#FCA5A5');
+}
 
 // ── Lançamentos manuais de parada (dia/hora) ──
 // Guardados à parte (/manutencao/apontamentos_disp.json) e somados às paradas de

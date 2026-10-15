@@ -10398,7 +10398,7 @@ function renderDisp() {
       nota.textContent = 'Disponibilidade = (horas do mês − horas indisponíveis) ÷ horas do mês. Horas contadas até agora se o mês estiver em andamento. Meta editável acima. Só entram as placas do 📋 CHECKLIST PREVENTIVA: cada linha é o cavalo com o seu reboque. Parada do cavalo OU do reboque conta para o conjunto (tempo simultâneo conta uma vez só).';
     } else {
       const hd = ['Placa', 'Modelo', 'Motorista'];
-      let th = `<th style="${_dispTh};left:0">Placa</th><th style="${_dispTh}">Reboque</th><th style="${_dispTh}">Motorista atual</th>`;
+      let th = `<th style="${_dispTh};left:0;min-width:104px">Placa / Reboque</th><th style="${_dispTh}">Motorista atual</th>`;
       for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 3px;min-width:40px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
       th += ['Ocorr.', 'Horas Indisp.', 'Disp.', 'Status'].map(c => `<th style="${_dispTh}">${c}</th>`).join('');
       corpo.innerHTML = `<table style="border-collapse:collapse;width:max-content;min-width:100%"><thead><tr>${th}</tr></thead><tbody>` + lista.map((g, i) => {
@@ -10408,7 +10408,7 @@ function renderDisp() {
           const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
           tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help;white-space:nowrap">${c.h >= 23.99 ? '24h' : _dispHM(c.h)}</td>`;
         });
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap;font-weight:700;color:#475569">${esc(g.reboque || '—')}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};position:sticky;left:0;min-width:104px;white-space:nowrap;background:${i % 2 ? '#f8fafc' : '#fff'}"><div style="font-weight:800">${esc(g.cavalo || g.reboque)}</div>${g.cavalo ? (g.reboque ? `<div style="font-size:10px;font-weight:700;color:#64748b">Reboque: ${esc(g.reboque)}</div>` : '') : '<div style="font-size:10px;font-weight:700;color:#64748b">Reboque</div>'}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C;white-space:nowrap">${_dispHM(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
       }).join('') + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;

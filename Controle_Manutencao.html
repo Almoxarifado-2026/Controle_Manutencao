@@ -10224,51 +10224,94 @@ function _dispJanelaMes() {
 const _dispOv = (i1, f1, i2, f2) => Math.max(0, Math.min(f1, f2) - Math.max(i1, i2));
 const _dispTipo = r => String(r.tipoManut || 'CORRETIVA').toUpperCase().startsWith('P') ? 'P' : 'C';
 
-// Frota: uma linha por placa ativa (Troca de Óleo/Checklist) + toda placa com parada no mês
+// Conjuntos do CHECKLIST PREVENTIVA: cada linha do checklist = cavalo + reboque (ou só um deles).
+// Só placas do checklist entram na Disponibilidade; o reboque fica atrelado ao cavalo.
+let _dispPM = new Map(); // placa normalizada → chave do conjunto
+function _dispConjuntos() {
+  const pm = new Map(), grupos = new Map();
+  const lista = (typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).filter(c => c);
+  const par = c => ({ cav: String(c.cavalo || c.placa || '').trim(), reb: String(c.reboque || '').trim() });
+  lista.forEach(c => { // 1ª passada: cavalos (com ou sem reboque)
+    const { cav, reb } = par(c), kc = _normPlaca(cav), kr = _normPlaca(reb);
+    if (!kc) return;
+    let g = grupos.get(kc);
+    if (!g) { g = { key: kc, placa: cav, reboques: [], modelo: c.tipo || '' }; grupos.set(kc, g); pm.set(kc, kc); }
+    if (!g.modelo && c.tipo) g.modelo = c.tipo;
+    if (kr && kr !== kc && !pm.has(kr)) { g.reboques.push(reb); pm.set(kr, kc); }
+  });
+  lista.forEach(c => { // 2ª passada: reboque sem cavalo
+    const { cav, reb } = par(c), kr = _normPlaca(reb);
+    if (_normPlaca(cav) || !kr || pm.has(kr)) return;
+    grupos.set(kr, { key: kr, placa: reb, reboques: [], modelo: c.tipo || '' }); pm.set(kr, kr);
+  });
+  return { pm, grupos };
+}
+// recorta [ini,fim] tirando o que já está coberto (cov = intervalos ordenados e unidos)
+function _dispSubtrai(ini, fim, cov) {
+  const out = []; let cur = ini;
+  for (const [cs, ce] of cov) { if (ce <= cur) continue; if (cs >= fim) break; if (cs > cur) out.push([cur, cs]); cur = Math.max(cur, ce); }
+  if (cur < fim) out.push([cur, fim]);
+  return out;
+}
+const _dispHorasReg = (r, w0, w1) => r.segs.reduce((t, sg) => t + _dispOv(sg[0], sg[1], w0, w1), 0) / 3600000;
+
 function _dispCalcFrota() {
   const { a, b, dias, horasMes } = _dispJanelaMes();
-  const agora = new Date(), A = +a, B = +b, N = +agora;
+  const agora = new Date(), A = +a, B = +b, N = +agora, CAP = N > A ? Math.max(N, A) : B;
+  const { pm, grupos } = _dispConjuntos(); _dispPM = pm;
   const regs = _tpRegistros().map(r => {
     const e = new Date(r.entrada), s = r._aberto ? agora : new Date(r.saida);
-    return { key: _normPlaca(r.placa), placa: r.placa, e: +e, s: +s, aberto: !!r._aberto, tipo: _dispTipo(r), serv: String(r.servico || '').toLowerCase(), rec: r.reclamacao || '' };
+    return { key: pm.get(_normPlaca(r.placa)) || '', placa: r.placa, e: +e, s: +s, aberto: !!r._aberto, tipo: _dispTipo(r), serv: String(r.servico || '').toLowerCase(), rec: r.reclamacao || '' };
   }).filter(r => r.key && !isNaN(r.e) && !isNaN(r.s) && r.s > A && r.e < B);
-  const ativas = new Map();
-  (typeof VEICULOS !== 'undefined' ? VEICULOS : []).forEach(v => { const k = _normPlaca(v && v.placa); if (k) ativas.set(k, { placa: v.placa, modelo: v.tipo || '' }); });
-  (typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).forEach(c => { const p = c && (c.cavalo || c.placa || ''); const k = _normPlaca(p); if (k && !ativas.has(k)) ativas.set(k, { placa: p, modelo: c.tipo || '' }); });
+  // Horas sem dupla contagem: se cavalo e reboque do mesmo conjunto param ao mesmo tempo, o tempo conta uma vez só
+  const cobertura = {};
+  regs.slice().sort((x, y) => x.e - y.e).forEach(r => {
+    const ini = Math.max(r.e, A), fim = Math.min(r.s, B, CAP);
+    const cov = cobertura[r.key] || (cobertura[r.key] = []);
+    r.segs = fim > ini ? _dispSubtrai(ini, fim, cov) : [];
+    if (fim > ini) { cov.push([ini, fim]); cov.sort((x, y) => x[0] - y[0]); for (let i = cov.length - 1; i > 0; i--) if (cov[i][0] <= cov[i - 1][1]) { cov[i - 1][1] = Math.max(cov[i - 1][1], cov[i][1]); cov.splice(i, 1); } }
+  });
   const mapa = {};
-  const get = (k, placa) => mapa[k] || (mapa[k] = { key: k, placa: (ativas.get(k) || {}).placa || placa, modelo: (ativas.get(k) || {}).modelo || '', ocorr: 0, ocorrC: 0, ocorrP: 0, h: 0, hC: 0, hP: 0, aberto: false, dias: new Array(dias).fill(null).map(() => ({ h: 0, C: 0, P: 0, txt: [] })) });
-  ativas.forEach((v, k) => get(k, v.placa));
+  grupos.forEach((g, k) => { mapa[k] = { key: k, placa: g.placa, reboque: g.reboques.join(' / '), modelo: g.modelo, ocorr: 0, ocorrC: 0, ocorrP: 0, h: 0, hC: 0, hP: 0, aberto: false, dias: new Array(dias).fill(null).map(() => ({ h: 0, C: 0, P: 0, txt: [] })) }; });
+  const fmtDH = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   regs.forEach(r => {
-    const g = get(r.key, r.placa);
-    const ini = Math.max(r.e, A), fim = Math.min(r.s, B, N > A ? Math.max(N, A) : B);
-    const hr = Math.max(0, fim - ini) / 3600000;
+    const g = mapa[r.key]; if (!g) return;
     if (r.e >= A && r.e < B) { g.ocorr++; if (r.tipo === 'C') g.ocorrC++; else g.ocorrP++; }
+    const hr = _dispHorasReg(r, A, B);
     g.h += hr; if (r.tipo === 'C') g.hC += hr; else g.hP += hr;
     if (r.aberto) g.aberto = true;
     for (let d = 0; d < dias; d++) {
       const d0 = A + d * 86400000, d1 = d0 + 86400000;
-      const ov = _dispOv(ini, fim, d0, d1) / 3600000;
-      if (ov > 0) { const c = g.dias[d]; c.h += ov; c[r.tipo] += ov; c.txt.push((r.tipo === 'C' ? 'Corretiva' : 'Preventiva') + ' (' + (r.serv || '-') + '): ' + new Date(r.e).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' → ' + (r.aberto ? 'em aberto' : new Date(r.s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))); }
+      const ov = _dispHorasReg(r, d0, d1);
+      if (ov > 0) { const c = g.dias[d]; c.h += ov; c[r.tipo] += ov; c.txt.push((r.tipo === 'C' ? 'Corretiva' : 'Preventiva') + ' (' + (r.serv || '-') + ') ' + r.placa + ': ' + fmtDH(r.e) + ' → ' + (r.aberto ? 'em aberto' : fmtDH(r.s))); }
     }
   });
   const lista = Object.values(mapa);
   lista.forEach(g => { g.h = Math.min(g.h, horasMes); g.disp = (horasMes - g.h) / horasMes; });
   lista.sort((x, y) => y.disp - x.disp || x.ocorr - y.ocorr || String(x.placa).localeCompare(String(y.placa)));
   lista.forEach((g, i) => g.pos = i + 1);
-  // motorista atual
-  // Igual à planilha: motorista do momento da última ENTRADA da placa no mês; sem entrada = agora (limitado ao mês)
+  // Motorista atual: mês em andamento = quem está com a placa AGORA. Mês passado = quem estava na última entrada do mês
+  // (se nesse momento não havia ninguém, o último motorista escalado dentro do mês).
+  const noMes = N >= A && N < B;
   lista.forEach(g => {
+    if (noMes) { g.motorista = _dispMotoristaEm(g.key, N); return; }
     let ult = -Infinity;
     regs.forEach(r => { if (r.key === g.key && r.e >= A && r.e < B && r.e > ult) ult = r.e; });
-    g.motorista = _dispMotoristaEm(g.key, ult > -Infinity ? ult : Math.max(A, Math.min(N, B - 60000)));
+    let m = _dispMotoristaEm(g.key, ult > -Infinity ? ult : Math.max(A, Math.min(N, B - 60000)));
+    if (m === 'Não atribuído') {
+      let melhor = null;
+      ESCALA.forEach(e => { const ke = _normPlaca(e.placa); if ((pm.get(ke) || ke) !== g.key) return; const i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity; if (!isNaN(i) && i < B && f > A && (!melhor || i >= melhor.i)) melhor = { i, m: e.motorista }; });
+      if (melhor) m = melhor.m;
+    }
+    g.motorista = m;
   });
-  return { a, b, dias, horasMes, lista, regs };
+  return { a, b, dias, horasMes, lista, regs, pm };
 }
 
 function _dispMotoristaEm(key, t) {
   let ach = null;
   ESCALA.forEach(e => {
-    if (_normPlaca(e.placa) !== key) return;
+    const ke = _normPlaca(e.placa); if ((_dispPM.get(ke) || ke) !== key) return;
     const i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity;
     if (!isNaN(i) && i <= t && t < f) ach = e.motorista;
   });
@@ -10280,14 +10323,13 @@ function _dispCalcMotoristas(F) {
   const A = +F.a, B = +F.b, N = Date.now();
   const mapa = {};
   const linhas = ESCALA.map(e => {
-    const key = _normPlaca(e.placa), i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity;
+    const k0 = _normPlaca(e.placa), key = (F.pm && F.pm.get(k0)) || k0, i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity;
     const w0 = Math.max(i, A), w1 = Math.min(f, B);
     const L = { id: e.id, placa: e.placa, motorista: e.motorista, inicio: e.inicio, fim: e.fim, w0, w1, ocorr: 0, oC: 0, oP: 0, h: 0, hC: 0, hP: 0, aloc: 0, agora: false };
     if (isNaN(w0) || w1 <= w0) return L;
     L.aloc = (w1 - w0) / 3600000;
     F.regs.filter(r => r.key === key).forEach(r => {
-      const ini = Math.max(r.e, w0), fim = Math.min(r.s, w1, Math.max(N, A));
-      const hr = Math.max(0, fim - ini) / 3600000;
+      const hr = _dispHorasReg(r, w0, w1);
       if (r.e >= w0 && r.e < w1) { L.ocorr++; if (r.tipo === 'C') L.oC++; else L.oP++; }
       L.h += hr; if (r.tipo === 'C') L.hC += hr; else L.hP += hr;
     });
@@ -10330,7 +10372,8 @@ function renderDisp() {
   const esc = escapeHtml;
 
   if (_dispVista === 'frota' || _dispVista === 'quadro') {
-    const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)));
+    const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || _normPlaca(g.reboque).includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)));
+    if (!F.lista.length) { kp.innerHTML = ''; corpo.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhuma placa no 📋 Checklist Preventiva. Abra a aba Checklist Preventiva para carregar os veículos.</div>'; nota.textContent = ''; _dispUltimo = null; return; }
     const crit = F.lista.length ? F.lista[F.lista.length - 1].placa : '-';
     kp.innerHTML = [
       _dispKpi(F.lista.length, 'VEÍCULOS', '#0f172a'), _dispKpi(F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA', '#15803d'),
@@ -10340,20 +10383,20 @@ function renderDisp() {
       _dispKpi(_dispHfmt(tot.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(tot.hP), 'HORAS PREVENTIVAS', '#1E40AF'),
       _dispKpi((tot.hC + tot.hP) ? _dispPct(tot.hP / (tot.hC + tot.hP)) : '-', '% HORAS PREVENTIVAS', '#4338CA')].join('');
     if (_dispVista === 'frota') {
-      const cols = ['Pos.', 'Placa', 'Modelo / Nº Frota', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
+      const cols = ['Pos.', 'Placa', 'Reboque', 'Tipo de veículo', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
       corpo.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((g, i) => {
         const tp = g.hC + g.hP;
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.placa)}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.placa)}</td><td style="${_dispTd};font-weight:700;color:#475569">${esc(g.reboque || '—')}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(g.h)}</td><td style="${_dispTd}">${_dispHfmt(F.horasMes - g.h)}</td>
         <td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td>
         <td style="${_dispTd}">${g.aberto ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">🔴 EM MANUTENÇÃO</span>' : '<span style="color:#166534;font-weight:700">Operando</span>'}</td>
         <td style="${_dispTd}">${_dispSit(g.disp, meta)}</td><td style="${_dispTd}">${g.ocorrC}</td><td style="${_dispTd}">${g.ocorrP}</td><td style="${_dispTd}">${_dispHfmt(g.hC)}</td><td style="${_dispTd}">${_dispHfmt(g.hP)}</td><td style="${_dispTd}">${tp ? _dispPct(g.hP / tp) : '-'}</td></tr>`;
       }).join('') + '</tbody></table>';
-      _dispUltimo = { titulo: 'Ranking de Disponibilidade da Frota', cols, rows: lista.map(g => { const tp = g.hC + g.hP; return [g.pos + 'º', g.placa, g.modelo, g.motorista, g.ocorr, _dispHfmt(g.h), _dispHfmt(F.horasMes - g.h), _dispPct(g.disp), g.aberto ? 'Parado' : 'Operando', g.disp >= meta ? 'Atende' : 'Abaixo', g.ocorrC, g.ocorrP, _dispHfmt(g.hC), _dispHfmt(g.hP), tp ? _dispPct(g.hP / tp) : '-']; }), kpis: [[String(F.lista.length), 'VEÍCULOS'], [F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA'], [_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS'], [String(tot.o), 'OCORRÊNCIAS'], [String(tot.ag), 'EM MANUTENÇÃO AGORA']] };
-      nota.textContent = 'Disponibilidade = (horas do mês − horas indisponíveis) ÷ horas do mês. Horas contadas até agora se o mês estiver em andamento. Meta editável acima. Placas: Troca de Óleo, Checklist e qualquer placa com parada no mês.';
+      _dispUltimo = { titulo: 'Ranking de Disponibilidade da Frota', cols, rows: lista.map(g => { const tp = g.hC + g.hP; return [g.pos + 'º', g.placa, g.reboque || '-', g.modelo, g.motorista, g.ocorr, _dispHfmt(g.h), _dispHfmt(F.horasMes - g.h), _dispPct(g.disp), g.aberto ? 'Parado' : 'Operando', g.disp >= meta ? 'Atende' : 'Abaixo', g.ocorrC, g.ocorrP, _dispHfmt(g.hC), _dispHfmt(g.hP), tp ? _dispPct(g.hP / tp) : '-']; }), kpis: [[String(F.lista.length), 'VEÍCULOS'], [F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA'], [_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS'], [String(tot.o), 'OCORRÊNCIAS'], [String(tot.ag), 'EM MANUTENÇÃO AGORA']] };
+      nota.textContent = 'Disponibilidade = (horas do mês − horas indisponíveis) ÷ horas do mês. Horas contadas até agora se o mês estiver em andamento. Meta editável acima. Só entram as placas do 📋 CHECKLIST PREVENTIVA: cada linha é o cavalo com o seu reboque. Parada do cavalo OU do reboque conta para o conjunto (tempo simultâneo conta uma vez só).';
     } else {
       const hd = ['Placa', 'Modelo', 'Motorista'];
-      let th = `<th style="${_dispTh};left:0">Placa</th><th style="${_dispTh}">Motorista atual</th>`;
+      let th = `<th style="${_dispTh};left:0">Placa</th><th style="${_dispTh}">Reboque</th><th style="${_dispTh}">Motorista atual</th>`;
       for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 3px;min-width:32px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
       th += ['Ocorr.', 'Horas Indisp.', 'Disp.', 'Status'].map(c => `<th style="${_dispTh}">${c}</th>`).join('');
       corpo.innerHTML = `<table style="border-collapse:collapse;width:max-content;min-width:100%"><thead><tr>${th}</tr></thead><tbody>` + lista.map((g, i) => {
@@ -10363,7 +10406,7 @@ function renderDisp() {
           const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
           tds += `<td onclick="_apAbrir(null,'${esc(g.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help">${c.h >= 23.95 ? '24' : (Math.round(c.h * 10) / 10).toString().replace('.', ',')}</td>`;
         });
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800;position:sticky;left:0;background:${i % 2 ? '#f8fafc' : '#fff'}">${esc(g.placa)}</td><td style="${_dispTd};white-space:nowrap;font-weight:700;color:#475569">${esc(g.reboque || '—')}</td><td style="${_dispTd};white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>${tds}
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};font-weight:700;color:#B91C1C">${_dispHfmt(g.h)}</td><td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td><td style="${_dispTd}">${g.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
       }).join('') + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;
@@ -10473,7 +10516,7 @@ function _vincAbrir(placa) {
   _vincFechar();
   const key = _normPlaca(placa || '');
   const atual = key ? ESCALA.filter(e => _normPlaca(e.placa) === key && (!e.fim || +new Date(e.fim) > Date.now()) && +new Date(e.inicio) <= Date.now()).pop() : null;
-  const placas = [...new Set([...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => v.placa), ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => c.cavalo || c.placa), ...ESCALA.map(e => e.placa)].filter(Boolean))].sort();
+  const placas = [...new Set((typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => c.cavalo || c.placa || c.reboque).filter(Boolean))].sort();
   const mots = [...new Set(ESCALA.map(e => e.motorista).filter(Boolean))].sort();
   const inp = 'width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;box-sizing:border-box';
   const lb = 'font-size:11px;font-weight:700;color:#475569;display:block;margin:10px 0 4px';
@@ -10576,7 +10619,7 @@ function _apAbrir(id, placa, dia) {
   const F = _dispJanelaMes();
   let ent = reg ? reg.entrada : '';
   if (!reg) { const d = dia ? new Date(F.a.getFullYear(), F.a.getMonth(), dia, 8, 0) : new Date(); ent = _apIso(d); }
-  const placas = [...new Set([...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => v.placa), ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => c.cavalo || c.placa)].filter(Boolean))].sort();
+  const placas = [...new Set((typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).flatMap(c => [c.cavalo || c.placa, c.reboque]).filter(Boolean))].sort();
   const inp = 'width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;box-sizing:border-box';
   const lb = 'font-size:11px;font-weight:700;color:#475569;display:block;margin:10px 0 4px';
   const o = document.createElement('div'); o.id = 'ap-overlay';
@@ -10642,7 +10685,7 @@ function gerarPDFDisp() {
   const kw = (TW - 4 * (U.kpis.length - 1)) / U.kpis.length, cores = [[15, 23, 42], [21, 128, 61], [127, 29, 29], [29, 78, 216], [220, 38, 38]];
   U.kpis.forEach((k, i) => { const x = ML + i * (kw + 4); doc.setFillColor(...cores[i % cores.length]); doc.roundedRect(x, 24, kw, 14, 2, 2, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(String(k[0]), x + kw / 2, 31, { align: 'center' }); doc.setFontSize(6.5); doc.text(k[1], x + kw / 2, 35.5, { align: 'center' }); });
   const nc = U.cols.length, larg = new Array(nc).fill(TW / nc);
-  const wmap = { 'Pos.': 10, 'Placa': 20, 'Motorista': 44, 'Modelo / Nº Frota': 34, 'Motorista atual': 38, 'Placas no mês': 34 };
+  const wmap = { 'Pos.': 10, 'Placa': 19, 'Reboque': 19, 'Motorista': 44, 'Tipo de veículo': 28, 'Motorista atual': 36, 'Placas no mês': 34 };
   let fixo = 0, livres = 0; U.cols.forEach((c, i) => { if (wmap[c]) { larg[i] = wmap[c]; fixo += wmap[c]; } else livres++; });
   U.cols.forEach((c, i) => { if (!wmap[c]) larg[i] = (TW - fixo) / livres; });
   let y = 42;

@@ -20678,7 +20678,11 @@ async function salvarPlacaDocExtraMerge(key) {
 
 async function excluirPlacaDocExtraFirebase(key) {
   const atualizados = await _docSalvarComRetry('/manutencao/placas_doc.json', { [key]: null }, null);
-  if (atualizados) Object.assign(PLACAS_DOC_EXTRA, atualizados);
+  if (atualizados) {
+    Object.assign(PLACAS_DOC_EXTRA, atualizados);
+    // o patch de exclusão traz { placa: null } — sem isto sobra uma entrada nula que quebra o renderDocumentos
+    Object.keys(PLACAS_DOC_EXTRA).forEach(k => { if (!PLACAS_DOC_EXTRA[k]) delete PLACAS_DOC_EXTRA[k]; });
+  }
 }
 let _docEditKey = null;
 
@@ -21244,6 +21248,89 @@ async function excluirDoc(keyDireto) {
   }
 }
 
+// ── Excluir documentos / placa (botão 🗑 da coluna AÇÕES) ──
+// Exclui vários documentos de uma vez (uma única requisição PATCH com null) e os PDFs deles.
+async function _excluirDocsEmLote(keys) {
+  const patch = {}, patchPdf = {}; let comPdf = false;
+  keys.forEach(k => {
+    const d = DOCUMENTOS[k];
+    patch[k] = null;
+    if (d && (d.tem_pdf || d.pdf_base64)) { patchPdf[k] = null; comPdf = true; }
+    try { _invalidarCachePdfDoc(k); } catch (e) {}
+    delete DOCUMENTOS[k];
+  });
+  renderDocumentos();
+  mostrarIndicador('⏳ Excluindo ' + keys.length + ' documento(s)...', '#FCD34D');
+  const PATH = '/manutencao/documentos.json';
+  _docFilaAdicionar(PATH, patch); // protege ANTES de tentar
+  _docSyncPendente = true;
+  let ok = false;
+  try {
+    const r = await _fetchComTimeout(FIREBASE_URL + PATH, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' }, body: JSON.stringify(patch) }, 15000);
+    ok = !!(r && r.ok);
+  } catch (e) { ok = false; }
+  if (ok) {
+    _docFalhasConsecutivas = 0; _docFilaLimparPath(PATH);
+    try { _criarBackupAposEdicao(); } catch (e) {}
+    setTimeout(() => { _docSyncPendente = false; }, 3000);
+  } else {
+    const atualizados = await _docSalvarComRetry(PATH, patch, null);
+    if (atualizados) { Object.assign(DOCUMENTOS, atualizados); Object.keys(DOCUMENTOS).forEach(k => { if (!DOCUMENTOS[k]) delete DOCUMENTOS[k]; }); renderDocumentos(); ok = true; }
+  }
+  if (comPdf) {
+    _fetchComTimeout(FIREBASE_URL + '/manutencao/documentos_pdf.json', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' }, body: JSON.stringify(patchPdf) }, 15000).catch(() => {});
+  }
+  mostrarIndicador(ok ? '🗑 ' + keys.length + ' documento(s) excluído(s)!' : '⚠️ Exclusão salva localmente — tentando enviar de novo', ok ? '#86efac' : '#FCD34D');
+  return ok;
+}
+
+function _excFechar() { const o = document.getElementById('exc-overlay'); if (o) o.remove(); }
+function abrirExcluirDocPlaca(placa, reboque) {
+  if (!_checkEdicao()) return;
+  _excFechar();
+  const placas = [placa].concat(reboque ? [reboque] : []).map(_normPlaca);
+  const docs = Object.entries(DOCUMENTOS).filter(([k, d]) => d && placas.includes(_normPlaca(d.placa)))
+    .sort((a, b) => placas.indexOf(_normPlaca(a[1].placa)) - placas.indexOf(_normPlaca(b[1].placa)) || String(a[1].tipo).localeCompare(String(b[1].tipo)));
+  const kp = _normPlaca(placa);
+  const noFrota = (typeof VEICULOS !== 'undefined' ? VEICULOS : []).some(v => _normPlaca(v.placa) === kp);
+  const extraKey = Object.keys(PLACAS_DOC_EXTRA).find(k => _normPlaca(k) === kp || _normPlaca((PLACAS_DOC_EXTRA[k] || {}).placa) === kp);
+  const o = document.createElement('div'); o.id = 'exc-overlay';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  const lin = docs.map(([k, d]) => `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;margin-top:6px;cursor:pointer;font-size:12px"><input type="checkbox" class="exc-chk" value="${escapeHtml(k)}" style="width:16px;height:16px;accent-color:#DC2626"><span><b>${escapeHtml(d.placa)}</b> · ${escapeHtml(DOC_LABELS[d.tipo] || d.tipo)}${d.vencimento ? ' · venc. ' + escapeHtml(formatarData(d.vencimento)) : ''}${(d.tem_pdf || d.pdf_base64) ? ' · 📎 PDF' : ''}</span></label>`).join('');
+  o.innerHTML = `<div style="background:#fff;border-radius:18px;padding:22px;width:100%;max-width:460px;max-height:92vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0;font-size:17px;color:#991B1B">🗑 Excluir — ${escapeHtml(placa)}</h2>
+      <div style="display:flex;gap:6px"><button onclick="_excFechar()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:10px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer">Cancelar</button>${docs.length ? `<button onclick="_excSelecionados()" style="background:#DC2626;color:#fff;border:none;border-radius:10px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer">🗑 Excluir marcados</button>` : ''}</div></div>
+    <div style="font-size:12px;color:#475569;margin-top:12px">${docs.length ? 'Marque os documentos que deseja excluir definitivamente:' : '<b>Esta placa não tem documentos cadastrados.</b>'}</div>
+    ${docs.length ? `<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;font-weight:700;color:#64748b;cursor:pointer"><input type="checkbox" onchange="document.querySelectorAll('.exc-chk').forEach(c=>c.checked=this.checked)"> Marcar todos (${docs.length})</label>${lin}` : ''}
+    <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:12px">
+      ${extraKey && !noFrota ? `<button onclick="_excRemoverPlaca('${escapeHtml(placa)}','${escapeHtml(extraKey)}')" style="background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:10px;padding:10px 14px;font-weight:700;font-size:12px;cursor:pointer;width:100%">❌ Remover a placa ${escapeHtml(placa)} da lista de Documentos</button><div style="font-size:10px;color:#94a3b8;margin-top:6px">Remove a linha e exclui também os documentos desta placa${reboque ? ' (os do reboque ' + escapeHtml(reboque) + ' ficam)' : ''}.</div>`
+        : noFrota ? `<div style="font-size:11px;color:#64748b;background:#f8fafc;border-radius:10px;padding:10px 12px">ℹ️ Esta placa pertence à <b>Frota</b> (Troca de Óleo/Checklist), por isso a linha continua na lista. Para remover a placa, use <b>Gerenciar Placas</b>.</div>`
+        : `<div style="font-size:11px;color:#64748b">A linha some da lista assim que os documentos forem excluídos.</div>`}
+    </div></div>`;
+  document.body.appendChild(o);
+}
+async function _excSelecionados() {
+  const keys = [...document.querySelectorAll('.exc-chk:checked')].map(c => c.value);
+  if (!keys.length) { alert('Marque pelo menos um documento.'); return; }
+  const nomes = keys.map(k => DOCUMENTOS[k] ? DOCUMENTOS[k].placa + ' — ' + (DOC_LABELS[DOCUMENTOS[k].tipo] || DOCUMENTOS[k].tipo) : k).join('\n');
+  if (!confirm('⚠️ EXCLUIR DEFINITIVAMENTE\n\n' + nomes + '\n\nEstes documentos (e os PDFs) serão removidos permanentemente do sistema e do Firebase.\n\nConfirmar exclusão?')) return;
+  _excFechar();
+  await _excluirDocsEmLote(keys);
+}
+async function _excRemoverPlaca(placa, extraKey) {
+  if (!_checkEdicao()) return;
+  const kp = _normPlaca(placa);
+  const keys = Object.keys(DOCUMENTOS).filter(k => DOCUMENTOS[k] && _normPlaca(DOCUMENTOS[k].placa) === kp);
+  if (!confirm('⚠️ REMOVER PLACA ' + placa + '\n\nA placa sai da lista de Documentos' + (keys.length ? ' e ' + keys.length + ' documento(s) dela serão excluídos definitivamente' : '') + '.\n\nConfirmar?')) return;
+  _excFechar();
+  delete PLACAS_DOC_EXTRA[extraKey];
+  const exFb = excluirPlacaDocExtraFirebase(extraKey);
+  Object.values(PLACAS_DOC_EXTRA).forEach(p => { if (p && _normPlaca(p.atrelado) === kp) { p.atrelado = ''; salvarPlacaDocExtraMerge(p.placa); } });
+  if (keys.length) await _excluirDocsEmLote(keys); else renderDocumentos();
+  await exFb; renderDocumentos();
+  mostrarIndicador('✅ Placa ' + placa + ' removida', '#fca5a5');
+}
+
 // ── Render ──
 function renderDocumentos() {
   if (!Object.keys(DOCUMENTOS).length) {
@@ -21537,8 +21624,8 @@ function renderDocumentos() {
       <td style="padding:7px 10px;color:#64748b;font-size:10px">${rebTipo}</td>
       ${cellsReboque}
       <!-- Ações -->
-      <td style="padding:7px 10px;text-align:center;border-left:2px solid #e2e8f0">
-        ${btnAdd}
+      <td style="padding:7px 10px;text-align:center;border-left:2px solid #e2e8f0;white-space:nowrap">
+        <div style="display:flex;gap:6px;justify-content:center;align-items:center">${btnAdd}<button onclick="abrirExcluirDocPlaca('${v.placa}','${rebPlaca || ''}')" title="Excluir documentos ou remover a placa" style="background:#FEF2F2;color:#DC2626;border:none;border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.12)">🗑</button></div>
       </td>
     </tr>`;
   });

@@ -22081,6 +22081,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // ── PDF no módulo de documentos ──
+// ── Leitura tolerante de PDF (PDF.js) para Documentos ──
+// • espera a biblioteca carregar (o <script> do CDN é assíncrono) e garante o worker
+// • lê até as 3 primeiras páginas (antes só a 1ª)
+// • tira acentos e entende placa com hífen, letras separadas, "EXERCÍCIO: 2026"…
+// • se o conteúdo não ajudar, usa a placa/ano do NOME do arquivo
+function _pdfjsPronto(ms) {
+  ms = ms || 5000;
+  return new Promise(res => {
+    const t0 = Date.now();
+    (function w() {
+      if (typeof pdfjsLib !== 'undefined') {
+        try { if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
+        return res(true);
+      }
+      if (Date.now() - t0 > ms) return res(false);
+      setTimeout(w, 150);
+    })();
+  });
+}
+async function _pdfLerTexto(bytes, maxPag) {
+  if (!(await _pdfjsPronto())) throw new Error('PDF.js indisponível');
+  const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+  const tokens = [];
+  for (let n = 1; n <= Math.min(pdf.numPages, maxPag || 3); n++) {
+    const page = await pdf.getPage(n);
+    const c = await page.getTextContent();
+    c.items.forEach(i => { const t = String(i.str || '').trim(); if (t) tokens.push(t.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()); });
+  }
+  const texto = tokens.join(' ');
+  // PDFs com uma letra por item: junta tudo sem espaços para procurar
+  const picado = tokens.length > 3 && tokens.filter(t => /^(\S ){1,}\S$|^\S{1,2}$/.test(t)).length / tokens.length > 0.6;
+  return { tokens, texto, compacto: tokens.join('').replace(/\s+/g, ''), picado, paginas: pdf.numPages };
+}
+function _pdfDetectarPlacaAno(L, nomeArq) {
+  const RX = /(?:^|[^A-Z0-9])([A-Z]{3})-?(\d[A-Z0-9]\d{2})(?![A-Z0-9])/;
+  const nome = String(nomeArq || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9\-]/g, ' ');
+  const base = L.picado ? L.compacto : L.texto;
+  let placa = null, ano = null, oPlaca = '', oAno = '';
+  // 1) logo antes/depois de "EXERCÍCIO" (CRLV Digital: "PLACA EXERCÍCIO / TUO7G77 2026")
+  const ix = L.tokens.findIndex(t => t.includes('EXERC'));
+  if (ix !== -1) {
+    for (let i = ix + 1; i <= ix + 6 && i < L.tokens.length; i++) { const m = L.tokens[i].match(/^(20[2-3]\d)$/); if (m) { ano = +m[1]; oAno = 'pdf'; break; } }
+    for (let i = ix - 1; i >= Math.max(0, ix - 4); i--) { const m = L.tokens[i].replace('-', '').match(/^([A-Z]{3}\d[A-Z0-9]\d{2})$/); if (m) { placa = m[1]; oPlaca = 'pdf'; break; } }
+    if (!placa) for (let i = ix + 1; i <= ix + 6 && i < L.tokens.length; i++) { const m = L.tokens[i].replace('-', '').match(/^([A-Z]{3}\d[A-Z0-9]\d{2})$/); if (m) { placa = m[1]; oPlaca = 'pdf'; break; } }
+  }
+  // 2) ano: "EXERCÍCIO 2026" / "EXERCÍCIO: 2026" / letras coladas
+  if (!ano) { const m = L.texto.match(/EXERCICIO\s*:?\s*(20[2-3]\d)/) || L.compacto.match(/EXERCICIO:?(20[2-3]\d)/); if (m) { ano = +m[1]; oAno = 'pdf'; } }
+  if (!ano) { const m = L.texto.match(/[A-Z]{3}-?\d[A-Z0-9]\d{2}\s+(20[2-3]\d)/); if (m) { ano = +m[1]; oAno = 'pdf'; } }
+  // 3) placa no nome do arquivo (o usuário nomeia o arquivo pela placa)
+  if (!placa) { const m = nome.match(RX); if (m) { placa = m[1] + m[2]; oPlaca = 'nome do arquivo'; } }
+  // 4) placa em qualquer lugar do texto
+  if (!placa) { const m = base.match(RX); if (m) { placa = m[1] + m[2]; oPlaca = 'pdf'; } }
+  // 4b) texto picado em letras/pedaços com espaços no meio ("T U O 7" "G 7" "7"): procura no texto sem espaços
+  if (!placa && L.picado) { const m = L.compacto.match(/([A-Z]{3})-?(\d[A-Z0-9]\d{2})/); if (m) { placa = m[1] + m[2]; oPlaca = 'pdf'; } }
+  // 5) ano no nome do arquivo
+  if (!ano) { const m = String(nomeArq || '').match(/(20[2-3]\d)/); if (m) { ano = +m[1]; oAno = 'nome do arquivo'; } }
+  return { placa, ano, oPlaca, oAno };
+}
+
 function processarPDFDoc(input) {
   if (!_checkEdicao()) return;
   const file = input.files[0];
@@ -22125,49 +22184,17 @@ function processarPDFDoc(input) {
     window._docPDFMimeType = file.type || (isPDF ? 'application/pdf' : 'image/jpeg');
 
     // ── Extração de texto do PDF via PDF.js ──
-    if (isPDF && typeof pdfjsLib !== 'undefined') {
+    if (isPDF) {
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-      pdfjsLib.getDocument({ data: bytes }).promise.then(pdf => {
-        return pdf.getPage(1);
-      }).then(page => {
-        return page.getTextContent();
-      }).then(content => {
-        // Montar texto completo da página
-        const tokens = content.items.map(i => i.str.trim()).filter(Boolean);
-        const texto  = tokens.join(' ').toUpperCase();
-
-        let placaDetectada = null;
-        let anoDetectado   = null;
-
-        // ── Estratégia 1: padrão "PLACA EXERCÍCIO\n<PLACA> <ANO>" do CRLV Digital ──
-        // Buscar índice do token "EXERCÍCIO" e pegar o token seguinte como ano
-        const idxExercicio = tokens.findIndex(t => t.toUpperCase().includes('EXERC'));
-        if (idxExercicio !== -1) {
-          // Procurar próximo token que seja um ano válido (2020-2040) nos 5 tokens seguintes
-          for (let i = idxExercicio + 1; i <= idxExercicio + 6 && i < tokens.length; i++) {
-            const m = tokens[i].match(/^(20[2-3]\d)$/);
-            if (m) { anoDetectado = parseInt(m[1]); break; }
-          }
-          // Placa costuma estar logo antes de "EXERCÍCIO" no mesmo bloco
-          for (let i = idxExercicio - 1; i >= Math.max(0, idxExercicio - 4); i--) {
-            const mp = tokens[i].match(/^([A-Z]{3}\d[A-Z]\d{2}|[A-Z]{3}\d{4})$/);
-            if (mp) { placaDetectada = mp[1]; break; }
-          }
-        }
-
-        // ── Estratégia 2: regex no texto completo ──
-        if (!anoDetectado) {
-          // "EXERCÍCIO 2026" ou "EXERCICIO 2026"
-          const mEx = texto.match(/EXERC[ÍI]CIO\s+(20[2-3]\d)/);
-          if (mEx) anoDetectado = parseInt(mEx[1]);
-        }
-        if (!placaDetectada) {
-          const mPl = texto.match(/\b([A-Z]{3}\d[A-Z]\d{2}|[A-Z]{3}\d{4})\b/);
-          if (mPl) placaDetectada = mPl[1];
-        }
+      _pdfLerTexto(bytes, 3).then(L => {
+        const tokens = L.tokens, texto = L.texto;
+        const det = _pdfDetectarPlacaAno(L, file.name);
+        let placaDetectada = det.placa;
+        let anoDetectado   = det.ano;
+        const origem = [det.oPlaca === 'nome do arquivo' ? 'placa' : '', det.oAno === 'nome do arquivo' ? 'ano' : ''].filter(Boolean).join(' e ');
 
         // ── Detectar tipo CRLV pelo conteúdo do PDF ──
         if (texto.includes('CERTIFICADO DE REGISTRO E LICENCIAMENTO') || texto.includes('CRLV')) {
@@ -22231,9 +22258,10 @@ function processarPDFDoc(input) {
         if (prevEl) {
           prevEl.style.display = '';
           if (placaDetectada || anoDetectado || infoOpac) {
-            prevEl.innerHTML = `✅ Detectado do PDF: ${placaDetectada ? 'Placa <b>'+placaDetectada+'</b>' : ''}${tipoDetect ? ' · Tipo <b>'+tipoDetect+'</b>' : ''}${infoAno}${infoOpac} — verifique e complete os campos`;
+            prevEl.style.color = '';
+            prevEl.innerHTML = `✅ Detectado ${origem ? '(' + origem + ' pelo nome do arquivo)' : 'do PDF'}: ${placaDetectada ? 'Placa <b>'+placaDetectada+'</b>' : ''}${tipoDetect ? ' · Tipo <b>'+tipoDetect+'</b>' : ''}${infoAno}${infoOpac} — verifique e complete os campos`;
           } else {
-            prevEl.innerHTML = `📎 PDF carregado — não foi possível detectar automaticamente. Preencha os campos manualmente.`;
+            prevEl.innerHTML = tokens.length ? `📎 PDF carregado — não foi possível detectar automaticamente. Preencha os campos manualmente.` : `📎 PDF carregado, mas sem texto para ler (parece um PDF escaneado/imagem). Preencha placa, tipo e vencimento manualmente.`;
             prevEl.style.color = '#d97706';
           }
         }
@@ -22327,7 +22355,6 @@ async function reprocessarCRLV(key) {
   if (!_checkEdicao()) return;
   const doc = DOCUMENTOS[key];
   if (!doc?.tem_pdf && !doc?.pdf_base64) { alert('Nenhum PDF salvo para reprocessar.'); return; }
-  if (typeof pdfjsLib === 'undefined') { alert('PDF.js não está disponível. Verifique sua conexão.'); return; }
 
   mostrarIndicador('🔄 Lendo PDF...', '#bfdbfe');
 
@@ -22342,12 +22369,9 @@ async function reprocessarCRLV(key) {
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-  pdfjsLib.getDocument({ data: bytes }).promise
-    .then(pdf => pdf.getPage(1))
-    .then(page => page.getTextContent())
-    .then(content => {
-      const tokens = content.items.map(i => i.str.trim()).filter(Boolean);
-      const texto  = tokens.join(' ').toUpperCase();
+  _pdfLerTexto(bytes, 3)
+    .then(L => {
+      const tokens = L.tokens, texto = L.texto;
 
       let anoDetectado = null;
 
@@ -22371,6 +22395,8 @@ async function reprocessarCRLV(key) {
         const mPlAno = texto.match(/[A-Z]{3}\d[A-Z0-9]\d{2,3}\s+(20[2-3]\d)/);
         if (mPlAno) anoDetectado = parseInt(mPlAno[1]);
       }
+
+      if (!anoDetectado) { const d = _pdfDetectarPlacaAno(L, doc.pdf_nome || ''); if (d.ano) anoDetectado = d.ano; }
 
       if (anoDetectado) {
         DOCUMENTOS[key].vencimento = `${anoDetectado}-12-31`;

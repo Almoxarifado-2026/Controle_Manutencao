@@ -3834,7 +3834,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- Nova opção: Borracharia / Troca de Pneu -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-borracharia">
             <input type="checkbox" id="indisp-borracharia" onchange="onPrevTipoChange()" style="accent-color:#334155;width:16px;height:16px;cursor:pointer">
-            <span style="font-size:13px;font-weight:600;color:#475569"><svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg> Serviço de Borracharia / Troca de Pneu</span>
+            <span style="font-size:13px;font-weight:600;color:#475569;display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><svg width="16" height="16" viewBox="0 0 24 24" style="flex:0 0 16px;display:block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg> Serviço de Borracharia / Troca de Pneu</span>
             <span style="font-size:12px;color:#94a3b8">(conserto, montagem ou troca de pneu)</span>
           </label>
           <!-- Nova opção: Aguardando Solda -->
@@ -19048,7 +19048,7 @@ function renderIndisp() {
     if (r.em_socorro)        itens.push(\`<span class="tv-prev-badge" style="background:#FEE2E2;color:#991B1B">🆘 Socorro</span>\`);
     if (r.em_funilaria)        itens.push(\`<span class="tv-prev-badge" style="background:#FCE7F3;color:#9D174D">🔨 Funilaria</span>\`);
     if (r.em_alinhamento)        itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#155E75">⚖️ Alinhamento</span>\`);
-    if (r.em_borracharia)        itens.push(\`<span class="tv-prev-badge" style="background:#E2E8F0;color:#1E293B"><svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg> Borracharia</span>\`);
+    if (r.em_borracharia)        itens.push(\`<span class="tv-prev-badge" style="background:#E2E8F0;color:#1E293B"><svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>&nbsp;Borracharia</span>\`);
     if (r.em_solda_aguard)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔥 Aguard. Solda</span>\`);
     if (r.em_checklist_prev)        itens.push(\`<span class="tv-prev-badge" style="background:#E0E7FF;color:#3730A3">📋 Checklist Prev.</span>\`);
     if (r.em_compra_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔩 Aguard. Compra</span>\`);
@@ -23434,7 +23434,7 @@ function _listaOS(str) {
    "Aguardando Peça" + uma data prevista de retorno). Centraliza a lógica
    pra não repetir o mesmo ternário em cada lugar que exibe esse campo
    (tabela, cards mobile, painel de TV, PDF, WhatsApp). */
-const _ICO_PNEU = '<svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>';
+const _ICO_PNEU = '<svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>';
 function _previsaoLiberacaoItens(r) {
   const itens = [];
   if (r.em_guincho) itens.push({ icon:'🚛', label:'Aguardando Guincho/Reboque', labelCurta:'Guincho', cor:'#854D0E', bg:'#FEF9C3' });
@@ -23485,7 +23485,7 @@ function _previsaoLiberacaoBadgesHTML(r, opts) {
   const fs = opts.fontSize || '9px';
   const pad = opts.padding || '2px 6px';
   return `<div style="display:flex;flex-direction:column;gap:3px;align-items:${opts.justify==='center'?'center':'flex-start'};width:100%;box-sizing:border-box">` +
-    itens.map(i => `<span style="background:${i.bg};color:${i.cor};border-radius:5px;padding:${pad};font-size:${fs};font-weight:700;max-width:100%;box-sizing:border-box;white-space:normal;word-break:break-word;line-height:1.3;text-align:center">${i.svg || i.icon} ${opts.curto ? i.labelCurta : i.label}</span>`).join('') +
+    itens.map(i => `<span style="background:${i.bg};color:${i.cor};border-radius:5px;padding:${pad};font-size:${fs};font-weight:700;max-width:100%;box-sizing:border-box;white-space:normal;word-break:break-word;line-height:1.3;text-align:center">${i.svg ? i.svg + '&nbsp;' : i.icon + ' '}${opts.curto ? i.labelCurta : i.label}</span>`).join('') +
     `</div>`;
 }
 
@@ -25845,7 +25845,7 @@ function renderMobIndisp() {
       if (r.em_socorro)        prevItens.push(`<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🆘 Serviço de Socorro</span>`);
       if (r.em_funilaria)        prevItens.push(`<span style="background:#FCE7F3;color:#9D174D;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔨 Funilaria e Pintura</span>`);
       if (r.em_alinhamento)        prevItens.push(`<span style="background:#CFFAFE;color:#155E75;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚖️ Alinhamento / Balanceamento</span>`);
-      if (r.em_borracharia)        prevItens.push(`<span style="background:#E2E8F0;color:#1E293B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_PNEU} Borracharia / Troca de Pneu</span>`);
+      if (r.em_borracharia)        prevItens.push(`<span style="background:#E2E8F0;color:#1E293B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_PNEU}&nbsp;Borracharia / Troca de Pneu</span>`);
       if (r.em_solda_aguard)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔥 Aguardando Solda</span>`);
       if (r.em_checklist_prev)        prevItens.push(`<span style="background:#E0E7FF;color:#3730A3;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📋 Checklist Preventivo</span>`);
       if (r.em_compra_peca)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔩 Aguardando Compra de Peça</span>`);

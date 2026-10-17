@@ -4151,6 +4151,28 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<!-- ── MODAL: Trocas de um responsável/programador (#overlay-resp-trocas) ── -->
+<div class="overlay" id="overlay-resp-trocas">
+  <div class="modal" style="max-width:min(820px, 95vw)">
+    <h2 id="resp-trocas-titulo">👷 Trocas</h2>
+    <div style="overflow-y:auto;max-height:65vh">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <thead><tr style="background:#581c87;color:#fff">
+          <th style="padding:10px 12px;text-align:left;white-space:nowrap">Placa</th>
+          <th style="padding:10px 12px;text-align:left">Troca</th>
+          <th style="padding:10px 12px;text-align:left;white-space:nowrap">Data</th>
+          <th style="padding:10px 12px;text-align:right;white-space:nowrap">KM</th>
+          <th style="padding:10px 12px;text-align:left">Obs.</th>
+        </tr></thead>
+        <tbody id="resp-trocas-tbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="document.getElementById('overlay-resp-trocas').classList.remove('open')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MODAL: Ver Abastecimentos de uma Placa (#overlay-ver-abast) ── -->
 <!-- Mesmo padrão do modal "Ver Corretivas" acima, só que pra combustível.
      Aberto ao clicar no número da coluna ABAST. na tabela de Combustível. -->
@@ -17209,6 +17231,24 @@ function renderPrevisao() {
 }
 
 // ── Trocas por responsável ──
+let _respDetalhes = {}, _respNomes = [];
+function abrirTrocasResp(i) {
+  const nome = _respNomes[i];
+  if (nome === undefined) return;
+  const lista = (_respDetalhes[nome] || []).slice().sort((a,b) => (b.ts||0) - (a.ts||0));
+  document.getElementById('resp-trocas-titulo').textContent = `👷 ${nome} — ${lista.length} troca${lista.length!==1?'s':''}`;
+  document.getElementById('resp-trocas-tbody').innerHTML = lista.length
+    ? lista.map((t,k) => `<tr style="background:${k%2===0?'#f9f9f9':'#fff'}">
+        <td style="padding:8px 12px;font-weight:700">${escapeHtml(t.placa)}</td>
+        <td style="padding:8px 12px">${escapeHtml(t.troca)}</td>
+        <td style="padding:8px 12px;white-space:nowrap">${escapeHtml(t.data)}</td>
+        <td style="padding:8px 12px;text-align:right">${t.km ? Number(t.km).toLocaleString('pt-BR') : '—'}</td>
+        <td style="padding:8px 12px;color:#64748b">${escapeHtml(t.obs)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#999">Nenhuma troca</td></tr>';
+  document.getElementById('overlay-resp-trocas').classList.add('open');
+}
+
 function renderResponsavel() {
   const contagem = {};
 
@@ -17227,12 +17267,15 @@ function renderResponsavel() {
   // Fonte primária: HISTORICO do Firebase. Sem responsável no registro →
   // usa o programador da placa no checklist; só cai em "Sem registro" se
   // nem isso existir.
+  const detalhesResp = {}; // nome -> lista de trocas (para o clique no nome)
+  const _rotuloTroca = { motor: 'Óleo do motor', cambio: 'Óleo câmbio / diferencial' };
   Object.entries(HISTORICO).forEach(([placa, arr]) => {
     (arr || []).forEach(t => {
       const r = (t.responsavel || '').trim()
              || progPorPlaca[(placa || '').trim().toUpperCase()]
              || 'Sem registro';
       contagem[r] = (contagem[r] || 0) + 1;
+      (detalhesResp[r] = detalhesResp[r] || []).push({ placa, troca: _rotuloTroca[t.tipo] || t.tipo || '', data: t.data || '', km: t.km || 0, obs: t.obs || '', ts: t.ts || 0 });
     });
   });
 
@@ -17244,8 +17287,10 @@ function renderResponsavel() {
     CHECKLIST.forEach(c => {
       const r = (c.programador || '').trim() || 'Sem registro';
       contagem[r] = (contagem[r] || 0) + 1;
+      (detalhesResp[r] = detalhesResp[r] || []).push({ placa: [c.cavalo, c.reboque].filter(Boolean).join(' / '), troca: 'Preventiva (checklist)', data: c.ult_prev || '', km: 0, obs: c.obs_log || '', ts: 0 });
     });
   }
+  _respDetalhes = detalhesResp;
 
   const sorted = Object.entries(contagem).sort((a,b) => b[1]-a[1]).slice(0,8);
   const max = sorted.length ? sorted[0][1] : 1;
@@ -17257,10 +17302,11 @@ function renderResponsavel() {
     return;
   }
 
+  _respNomes = sorted.map(([n]) => n);
   el.innerHTML = sorted.map(([nome, qtd], i) => `
-    <div style="margin-bottom:10px">
+    <div style="margin-bottom:10px;cursor:pointer" title="Clique para ver as trocas" onclick="abrirTrocasResp(${i})">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:12px;font-weight:700;color:#0f172a">${nome}</span>
+        <span style="font-size:12px;font-weight:700;color:#0f172a">${escapeHtml(nome)} <span style="font-weight:400;color:#94a3b8">›</span></span>
         <span style="font-size:12px;font-weight:700;color:${cores[i%cores.length]}">${qtd} trocas</span>
       </div>
       <div style="background:#f1f5f9;border-radius:999px;height:8px;overflow:hidden">

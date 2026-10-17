@@ -2885,7 +2885,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div style="background:#fff;border-radius:22px;box-shadow:0 10px 30px rgba(15,23,42,.08);overflow:hidden">
     <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:16px 20px">
       <div style="font-size:14px;font-weight:700">📅 Previsão de Vencimentos</div>
-      <div style="font-size:11px;opacity:.75;margin-top:2px">Próximos 90 dias baseado no KM médio</div>
+      <div style="font-size:11px;opacity:.75;margin-top:2px">Trocas por KM · janela estimada pelo KM médio</div>
     </div>
     <div style="padding:14px">
       <div style="display:flex;gap:6px;margin-bottom:12px">
@@ -17077,6 +17077,7 @@ function renderPrevisao() {
   });
 
   const hoje = new Date();
+  hoje.setHours(0,0,0,0); // meia-noite: senão a hora atual "come" 1 dia (ex.: prazo 28/10 aparecia como 10d em vez de 11d)
   const limite = new Date(hoje); limite.setDate(hoje.getDate() + dias);
 
   // Converte intervalo como "6 MESES" ou "1 ANO" em dias
@@ -17127,7 +17128,7 @@ function renderPrevisao() {
           if (dataEst <= limite) {
             const key = v.placa + '_motor';
             if (!vistos.has(key)) { vistos.add(key);
-              previsoes.push({ placa: v.placa, tipo: 'Motor', diasRestantes, dataEst, kmFalta, sub: `~${kmFalta.toLocaleString('pt-BR')} km restantes`, urgencia: diasRestantes });
+              previsoes.push({ placa: v.placa, tipo: 'Motor', diasRestantes, dataEst, kmFalta, sub: `KM atual ${kmAtual.toLocaleString('pt-BR')} · troca em ${kmProx.toLocaleString('pt-BR')} km`, urgencia: kmFalta });
             }
           }
         }
@@ -17141,41 +17142,8 @@ function renderPrevisao() {
           if (dataEst <= limite) {
             const key = v.placa + '_cambio';
             if (!vistos.has(key)) { vistos.add(key);
-              previsoes.push({ placa: v.placa, tipo: 'Câmbio', diasRestantes, dataEst, kmFalta, sub: `~${kmFalta.toLocaleString('pt-BR')} km restantes`, urgencia: diasRestantes });
+              previsoes.push({ placa: v.placa, tipo: 'Câmbio', diasRestantes, dataEst, kmFalta, sub: `KM atual ${kmAtual.toLocaleString('pt-BR')} · troca em ${kmProx.toLocaleString('pt-BR')} km`, urgencia: kmFalta });
             }
-          }
-        }
-      }
-    }
-
-    // ── Método 2: por DATA (usando a data de troca de cada óleo + intervalo
-    // em meses do plano). MOTOR usa exclusivamente data_troca; CÂMBIO/
-    // DIFERENCIAL usa exclusivamente data_troca_cambio — nunca uma
-    // substitui a outra. ──
-    if (dataTroca && plano) {
-      const intervMotorDias  = intervaloEmDias(plano?.oleo_motor?.tempo);
-
-      if (intervMotorDias > 0) {
-        const dataProx = new Date(dataTroca); dataProx.setDate(dataTroca.getDate() + intervMotorDias);
-        const diasRestantes = Math.round((dataProx - hoje) / 86400000);
-        if (diasRestantes > 0 && dataProx <= limite) {
-          const key = v.placa + '_motor';
-          if (!vistos.has(key)) { vistos.add(key);
-            previsoes.push({ placa: v.placa, tipo: 'Motor', diasRestantes, dataEst: dataProx, sub: `Prazo: ${dataProx.toLocaleDateString('pt-BR')}`, urgencia: diasRestantes });
-          }
-        }
-      }
-    }
-    if (dataTrocaCambio && plano) {
-      const intervCambioDias = intervaloEmDias(plano?.oleo_caixa?.tempo);
-
-      if (intervCambioDias > 0) {
-        const dataProx = new Date(dataTrocaCambio); dataProx.setDate(dataTrocaCambio.getDate() + intervCambioDias);
-        const diasRestantes = Math.round((dataProx - hoje) / 86400000);
-        if (diasRestantes > 0 && dataProx <= limite) {
-          const key = v.placa + '_cambio';
-          if (!vistos.has(key)) { vistos.add(key);
-            previsoes.push({ placa: v.placa, tipo: 'Câmbio', diasRestantes, dataEst: dataProx, sub: `Prazo: ${dataProx.toLocaleDateString('pt-BR')}`, urgencia: diasRestantes });
           }
         }
       }
@@ -17201,8 +17169,8 @@ function renderPrevisao() {
         <div style="font-size:10px;color:#64748b;margin-top:2px">${p.sub || ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:13px;font-weight:800;color:${cor}">${p.diasRestantes}d</div>
-        <div style="font-size:10px;color:#94a3b8">${dataStr}</div>
+        <div style="font-size:13px;font-weight:800;color:${cor}">${p.kmFalta.toLocaleString('pt-BR')} km</div>
+        <div style="font-size:10px;color:#94a3b8">~${dataStr}</div>
       </div>
     </div>`;
   }).join('');
@@ -17212,10 +17180,26 @@ function renderPrevisao() {
 function renderResponsavel() {
   const contagem = {};
 
-  // Fonte primária: HISTORICO do Firebase
-  Object.values(HISTORICO).forEach(arr => {
+  // Mapa placa -> programador (do CHECKLIST), usado quando a troca foi
+  // registrada automaticamente e ficou sem responsável.
+  const progPorPlaca = {};
+  CHECKLIST.forEach(c => {
+    const pg = (c.programador || '').trim();
+    if (!pg) return;
+    [c.cavalo, c.reboque].forEach(pl => {
+      const k = (pl || '').trim().toUpperCase();
+      if (k && !progPorPlaca[k]) progPorPlaca[k] = pg;
+    });
+  });
+
+  // Fonte primária: HISTORICO do Firebase. Sem responsável no registro →
+  // usa o programador da placa no checklist; só cai em "Sem registro" se
+  // nem isso existir.
+  Object.entries(HISTORICO).forEach(([placa, arr]) => {
     (arr || []).forEach(t => {
-      const r = (t.responsavel || '').trim() || 'Sem registro';
+      const r = (t.responsavel || '').trim()
+             || progPorPlaca[(placa || '').trim().toUpperCase()]
+             || 'Sem registro';
       contagem[r] = (contagem[r] || 0) + 1;
     });
   });

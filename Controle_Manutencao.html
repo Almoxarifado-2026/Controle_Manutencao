@@ -16664,6 +16664,25 @@ function renderExecutivo() {
   const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : []).filter(r => r.placa);
   const totalFrota = VEICULOS.length || 1;
 
+  // ── Contagens por tipo ──
+  // O histórico mistura CORRETIVAS e PREVENTIVAS (campo tipoManut). Antes tudo era
+  // somado como "corretiva" e as preventivas só contavam as trocas de óleo.
+  // Agora: corretivas = ordens CORRETIVA; preventivas = ordens PREVENTIVA + trocas de
+  // óleo registradas. Finalizadas E em aberto contam.
+  const _ehPrev  = r => String(r.tipoManut || 'CORRETIVA').toUpperCase().startsWith('P');
+  const _dataReg = r => new Date(r.entrada || r.saida || r.dataFinalizacao);
+  const _abertosExec = (typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : [])
+    .filter(r => r && r.entrada && !_saidaValida(r.saida));
+  const registrosExec = hist.concat(_abertosExec);
+  const datasCorr = registrosExec.filter(r => !_ehPrev(r)).map(_dataReg).filter(d => !isNaN(d));
+  const datasPrev = registrosExec.filter(_ehPrev).map(_dataReg).filter(d => !isNaN(d));
+  Object.values(HISTORICO || {}).forEach(arr => (arr || []).forEach(t => {
+    // dd/mm/aaaa → data LOCAL (new Date('aaaa-mm-dd') cai em UTC e joga o dia 1º para o mês anterior no Brasil)
+    const mm = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t.data || '');
+    if (mm) datasPrev.push(new Date(+mm[3], +mm[2]-1, +mm[1]));
+  }));
+  const _contaMes = (datas, ano, mes, diaMax) => datas.filter(d => d.getFullYear()===ano && d.getMonth()===mes && d.getDate() <= (diaMax || 31)).length;
+
   /* ── KPI 1: Disponibilidade da Frota ──
      % do tempo que a frota esteve operacional no mês atual,
      considerando as horas que cada veículo passou em corretiva. */
@@ -16672,10 +16691,6 @@ function renderExecutivo() {
   const horasDecorridasMes = (hoje - inicioMes) / 3600000;
   const horasPossiveisMes = Math.max(1, totalFrota * horasDecorridasMes);
 
-  const corretivasMesAtual = hist.filter(r => {
-    const dt = new Date(r.entrada || r.saida || r.dataFinalizacao);
-    return dt >= inicioMes;
-  });
   // Tempo parado: além das corretivas finalizadas, conta os veículos que
   // estão indisponíveis AGORA (ainda sem saída) e as que começaram antes do
   // mês e terminaram dentro dele — antes ficavam de fora e a
@@ -16700,7 +16715,7 @@ function renderExecutivo() {
      Tempo médio (em dias) entre uma corretiva e outra, considerando
      TODA a frota (não por veículo individual). Quanto maior, melhor:
      significa que a frota passa mais tempo sem quebrar. */
-  const todasDatas = hist.map(r => new Date(r.entrada || r.saida || r.dataFinalizacao)).filter(d => !isNaN(d)).sort((a,b)=>a-b);
+  const todasDatas = datasCorr.slice().sort((a,b)=>a-b); // só corretivas (falhas)
   let mtbfDias = null;
   if (todasDatas.length >= 2) {
     const intervalos = [];
@@ -16718,7 +16733,7 @@ function renderExecutivo() {
   let mttrHoras = null;
   {
     let somaH = 0, qtdComTempo = 0;
-    hist.forEach(r => {
+    hist.filter(r => !_ehPrev(r)).forEach(r => { // só corretivas
       if (!r.entrada || !_saidaValida(r.saida)) return;
       const h = (new Date(r.saida) - new Date(r.entrada)) / 3600000;
       if (h > 0 && h < 24*60) { somaH += h; qtdComTempo++; }
@@ -16752,14 +16767,14 @@ function renderExecutivo() {
   }).reduce((s,a) => s + (a.custo || 0), 0);
 
   /* ── KPI 4: Corretivas no mês ── */
-  const qtdCorretivasMes = corretivasMesAtual.length;
+  const qtdCorretivasMes = _contaMes(datasCorr, hoje.getFullYear(), hoje.getMonth());
 
   const kpisExec = [
     { icon:'✅', valor: disponibilidade.toFixed(1)+'%', label:'Disponibilidade da Frota', sub:'tempo operacional no mês', bg: disponibilidade>=95?'linear-gradient(135deg,#16A34A,#15803d)':disponibilidade>=85?'linear-gradient(135deg,#D97706,#b45309)':'linear-gradient(135deg,#DC2626,#991b1b)' },
     { icon:'⏱️', valor: mtbfDias!=null ? Math.round(mtbfDias)+'d' : '—', label:'MTBF', sub:'tempo médio entre falhas', bg:'linear-gradient(135deg,#0f766e,#0d9488)' },
     { icon:'🛠️', valor: mttrHoras!=null ? (mttrHoras<24 ? Math.round(mttrHoras)+'h' : (mttrHoras/24).toFixed(1)+'d') : '—', label:'MTTR', sub:'tempo médio de reparo', bg:'linear-gradient(135deg,#7c2d12,#c2410c)' },
     { icon:'⛽', valor: custoComb>0 ? 'R$ '+custoComb.toLocaleString('pt-BR',{maximumFractionDigits:0}) : '—', label:'Combustível no Mês', sub:'gasto total registrado', bg:'linear-gradient(135deg,#1e3a8a,#2563eb)' },
-    { icon:'🔧', valor: qtdCorretivasMes, label:'Corretivas no Mês', sub:'manutenções finalizadas', bg:'linear-gradient(135deg,#7f1d1d,#dc2626)' },
+    { icon:'🔧', valor: qtdCorretivasMes, label:'Corretivas no Mês', sub:'finalizadas + em aberto', bg:'linear-gradient(135deg,#7f1d1d,#dc2626)' },
   ];
 
   const elExecKpis = document.getElementById('exec-kpis');
@@ -16777,18 +16792,8 @@ function renderExecutivo() {
     const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
     meses.push({ label: d.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}), ano: d.getFullYear(), mes: d.getMonth() });
   }
-  const preventivasPorMes = meses.map(m => {
-    let count = 0;
-    Object.values(HISTORICO || {}).forEach(arr => (arr||[]).forEach(t => {
-      const dt = new Date((t.data||'').split('/').reverse().join('-'));
-      if (!isNaN(dt) && dt.getFullYear()===m.ano && dt.getMonth()===m.mes) count++;
-    }));
-    return count;
-  });
-  const corretivasPorMes = meses.map(m => hist.filter(r => {
-    const dt = new Date(r.entrada || r.saida || r.dataFinalizacao);
-    return !isNaN(dt) && dt.getFullYear()===m.ano && dt.getMonth()===m.mes;
-  }).length);
+  const preventivasPorMes = meses.map(m => _contaMes(datasPrev, m.ano, m.mes));
+  const corretivasPorMes  = meses.map(m => _contaMes(datasCorr, m.ano, m.mes));
   const disponibilidadePorMes = meses.map(m => _calcDisponibilidadeMes(m.ano, m.mes, totalFrota, paradasTodas));
 
   const canvasComp = document.getElementById('exec-chart-comparativo');
@@ -16817,8 +16822,12 @@ function renderExecutivo() {
   /* ── Cards: este mês vs mês passado ── */
   const elComp = document.getElementById('exec-comparativo-cards');
   if (elComp) {
-    const prevAtual = preventivasPorMes[5], prevAnterior = preventivasPorMes[4];
-    const corrAtual = corretivasPorMes[5], corrAnterior = corretivasPorMes[4];
+    // Compara o mês atual (do dia 1 até hoje) com o MESMO PERÍODO do mês passado —
+    // antes comparava o mês parcial com o mês passado inteiro e a variação saía enganosa.
+    const diaHoje = hoje.getDate();
+    const ant = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const prevAtual = preventivasPorMes[5], prevAnterior = _contaMes(datasPrev, ant.getFullYear(), ant.getMonth(), diaHoje);
+    const corrAtual = corretivasPorMes[5],  corrAnterior = _contaMes(datasCorr, ant.getFullYear(), ant.getMonth(), diaHoje);
     function _variacao(atual, anterior) {
       if (anterior === 0) return atual === 0 ? '0%' : '+100%';
       const pct = Math.round(((atual - anterior) / anterior) * 100);
@@ -16835,7 +16844,7 @@ function renderExecutivo() {
           <span style="font-size:24px;font-weight:800;color:${c.cor}">${c.atual}</span>
           <span style="font-size:12px;font-weight:800;color:${c.bom ? '#16A34A' : '#DC2626'}">${c.variacao}</span>
         </div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:2px">vs. mês anterior</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">vs. mesmo período do mês anterior (dias 1–${diaHoje})</div>
       </div>`).join('');
   }
 }

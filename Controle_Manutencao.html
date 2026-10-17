@@ -4141,6 +4141,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <th style="padding:10px 12px;text-align:left">Descrição</th>
           <th style="padding:10px 12px;text-align:left;white-space:nowrap">Situação</th>
           <th style="padding:10px 12px;text-align:center;white-space:nowrap">Filial</th>
+          <th style="padding:10px 12px;text-align:center;white-space:nowrap">Ação</th>
         </tr></thead>
         <tbody id="ver-corr-tbody"></tbody>
       </table>
@@ -9587,6 +9588,9 @@ document.getElementById('overlay-import').addEventListener('click', e => {
 // DADOS E FUNÇÕES DO CHECKLIST PREVENTIVA
 // ════════════════════════════════════════════
 let CORRETIVAS = []
+// Ordens fechadas manualmente pelo usuário (no modal de Ordens de Serviço). Chave "FILIAL_ORDEM".
+// Ficam em /manutencao/ordens_fechadas.json e são IGNORADAS em qualquer importação do Excel.
+let ORDENS_FECHADAS = {}
 // true logo após aplicarOrdens() reconstruir CORRETIVAS do zero a partir de
 // um Excel importado — sinaliza para salvarFB() que esta gravação deve
 // SUBSTITUIR o que está no Firebase, e não se unir a ele (ver salvarFB).
@@ -11630,8 +11634,8 @@ function _totaisCorretivasUnicos(lista) {
   (lista || []).forEach(c => {
     const pc = (c.cavalo||'').trim().toUpperCase();
     const pr = (c.reboque||'').trim().toUpperCase();
-    if (pc && !vc.has(pc)) { vc.add(pc); cav += (c.qtd_corr_cav_auto||c.qtd_corr_cav||0); }
-    if (pr && !vr.has(pr)) { vr.add(pr); reb += (c.qtd_corr_reb_auto||c.qtd_corr_reb||0); }
+    if (pc && !vc.has(pc)) { vc.add(pc); cav += (c.qtd_corr_cav_auto !== undefined ? c.qtd_corr_cav_auto : (c.qtd_corr_cav||0)); }
+    if (pr && !vr.has(pr)) { vr.add(pr); reb += (c.qtd_corr_reb_auto !== undefined ? c.qtd_corr_reb_auto : (c.qtd_corr_reb||0)); }
   });
   return { cav, reb };
 }
@@ -11976,6 +11980,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── IMPORTAR ORDENS DE SERVIÇO DO EXCEL ──
 let ordensImportadas = {};
+let _fechadasParaLimpar = [];
 
 // Lê um único arquivo Excel e devolve a matriz de linhas (array de arrays),
 // igual ao que XLSX.utils.sheet_to_json(ws, {header:1}) devolve.
@@ -12026,6 +12031,10 @@ async function importarOrdens(input) {
     // diferentes — funciona igual nos dois casos, porque sempre parte do
     // que já está salvo em CORRETIVAS antes de aplicar as mudanças desta
     // rodada.
+    // Atualiza a lista de ordens fechadas manualmente (pode ter sido alterada em outro aparelho)
+    try { const dF = await fbGet('/manutencao/ordens_fechadas.json'); if (dF && typeof dF === 'object') ORDENS_FECHADAS = dF; } catch(e) {}
+    let totalIgnoradasManual = 0;
+    const chavesVistasNoExcel = new Set(); // todas as ordens que vieram no Excel (inclusive as ignoradas)
     ordensImportadas = {};
     for (const c of CORRETIVAS) {
       if (!c || !c.placa || !c.ordem) continue;
@@ -12061,6 +12070,9 @@ async function importarOrdens(input) {
         const ordem = String(row[cO]||'').trim();
         if (!placa || !ordem) continue;
         const filial = _mapearFilial(row[cF]);
+        const _chv = _chaveOrdemFechada(filial, ordem);
+        chavesVistasNoExcel.add(_chv);
+        if (ORDENS_FECHADAS[_chv]) { totalIgnoradasManual++; continue; } // fechada manualmente — não conta
         if (filial) {
           filiaisNesteImport.add(filial);
           if (!ordensVistasPorFilial[filial]) ordensVistasPorFilial[filial] = new Set();
@@ -12105,6 +12117,12 @@ async function importarOrdens(input) {
       }
     }
 
+    // Fechadas manualmente que o ERP já parou de exportar (filial importada agora): podem sair da lista
+    _fechadasParaLimpar = Object.keys(ORDENS_FECHADAS).filter(k => {
+      const f = ORDENS_FECHADAS[k];
+      return f && filiaisNesteImport.has(f.filial) && !chavesVistasNoExcel.has(k);
+    });
+
     // Recontagem final (depois de mesclar e limpar as fechadas) pro resumo mostrado na tela
     totalOrdens = Object.values(ordensImportadas).reduce((soma, lista) => soma + lista.length, 0);
 
@@ -12144,7 +12162,7 @@ async function importarOrdens(input) {
       : nomesArquivos[0];
     const rotuloFiliais = filiaisNesteImport.size ? [...filiaisNesteImport].join(' + ') : '—';
     document.getElementById('import-ordens-resumo').innerHTML =
-      `<b>📊 Arquivo${nomesArquivos.length>1?'s':''}:</b> ${rotuloArquivos} &nbsp;|&nbsp; <b>Filial(is) atualizada(s):</b> ${rotuloFiliais} &nbsp;|&nbsp; <b>Total ordens abertas:</b> ${totalOrdens} &nbsp;|&nbsp; <b>🔒 Fechadas nesta rodada:</b> ${totalFechadas} &nbsp;|&nbsp; <b>✅ Placas com ordens:</b> ${enc} &nbsp;|&nbsp; <b>❌ Sem ordens:</b> ${nenc}`;
+      `<b>📊 Arquivo${nomesArquivos.length>1?'s':''}:</b> ${rotuloArquivos} &nbsp;|&nbsp; <b>Filial(is) atualizada(s):</b> ${rotuloFiliais} &nbsp;|&nbsp; <b>Total ordens abertas:</b> ${totalOrdens} &nbsp;|&nbsp; <b>🔒 Fechadas nesta rodada:</b> ${totalFechadas} &nbsp;|&nbsp; <b>🚫 Ignoradas (fechadas por você):</b> ${totalIgnoradasManual} &nbsp;|&nbsp; <b>✅ Placas com ordens:</b> ${enc} &nbsp;|&nbsp; <b>❌ Sem ordens:</b> ${nenc}`;
     document.getElementById('import-ordens-tbody').innerHTML = linhas.length
       ? linhas.join('')
       : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#999">Nenhuma placa encontrada</td></tr>';
@@ -12166,9 +12184,55 @@ function aplicarOrdens() {
     for (const o of ordens) CORRETIVAS.push({placa, ...o});
   }
   _corretivasReconstruidas = true; // avisa salvarFB() para substituir, não unir com o remoto
+  // Limpa da lista de "fechadas por mim" as ordens que o ERP já não exporta mais
+  _fechadasParaLimpar.forEach(k => {
+    delete ORDENS_FECHADAS[k];
+    fetch(FIREBASE_URL + '/manutencao/ordens_fechadas/' + k + '.json', { method: 'DELETE' }).catch(() => {});
+  });
+  _fechadasParaLimpar = [];
   document.getElementById('overlay-import-ordens').classList.remove('open');
   popularTipos(); renderCheck(); salvarFB();
   alert(`✅ Ordens importadas! ${Object.keys(ordensImportadas).length} placas atualizadas.`);
+}
+
+function _chaveOrdemFechada(filial, ordem) {
+  return (String(filial || 'SEM') + '_' + String(ordem || '')).replace(/[^A-Za-z0-9_-]/g, '');
+}
+
+// Fecha manualmente uma ordem (que já foi fechada no ERP mas o sistema ainda mostra).
+// Fica gravada em ORDENS_FECHADAS, então uma nova importação do Excel não a conta de novo.
+async function fecharOrdemManual(placa, ordem) {
+  if (!_checkEdicao()) return;
+  placa = (placa || '').trim().toUpperCase();
+  const lista = ordensImportadas[placa] || CORRETIVAS.filter(c => (c.placa||'').trim().toUpperCase() === placa);
+  const o = lista.find(x => String(x.ordem) === String(ordem));
+  if (!o) { alert('Ordem não encontrada.'); return; }
+  if (!confirm(`Fechar a ordem ${o.ordem} (${placa}) manualmente?\n\nEla sai da contagem e não será contada de novo, mesmo que o Excel ainda traga essa ordem.`)) return;
+
+  const chave = _chaveOrdemFechada(o.filial, o.ordem);
+  const reg = { ordem: String(o.ordem), filial: o.filial || '', placa, servico: o.servico || '', ts: Date.now() };
+  ORDENS_FECHADAS[chave] = reg;
+  const okFech = await fbPut('/manutencao/ordens_fechadas/' + chave + '.json', reg);
+
+  // Tira a ordem das duas listas
+  if (ordensImportadas[placa]) {
+    ordensImportadas[placa] = ordensImportadas[placa].filter(x => String(x.ordem) !== String(o.ordem));
+    if (!ordensImportadas[placa].length) delete ordensImportadas[placa];
+  }
+  CORRETIVAS = CORRETIVAS.filter(c => !((c.placa||'').trim().toUpperCase() === placa && String(c.ordem) === String(o.ordem)));
+
+  // Recalcula a quantidade de cada linha do checklist
+  const cnt = {};
+  CORRETIVAS.forEach(c => { const k = (c.placa||'').trim().toUpperCase(); if (k) cnt[k] = (cnt[k]||0) + 1; });
+  CHECKLIST.forEach(c => {
+    c.qtd_corr_cav = cnt[(c.cavalo||'').toUpperCase()] || 0;
+    c.qtd_corr_reb = cnt[(c.reboque||'').toUpperCase()] || 0;
+  });
+
+  _corretivasReconstruidas = true; // salvarFB() substitui (não une com o remoto, que ainda tem a ordem)
+  renderCheck(); salvarFB();
+  verCorretivas(placa);
+  mostrarIndicador(okFech ? `✅ Ordem ${o.ordem} fechada` : '⚠️ Ordem fechada só neste aparelho — falhou ao gravar a lista de fechadas', okFech ? '#86EFAC' : '#FCD34D');
 }
 
 function verCorretivas(placa) {
@@ -12178,7 +12242,7 @@ function verCorretivas(placa) {
   const ordens = ordensImportadas[placa] || CORRETIVAS.filter(c => (c.placa||'').trim().toUpperCase() === placa);
   document.getElementById('ver-corr-titulo').textContent = `🔧 Ordens de Serviço — ${placa} (${ordens.length} ordens)`;
   document.getElementById('ver-corr-tbody').innerHTML = ordens.length === 0
-    ? '<tr><td colspan="6" style="text-align:center;padding:16px;color:#999">Nenhuma ordem encontrada</td></tr>'
+    ? '<tr><td colspan="7" style="text-align:center;padding:16px;color:#999">Nenhuma ordem encontrada</td></tr>'
     : ordens.map((o,i) => {
         const sitBg = (o.situacao||'').includes('NAO') ? '#FEF3C7' : '#DBEAFE';
         const sitFc = (o.situacao||'').includes('NAO') ? '#92400E' : '#1E40AF';
@@ -12191,6 +12255,7 @@ function verCorretivas(placa) {
           <td style="padding:10px 12px;white-space:normal">${escapeHtml(o.descricao)}</td>
           <td style="padding:10px 12px"><span style="background:${sitBg};color:${sitFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${escapeHtml(o.situacao)}</span></td>
           <td style="padding:10px 12px;text-align:center">${o.filial ? `<span style="background:${filBg};color:${filFc};padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap">${escapeHtml(o.filial)}</span>` : '<span style="color:#94a3b8">—</span>'}</td>
+          <td style="padding:10px 12px;text-align:center"><button onclick="fecharOrdemManual(this.dataset.placa, this.dataset.ordem)" data-placa="${escapeHtml(placa)}" data-ordem="${escapeHtml(o.ordem)}" style="background:#16A34A;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✔ Fechar</button></td>
         </tr>`;
       }).join('');
   document.getElementById('overlay-ver-corr').classList.add('open');
@@ -12566,6 +12631,9 @@ document.getElementById('overlay-import-ordens').addEventListener('click',e=>{if
   const dbCorr = await fbGet('/manutencao/corretivas.json');
   const arrCorr = toArr(dbCorr);
   if (arrCorr && arrCorr.length) CORRETIVAS = arrCorr;
+
+  const dbFech = await fbGet('/manutencao/ordens_fechadas.json');
+  if (dbFech && typeof dbFech === 'object') ORDENS_FECHADAS = dbFech;
 
   // Garante que todo item tenha um identificador único — necessário para
   // sincronizar com segurança quando várias pessoas usam o sistema (merge

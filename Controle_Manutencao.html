@@ -11600,6 +11600,20 @@ function contarCorretivas() {
    exportarPDFCheck() — exporta PDF do checklist
    initChecklist()    — inicializa (carrega do Firebase)
    ────────────────────────────────────────────── */
+function _totaisCorretivasUnicos(lista) {
+  // Soma cada PLACA uma única vez — um cavalo/reboque pode ter várias linhas
+  // no checklist (uma por tipo de preventiva) e não pode contar em dobro.
+  const vc = new Set(), vr = new Set();
+  let cav = 0, reb = 0;
+  (lista || []).forEach(c => {
+    const pc = (c.cavalo||'').trim().toUpperCase();
+    const pr = (c.reboque||'').trim().toUpperCase();
+    if (pc && !vc.has(pc)) { vc.add(pc); cav += (c.qtd_corr_cav_auto||c.qtd_corr_cav||0); }
+    if (pr && !vr.has(pr)) { vr.add(pr); reb += (c.qtd_corr_reb_auto||c.qtd_corr_reb||0); }
+  });
+  return { cav, reb };
+}
+
 function renderCheck() {
   CHECKLIST.sort((a, b) => {
     // Placa pausada (parada) sempre vai pro final da lista, independente
@@ -11615,8 +11629,7 @@ function renderCheck() {
   });
 
   contarCorretivas();
-  const totCav=CHECKLIST.reduce((s,c)=>s+(c.qtd_corr_cav_auto||c.qtd_corr_cav||0),0);
-  const totReb=CHECKLIST.reduce((s,c)=>s+(c.qtd_corr_reb_auto||c.qtd_corr_reb||0),0);
+  const { cav: totCav, reb: totReb } = _totaisCorretivasUnicos(CHECKLIST);
   const elCav=document.getElementById('tot-cav'); if(elCav)elCav.textContent=totCav;
   const elReb=document.getElementById('tot-reb'); if(elReb)elReb.textContent=totReb;
   const elRet=document.getElementById('tot-ret'); if(elRet)elRet.textContent=totCav+totReb;
@@ -12345,8 +12358,7 @@ function exportarPDFCheck(){
     return true;
   });
 
-  const totCav = listaBase.reduce((s,c)=>s+(c.qtd_corr_cav_auto||c.qtd_corr_cav||0),0);
-  const totReb = listaBase.reduce((s,c)=>s+(c.qtd_corr_reb_auto||c.qtd_corr_reb||0),0);
+  const { cav: totCav, reb: totReb } = _totaisCorretivasUnicos(listaBase);
 
   // Ordenar por dias (maior → menor) igual à tabela
   const lista = listaBase.slice().sort((a,b)=>(b.dias||0)-(a.dias||0));

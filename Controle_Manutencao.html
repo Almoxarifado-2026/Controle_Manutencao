@@ -2846,7 +2846,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <span style="font-size:22px">🧠</span>
     <div>
       <div style="color:#fff;font-size:15px;font-weight:800">Inteligência da Manutenção</div>
-      <div style="color:#e9d5ff;font-size:11px;margin-top:1px">Análise automática baseada no histórico de corretivas finalizadas</div>
+      <div style="color:#e9d5ff;font-size:11px;margin-top:1px">Análise automática baseada nas ordens (corretivas e preventivas) finalizadas e em aberto</div>
     </div>
   </div>
   <div style="background:#fff;border-radius:0 0 22px 22px;box-shadow:0 10px 30px rgba(15,23,42,.08);padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
@@ -16883,8 +16883,12 @@ function renderInteligencia() {
     ...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => _normPlaca(v && v.placa)),
     ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => _normPlaca(c && (c.cavalo || c.placa || '')))
   ].filter(Boolean));
-  const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : [])
-    .filter(r => r.placa && (!_placasAtivasIntel.size || _placasAtivasIntel.has(_normPlaca(r.placa))));
+  const _ativaIntel = r => r && r.placa && (!_placasAtivasIntel.size || _placasAtivasIntel.has(_normPlaca(r.placa)));
+  // Ordens finalizadas + ordens ainda em aberto (corretivas E preventivas contam)
+  const hist = (typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : []).filter(_ativaIntel)
+    .concat((typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : [])
+      .filter(r => _ativaIntel(r) && !_saidaValida(r.saida))
+      .map(r => Object.assign({}, r, { _aberto: true })));
 
   /* ── 1) PADRÕES DE FALHA RECORRENTE ──
      Agrupa por placa + categoria de falha (palavra-chave da reclamação).
@@ -16929,48 +16933,81 @@ function renderInteligencia() {
      (passadas ou muito distantes não ajudam a agir agora). */
   const elPrevisao = document.getElementById('intel-previsao');
   if (elPrevisao) {
+    // Por KM: intervalo médio de KM entre as ordens finalizadas do veículo,
+    // projetado a partir do KM da última ordem; falta = previsto − KM atual.
+    // Veículos cujo histórico ainda não tem KM gravado usam o intervalo em
+    // dias (fallback) até acumularem 2+ ordens com KM.
+    const _planosI = (typeof PLANOS_MANUTENCAO !== 'undefined') ? PLANOS_MANUTENCAO : {};
     const porPlaca = {};
     hist.forEach(r => {
+      if (r._aberto) return;
       const dt = r.saida || r.dataFinalizacao;
       if (!dt) return;
-      (porPlaca[r.placa] = porPlaca[r.placa] || []).push(new Date(dt));
+      const d = new Date(dt); if (isNaN(d)) return;
+      (porPlaca[r.placa] = porPlaca[r.placa] || []).push({ d, km: parseInt(r.km) || 0 });
     });
 
     const previsoes = [];
     Object.keys(porPlaca).forEach(placa => {
-      const datas = porPlaca[placa].filter(d => !isNaN(d)).sort((a,b) => a-b);
-      if (datas.length < 2) return; // precisa de pelo menos 2 corretivas para ter um intervalo
+      const regs = porPlaca[placa].sort((a,b) => a.d - b.d);
+      if (regs.length < 2) return;
+      const veic = (typeof VEICULOS !== 'undefined' ? VEICULOS : []).find(v => v && _normPlaca(v.placa) === _normPlaca(placa));
+      const kmAtual = veic ? (parseInt(veic.km_atual) || 0) : 0;
+      const kmMes = parseInt(_planosI[placa] && _planosI[placa].km_medio) || 5000; // km/mês p/ estimar a janela
+
+      // ── Por KM ──
+      const comKm = regs.filter(x => x.km > 0);
+      if (comKm.length >= 2 && kmAtual > 0) {
+        const ints = [];
+        for (let i = 1; i < comKm.length; i++) { const dk = comKm[i].km - comKm[i-1].km; if (dk > 0) ints.push(dk); }
+        if (ints.length) {
+          const mediaKm = Math.round(ints.reduce((a,b)=>a+b,0) / ints.length);
+          const kmPrev = comKm[comKm.length-1].km + mediaKm;
+          const kmRestantes = kmPrev - kmAtual;
+          previsoes.push({ placa, modo:'km', mediaKm, kmPrev, kmAtual, kmRestantes, urg: Math.round(kmRestantes / (kmMes/30)), qtdCorretivas: comKm.length });
+          return;
+        }
+      }
+
+      // ── Fallback por dias (sem KM no histórico) ──
       const intervalos = [];
-      for (let i = 1; i < datas.length; i++) intervalos.push((datas[i] - datas[i-1]) / 86400000);
+      for (let i = 1; i < regs.length; i++) intervalos.push((regs[i].d - regs[i-1].d) / 86400000);
       const mediaDias = intervalos.reduce((s,v)=>s+v,0) / intervalos.length;
-      if (mediaDias < 1) return; // intervalo médio inválido (corretivas no mesmo dia)
-      const ultima = datas[datas.length-1];
-      const prevista = new Date(ultima.getTime() + mediaDias*86400000);
-      const diasRestantes = Math.round((prevista - new Date()) / 86400000);
-      previsoes.push({ placa, mediaDias: Math.round(mediaDias), prevista, diasRestantes, qtdCorretivas: datas.length });
+      if (mediaDias < 1) return;
+      const prevista = new Date(regs[regs.length-1].d.getTime() + mediaDias*86400000);
+      previsoes.push({ placa, modo:'dias', mediaDias: Math.round(mediaDias), prevista, urg: Math.round((prevista - new Date()) / 86400000), qtdCorretivas: regs.length });
     });
 
-    previsoes.sort((a,b) => a.diasRestantes - b.diasRestantes);
-    const relevantes = previsoes.filter(p => p.diasRestantes <= 30).slice(0, 6);
+    previsoes.sort((a,b) => a.urg - b.urg);
+    const relevantes = previsoes.filter(p => p.urg <= 30).slice(0, 6);
 
     if (!relevantes.length) {
-      elPrevisao.innerHTML = `<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">📊 Sem previsões para os próximos 30 dias.<br><span style="font-size:10px">(precisa de pelo menos 2 corretivas no histórico de cada veículo)</span></div>`;
+      elPrevisao.innerHTML = `<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">📊 Sem previsões para os próximos 30 dias.<br><span style="font-size:10px">(precisa de pelo menos 2 ordens com KM no histórico de cada veículo)</span></div>`;
     } else {
       elPrevisao.innerHTML = relevantes.map(p => {
-        const atrasado = p.diasRestantes < 0;
-        const cor = atrasado ? '#DC2626' : p.diasRestantes <= 7 ? '#D97706' : '#2563EB';
-        const bg  = atrasado ? '#FEF2F2' : p.diasRestantes <= 7 ? '#FFFBEB' : '#EFF6FF';
-        const bd  = atrasado ? '#FECACA' : p.diasRestantes <= 7 ? '#FDE68A' : '#BFDBFE';
-        const txt = atrasado
-          ? `${Math.abs(p.diasRestantes)} dias atrás (já passou a média)`
-          : `em ~${p.diasRestantes} dias`;
+        const atrasado = p.urg < 0;
+        const cor = atrasado ? '#DC2626' : p.urg <= 7 ? '#D97706' : '#2563EB';
+        const bg  = atrasado ? '#FEF2F2' : p.urg <= 7 ? '#FFFBEB' : '#EFF6FF';
+        const bd  = atrasado ? '#FECACA' : p.urg <= 7 ? '#FDE68A' : '#BFDBFE';
+        let txt, linha2, linha3;
+        if (p.modo === 'km') {
+          txt = atrasado
+            ? `${Math.abs(p.kmRestantes).toLocaleString('pt-BR')} km além (já passou a média)`
+            : `faltam ~${p.kmRestantes.toLocaleString('pt-BR')} km`;
+          linha2 = `Baseado em ${p.qtdCorretivas} ordens · intervalo médio de ${p.mediaKm.toLocaleString('pt-BR')} km`;
+          linha3 = `Previsão: ${p.kmPrev.toLocaleString('pt-BR')} km (KM atual ${p.kmAtual.toLocaleString('pt-BR')})`;
+        } else {
+          txt = atrasado ? `${Math.abs(p.urg)} dias atrás (já passou a média)` : `em ~${p.urg} dias`;
+          linha2 = `Baseado em ${p.qtdCorretivas} ordens · intervalo médio de ${p.mediaDias} dias`;
+          linha3 = `Previsão: ${p.prevista.toLocaleDateString('pt-BR')} · sem KM no histórico ainda`;
+        }
         return `<div style="background:${bg};border:1px solid ${bd};border-left:4px solid ${cor};border-radius:10px;padding:10px 12px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="font-weight:800;color:#1e293b;font-size:13px">${p.placa}</span>
             <span style="color:${cor};font-weight:800;font-size:11px">${txt}</span>
           </div>
-          <div style="font-size:11px;color:#64748b;margin-top:3px">Baseado em ${p.qtdCorretivas} corretivas · intervalo médio de ${p.mediaDias} dias</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:1px">Previsão: ${p.prevista.toLocaleDateString('pt-BR')}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">${linha2}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:1px">${linha3}</div>
         </div>`;
       }).join('');
     }
@@ -17046,7 +17083,7 @@ function renderInteligencia() {
       .slice(0, 6);
 
     if (!rankingVeic.length) {
-      elRankVeic.innerHTML = `<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">✅ Nenhum veículo se destaca negativamente ainda.<br><span style="font-size:10px">(precisa de 2+ corretivas no histórico)</span></div>`;
+      elRankVeic.innerHTML = `<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px">✅ Nenhum veículo se destaca negativamente ainda.<br><span style="font-size:10px">(precisa de 2+ ordens no histórico)</span></div>`;
     } else {
       elRankVeic.innerHTML = rankingVeic.map(v => {
         const horasTxt = v.horasParadas > 0
@@ -17055,7 +17092,7 @@ function renderInteligencia() {
         return `<div style="background:#FEF2F2;border:1px solid #FECACA;border-left:4px solid #991b1b;border-radius:10px;padding:10px 12px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="font-weight:800;color:#7f1d1d;font-size:13px">${v.placa}</span>
-            <span style="background:#991b1b;color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:800">${v.qtd} corretivas</span>
+            <span style="background:#991b1b;color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:800">${v.qtd} ordens</span>
           </div>
           <div style="font-size:11px;color:#b91c1c;margin-top:3px">⏱ ${horasTxt}</div>
         </div>`;
@@ -17117,36 +17154,31 @@ function renderPrevisao() {
     const dataTroca = parseBR(v.data_troca);
     const dataTrocaCambio = parseBR(v.data_troca_cambio);
 
-    // ── Método 1: por KM (quando km_atual > 0) ──
+    // ── Por KM (quando km_atual > 0) ──
+    // interv_motor/interv_cambio já estão em KM (ex.: 30000) — mesma regra do calcStatus().
+    // Já VENCIDOS (kmFalta <= 0) entram sempre, no topo; os demais só se caírem na janela escolhida.
     if (kmAtual > 0) {
-      if (v.km_motor && v.interv_motor) {
-        const kmProx  = v.km_motor + (v.interv_motor * 1000);
+      const add = (campo, tipo, kmUlt, interv) => {
+        if (!kmUlt || !interv) return;
+        const kmProx  = kmUlt + interv;
         const kmFalta = kmProx - kmAtual;
-        if (kmFalta > 0) {
-          const diasRestantes = Math.round(kmFalta / (kmMedio / 30));
-          const dataEst = new Date(hoje); dataEst.setDate(hoje.getDate() + diasRestantes);
-          if (dataEst <= limite) {
-            const key = v.placa + '_motor';
-            if (!vistos.has(key)) { vistos.add(key);
-              previsoes.push({ placa: v.placa, tipo: 'Motor', diasRestantes, dataEst, kmFalta, sub: `KM atual ${kmAtual.toLocaleString('pt-BR')} · troca em ${kmProx.toLocaleString('pt-BR')} km`, urgencia: kmFalta });
-            }
-          }
+        const key = v.placa + '_' + campo;
+        if (vistos.has(key)) return;
+        const sub = `KM atual ${kmAtual.toLocaleString('pt-BR')} · troca em ${kmProx.toLocaleString('pt-BR')} km`;
+        if (kmFalta <= 0) {
+          vistos.add(key);
+          previsoes.push({ placa: v.placa, tipo, diasRestantes: -1, dataEst: null, kmFalta, vencido: true, sub, urgencia: kmFalta });
+          return;
         }
-      }
-      if (v.km_cambio && v.interv_cambio) {
-        const kmProx  = v.km_cambio + (v.interv_cambio * 1000);
-        const kmFalta = kmProx - kmAtual;
-        if (kmFalta > 0) {
-          const diasRestantes = Math.round(kmFalta / (kmMedio / 30));
-          const dataEst = new Date(hoje); dataEst.setDate(hoje.getDate() + diasRestantes);
-          if (dataEst <= limite) {
-            const key = v.placa + '_cambio';
-            if (!vistos.has(key)) { vistos.add(key);
-              previsoes.push({ placa: v.placa, tipo: 'Câmbio', diasRestantes, dataEst, kmFalta, sub: `KM atual ${kmAtual.toLocaleString('pt-BR')} · troca em ${kmProx.toLocaleString('pt-BR')} km`, urgencia: kmFalta });
-            }
-          }
+        const diasRestantes = Math.round(kmFalta / (kmMedio / 30));
+        const dataEst = new Date(hoje); dataEst.setDate(hoje.getDate() + diasRestantes);
+        if (dataEst <= limite) {
+          vistos.add(key);
+          previsoes.push({ placa: v.placa, tipo, diasRestantes, dataEst, kmFalta, sub, urgencia: kmFalta });
         }
-      }
+      };
+      add('motor',  'Motor',                v.km_motor,  v.interv_motor);
+      add('cambio', 'Câmbio / Diferencial', v.km_cambio, v.interv_cambio);
     }
   });
 
@@ -17154,14 +17186,14 @@ function renderPrevisao() {
 
   const el = document.getElementById('dash-previsao');
   if (!previsoes.length) {
-    el.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:32px;font-size:13px">✅ Nenhum veículo previsto para vencer nos próximos ${dias} dias.</div>`;
+    el.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:32px;font-size:13px">✅ Nenhum veículo vencido ou previsto para vencer nos próximos ${dias} dias.</div>`;
     return;
   }
 
   el.innerHTML = previsoes.map(p => {
     const cor = p.diasRestantes <= 10 ? '#DC2626' : p.diasRestantes <= 30 ? '#D97706' : '#2563eb';
     const bgCor = p.diasRestantes <= 10 ? '#FEE2E2' : p.diasRestantes <= 30 ? '#FEF3C7' : '#EFF6FF';
-    const dataStr = p.dataEst.toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
+    const dataStr = p.vencido ? 'vencido' : '~' + p.dataEst.toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
     return `
     <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${bgCor};border-radius:12px;border-left:3px solid ${cor}">
       <div style="flex:1;min-width:0">
@@ -17169,8 +17201,8 @@ function renderPrevisao() {
         <div style="font-size:10px;color:#64748b;margin-top:2px">${p.sub || ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:13px;font-weight:800;color:${cor}">${p.kmFalta.toLocaleString('pt-BR')} km</div>
-        <div style="font-size:10px;color:#94a3b8">~${dataStr}</div>
+        <div style="font-size:13px;font-weight:800;color:${cor}">${p.vencido ? 'Vencido há ' + Math.abs(p.kmFalta).toLocaleString('pt-BR') : p.kmFalta.toLocaleString('pt-BR')} km</div>
+        <div style="font-size:10px;color:#94a3b8">${dataStr}</div>
       </div>
     </div>`;
   }).join('');
@@ -17339,10 +17371,10 @@ async function exportarExcelCompleto() {
       const stCambio = v.cor_cambio === 'vencido' ? 'VENCIDO' : v.cor_cambio === 'proximo' ? 'PRÓXIMO' : v.cor_cambio === 'ok' ? 'EM DIA' : 'SEM DADO';
       return [
         v.placa, v.tipo || '', v.km_atual || 0, v.data_troca || '',
-        v.km_motor || 0, v.interv_motor ? v.interv_motor * 1000 : 0,
+        v.km_motor || 0, v.interv_motor || 0,
         stMotor, v.km_falta_motor || 0,
         v.data_troca_cambio || '',
-        v.km_cambio || 0, v.interv_cambio ? v.interv_cambio * 1000 : 0,
+        v.km_cambio || 0, v.interv_cambio || 0,
         stCambio, v.km_falta_cambio || 0,
         v.dias || 0
       ];
@@ -25147,6 +25179,8 @@ function marcarHistoricoComoVisto() {
 }
 
 function adicionarAoHistorico(registro) {
+  // KM do veículo no momento da finalização — base da Previsão de Corretiva por KM
+  const _vKm = (typeof VEICULOS !== 'undefined' ? VEICULOS : []).find(v => v && _normPlaca(v.placa) === _normPlaca(registro.placa));
   const item = {
     id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
     dataFinalizacao: new Date().toISOString(),
@@ -25160,6 +25194,7 @@ function adicionarAoHistorico(registro) {
     reclamacao: registro.reclamacao,
     status: registro.status,
     mecanico: registro.mecanico || '',
+    km: parseInt(registro.km) || (_vKm && parseInt(_vKm.km_atual)) || 0, // KM do veículo ao finalizar
     numero_os: registro.numero_os || '', // ⚠️ faltava — sem isso o Nº OS sumia ao mover pro Histórico
   };
   HIST_MANUT.unshift(item);

@@ -23644,7 +23644,7 @@ function _previsaoLiberacaoBadgesHTML(r, opts) {
 // Cada indisponível pode ter mais de 1 etapa (ex.: mesma placa com 2
 // problemas em andamento). O registro só finaliza (vai pro Histórico)
 // quando TODAS as etapas estiverem marcadas como concluídas.
-let _indispEtapasEdit = [{ reclamacao: '', status: '', concluida: false }];
+let _indispEtapasEdit = [{ reclamacao: '', status: '', mecanico: '', concluida: false }];
 
 function _renderIndispEtapasForm() {
   const cont = document.getElementById('indisp-etapas-container');
@@ -23661,9 +23661,10 @@ function _renderIndispEtapasForm() {
         </div>
       </div>
       <textarea data-etapa-campo="reclamacao" data-etapa-idx="${i}" rows="2" spellcheck="true" lang="pt-BR" placeholder="Reclamação / Ordem de Serviço" oninput="_indispEtapaSetCampo(${i},'reclamacao',this.value)" style="width:100%;padding:9px 12px;border:1px solid #dbe4f0;border-radius:10px;font-size:12.5px;margin-bottom:6px;resize:vertical;background:#fff"></textarea>
-      <textarea data-etapa-campo="status" data-etapa-idx="${i}" rows="2" spellcheck="true" lang="pt-BR" placeholder="Último Status / Atualização" oninput="_indispEtapaSetCampo(${i},'status',this.value)" style="width:100%;padding:9px 12px;border:1px solid #dbe4f0;border-radius:10px;font-size:12.5px;resize:vertical;background:#fff"></textarea>
+      <textarea data-etapa-campo="status" data-etapa-idx="${i}" rows="2" spellcheck="true" lang="pt-BR" placeholder="Último Status / Atualização" oninput="_indispEtapaSetCampo(${i},'status',this.value)" style="width:100%;padding:9px 12px;border:1px solid #dbe4f0;border-radius:10px;font-size:12.5px;margin-bottom:6px;resize:vertical;background:#fff"></textarea>
+      <input type="text" data-etapa-campo="mecanico" data-etapa-idx="${i}" list="indisp-mec-sugestoes" placeholder="🔧 Mecânico ou fornecedor externo que está executando esta etapa" spellcheck="false" oninput="_indispEtapaSetCampo(${i},'mecanico',this.value.toUpperCase())" style="width:100%;padding:9px 12px;border:1px solid #dbe4f0;border-radius:10px;font-size:12.5px;background:#fff;text-transform:uppercase">
     </div>
-  `).join('');
+  `).join('') + `<datalist id="indisp-mec-sugestoes">${_indispMecanicosConhecidos().map(n => `<option value="${n.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
   // Preenche o valor das textareas via JS (evita quebra por caracteres
   // especiais como "<", ">" ou "&" dentro do texto digitado).
   _indispEtapasEdit.forEach((e, i) => {
@@ -23671,11 +23672,25 @@ function _renderIndispEtapasForm() {
     const taStatus = cont.querySelector(`textarea[data-etapa-campo="status"][data-etapa-idx="${i}"]`);
     if (taRec) taRec.value = e.reclamacao || '';
     if (taStatus) taStatus.value = e.status || '';
+    const inMec = cont.querySelector(`input[data-etapa-campo="mecanico"][data-etapa-idx="${i}"]`);
+    if (inMec) inMec.value = e.mecanico || '';
   });
 }
 
+// Nomes de mecânicos já usados (registros abertos, histórico e etapas) — sugestões do campo da etapa
+function _indispMecanicosConhecidos() {
+  const set = new Set();
+  const add = v => String(v || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean).forEach(x => set.add(x));
+  [].concat(typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : [], typeof HIST_MANUT !== 'undefined' ? HIST_MANUT : []).forEach(r => {
+    if (!r) return;
+    add(r.mecanico);
+    (Array.isArray(r.etapas) ? r.etapas : []).forEach(e => add(e && e.mecanico));
+  });
+  return [...set].sort();
+}
+
 function _indispEtapaAdd() {
-  _indispEtapasEdit.push({ reclamacao: '', status: '', concluida: false });
+  _indispEtapasEdit.push({ reclamacao: '', status: '', mecanico: '', concluida: false });
   _renderIndispEtapasForm();
 }
 
@@ -23720,7 +23735,7 @@ function abrirModalIndisp(tipoServico) {
   document.getElementById('indisp-btn-excluir').style.display = 'none'; {const t=document.getElementById('indisp-btn-excluir-top'); if(t) t.style.display='none';}
   ['indisp-placa','indisp-reboque','indisp-mecanico','indisp-mecanico-input','indisp-prev-lib','indisp-numero-os'].forEach(id => document.getElementById(id).value = '');
   _indispMecanicoRenderLista();
-  _indispEtapasEdit = [{ reclamacao: '', status: '', concluida: false }];
+  _indispEtapasEdit = [{ reclamacao: '', status: '', mecanico: '', concluida: false }];
   _renderIndispEtapasForm();
   _resetDiagnostico();
   document.getElementById('indisp-tipo-equip').value = '';
@@ -23758,7 +23773,7 @@ function editarIndisp(id) {
   if (Array.isArray(r.etapas) && r.etapas.length) {
     _indispEtapasEdit = JSON.parse(JSON.stringify(r.etapas));
   } else {
-    _indispEtapasEdit = [{ reclamacao: r.reclamacao || '', status: r.status || '', concluida: false }];
+    _indispEtapasEdit = [{ reclamacao: r.reclamacao || '', status: r.status || '', mecanico: '', concluida: false }];
   }
   _renderIndispEtapasForm();
   document.getElementById('indisp-mecanico').value = r.mecanico || '';
@@ -23838,9 +23853,9 @@ function salvarIndisp() {
   // o resto do sistema que já lê r.reclamacao/r.status como texto simples
   // (tabela, cartões do Painel TV, PDF, busca global etc.).
   let etapasFinal = _indispEtapasEdit
-    .map(e => ({ reclamacao: (e.reclamacao || '').trim(), status: (e.status || '').trim(), concluida: !!e.concluida }))
-    .filter(e => e.reclamacao || e.status);
-  if (!etapasFinal.length) etapasFinal = [{ reclamacao: '', status: '', concluida: false }];
+    .map(e => ({ reclamacao: (e.reclamacao || '').trim(), status: (e.status || '').trim(), mecanico: (e.mecanico || '').trim().toUpperCase(), concluida: !!e.concluida }))
+    .filter(e => e.reclamacao || e.status || e.mecanico);
+  if (!etapasFinal.length) etapasFinal = [{ reclamacao: '', status: '', mecanico: '', concluida: false }];
 
   const registro = {
     id: _indispEditId || ('ind_' + Date.now()),
@@ -23856,7 +23871,11 @@ function salvarIndisp() {
     etapas: etapasFinal,
     reclamacao: etapasFinal.map(e => e.reclamacao).filter(Boolean).join(' / '),
     status: etapasFinal.map(e => e.status).filter(Boolean).join(' / '),
-    mecanico: document.getElementById('indisp-mecanico').value.trim().toUpperCase(),
+    // Mecânicos gerais (chips) + os de cada etapa, sem repetir — o resto do sistema continua lendo r.mecanico
+    mecanico: [...new Set([
+      ..._indispMecanicoLerLista().map(n => n.toUpperCase()),
+      ...etapasFinal.map(e => e.mecanico).filter(Boolean)
+    ])].join(', '),
     prev_lib: document.getElementById('indisp-prev-lib').value || '',
     em_guincho:     document.getElementById('indisp-guincho') ? document.getElementById('indisp-guincho').checked : false,
     em_chegada:     document.getElementById('indisp-chegada') ? document.getElementById('indisp-chegada').checked : false,
@@ -24747,7 +24766,7 @@ function gerarRelatorioIndisp() {
         const concluidas = r.etapas.filter(e => e.concluida).length;
         bloco += `📋 Etapas (${concluidas}/${r.etapas.length} concluídas):\n`;
         r.etapas.forEach((e, i) => {
-          bloco += `   ${e.concluida ? '✅' : '⏳'} ${i + 1}. ${e.reclamacao || '—'}${e.status ? ' → ' + e.status : ''}\n`;
+          bloco += `   ${e.concluida ? '✅' : '⏳'} ${i + 1}. ${e.reclamacao || '—'}${e.status ? ' → ' + e.status : ''}${e.mecanico ? ' (🔧 ' + e.mecanico + ')' : ''}\n`;
         });
       } else {
         if (r.reclamacao) bloco += `📋 OS: ${r.reclamacao}\n`;

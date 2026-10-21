@@ -3831,6 +3831,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="font-size:13px;font-weight:600;color:#475569">⚖️ Alinhamento / Balanceamento</span>
             <span style="font-size:12px;color:#94a3b8">(alinhamento e balanceamento de rodas)</span>
           </label>
+          <!-- Nova opção: Serviço de Suspensão -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-suspensao">
+            <input type="checkbox" id="indisp-suspensao" onchange="onPrevTipoChange()" style="accent-color:#4D7C0F;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569">🔩 Serviço de Suspensão</span>
+            <span style="font-size:12px;color:#94a3b8">(molas, amortecedores, buchas, feixe de molas)</span>
+          </label>
           <!-- Nova opção: Borracharia / Troca de Pneu -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-borracharia">
             <input type="checkbox" id="indisp-borracharia" onchange="onPrevTipoChange()" style="accent-color:#334155;width:16px;height:16px;cursor:pointer">
@@ -19199,6 +19205,7 @@ function renderIndisp() {
     if (r.em_socorro)        itens.push(\`<span class="tv-prev-badge" style="background:#FEE2E2;color:#991B1B">🆘 Socorro</span>\`);
     if (r.em_funilaria)        itens.push(\`<span class="tv-prev-badge" style="background:#FCE7F3;color:#9D174D">🔨 Funilaria</span>\`);
     if (r.em_alinhamento)        itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#155E75">⚖️ Alinhamento</span>\`);
+    if (r.em_suspensao)        itens.push(\`<span class="tv-prev-badge" style="background:#ECFCCB;color:#3F6212">🔩 Suspensão</span>\`);
     if (r.em_borracharia)        itens.push(\`<span class="tv-prev-badge" style="background:#E2E8F0;color:#1E293B"><svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>&nbsp;Borracharia</span>\`);
     if (r.em_solda_aguard)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔥 Aguard. Solda</span>\`);
     if (r.em_checklist_prev)        itens.push(\`<span class="tv-prev-badge" style="background:#E0E7FF;color:#3730A3">📋 Checklist Prev.</span>\`);
@@ -23436,6 +23443,7 @@ function onPrevTipoChange() {
   const isSoc   = document.getElementById('indisp-socorro') && document.getElementById('indisp-socorro').checked;
   const isFun   = document.getElementById('indisp-funilaria') && document.getElementById('indisp-funilaria').checked;
   const isAli   = document.getElementById('indisp-alinhamento') && document.getElementById('indisp-alinhamento').checked;
+  const isSus   = document.getElementById('indisp-suspensao') && document.getElementById('indisp-suspensao').checked;
   const isBor   = document.getElementById('indisp-borracharia') && document.getElementById('indisp-borracharia').checked;
   const isSol   = document.getElementById('indisp-solda') && document.getElementById('indisp-solda').checked;
   const isChk   = document.getElementById('indisp-checkprev') && document.getElementById('indisp-checkprev').checked;
@@ -23463,6 +23471,7 @@ function onPrevTipoChange() {
   const lblSoc  = document.getElementById('label-socorro');
   const lblFun  = document.getElementById('label-funilaria');
   const lblAli  = document.getElementById('label-alinhamento');
+  const lblSus  = document.getElementById('label-suspensao');
   const lblBor  = document.getElementById('label-borracharia');
   const lblSol  = document.getElementById('label-solda');
   const lblChk  = document.getElementById('label-checkprev');
@@ -23494,6 +23503,7 @@ function onPrevTipoChange() {
   if (lblSoc)  { lblSoc.style.borderColor  = isSoc  ? '#B91C1C' : '#dbe4f0'; lblSoc.style.background  = isSoc  ? '#FEE2E2' : '#f8fafc'; }
   if (lblFun)  { lblFun.style.borderColor  = isFun  ? '#BE185D' : '#dbe4f0'; lblFun.style.background  = isFun  ? '#FCE7F3' : '#f8fafc'; }
   if (lblAli)  { lblAli.style.borderColor  = isAli  ? '#0E7490' : '#dbe4f0'; lblAli.style.background  = isAli  ? '#CFFAFE' : '#f8fafc'; }
+  if (lblSus)  { lblSus.style.borderColor  = isSus  ? '#4D7C0F' : '#dbe4f0'; lblSus.style.background  = isSus  ? '#ECFCCB' : '#f8fafc'; }
   if (lblBor)  { lblBor.style.borderColor  = isBor  ? '#334155' : '#dbe4f0'; lblBor.style.background  = isBor  ? '#E2E8F0' : '#f8fafc'; }
   if (lblSol)  { lblSol.style.borderColor  = isSol  ? '#C2410C' : '#dbe4f0'; lblSol.style.background  = isSol  ? '#FFEDD5' : '#f8fafc'; }
   if (lblChk)  { lblChk.style.borderColor  = isChk  ? '#4338CA' : '#dbe4f0'; lblChk.style.background  = isChk  ? '#E0E7FF' : '#f8fafc'; }
@@ -23543,6 +23553,7 @@ function _resetDiagnostico() {
   const lblSoc  = document.getElementById('label-socorro');
   const lblFun  = document.getElementById('label-funilaria');
   const lblAli  = document.getElementById('label-alinhamento');
+  const lblSus  = document.getElementById('label-suspensao');
   const lblBor  = document.getElementById('label-borracharia');
   const lblSol  = document.getElementById('label-solda');
   const lblChk  = document.getElementById('label-checkprev');
@@ -23551,10 +23562,10 @@ function _resetDiagnostico() {
   const lblLav  = document.getElementById('label-lavagem');
   const lblVis  = document.getElementById('label-vistoria');
   const lblTes  = document.getElementById('label-teste');
-  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblBor, lblSol, lblChk, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblBor, lblSol, lblChk, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   // Registro NOVO começa sem nenhum status marcado (antes só o destaque visual era
   // limpo e a caixinha marcada na edição anterior ia junto pro registro novo).
-  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
+  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
     .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
@@ -23604,6 +23615,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_socorro)        itens.push({ icon:'🆘', label:'Serviço de Socorro', labelCurta:'Socorro',cor:'#991B1B', bg:'#FEE2E2' });
   if (r.em_funilaria)        itens.push({ icon:'🔨', label:'Funilaria e Pintura', labelCurta:'Funilaria',cor:'#9D174D', bg:'#FCE7F3' });
   if (r.em_alinhamento)        itens.push({ icon:'⚖️', label:'Alinhamento / Balanceamento', labelCurta:'Alinhamento',cor:'#155E75', bg:'#CFFAFE' });
+  if (r.em_suspensao)        itens.push({ icon:'🔩', label:'Serviço de Suspensão', labelCurta:'Suspensão',cor:'#3F6212', bg:'#ECFCCB' });
   if (r.em_borracharia)        itens.push({ icon:'⚫', svg:_ICO_PNEU, label:'Serviço de Borracharia / Troca de Pneu', labelCurta:'Borracharia',cor:'#1E293B', bg:'#E2E8F0' });
   if (r.em_solda_aguard)        itens.push({ icon:'🔥', label:'Aguardando Solda', labelCurta:'Aguard. Solda',cor:'#9A3412', bg:'#FFEDD5' });
   if (r.em_checklist_prev)        itens.push({ icon:'📋', label:'Checklist Preventivo', labelCurta:'Checklist Prev.',cor:'#3730A3', bg:'#E0E7FF' });
@@ -23798,6 +23810,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-socorro').checked = !!r.em_socorro;
   document.getElementById('indisp-funilaria').checked = !!r.em_funilaria;
   document.getElementById('indisp-alinhamento').checked = !!r.em_alinhamento;
+  document.getElementById('indisp-suspensao').checked = !!r.em_suspensao;
   { const _b = document.getElementById('indisp-borracharia'); if (_b) _b.checked = !!r.em_borracharia; }
   document.getElementById('indisp-solda').checked = !!r.em_solda_aguard;
   document.getElementById('indisp-checkprev').checked = !!r.em_checklist_prev;
@@ -23893,6 +23906,7 @@ function salvarIndisp() {
     em_socorro: document.getElementById('indisp-socorro') ? document.getElementById('indisp-socorro').checked : false,
     em_funilaria: document.getElementById('indisp-funilaria') ? document.getElementById('indisp-funilaria').checked : false,
     em_alinhamento: document.getElementById('indisp-alinhamento') ? document.getElementById('indisp-alinhamento').checked : false,
+    em_suspensao: document.getElementById('indisp-suspensao') ? document.getElementById('indisp-suspensao').checked : false,
     em_borracharia: document.getElementById('indisp-borracharia') ? document.getElementById('indisp-borracharia').checked : false,
     em_solda_aguard: document.getElementById('indisp-solda') ? document.getElementById('indisp-solda').checked : false,
     em_checklist_prev: document.getElementById('indisp-checkprev') ? document.getElementById('indisp-checkprev').checked : false,
@@ -23963,7 +23977,7 @@ function _resumirMudancasIndisp(antes, depois) {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
     em_guincho: 'Aguardando guincho/reboque', em_chegada: 'Aguardando chegada do veículo', em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento', em_aprovacao: 'Aguardando aprovação',
-    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
+    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -24528,6 +24542,7 @@ function imprimirPDFIndisp() {
     if (r.em_socorro)        itens.push('Servico de Socorro');
     if (r.em_funilaria)        itens.push('Funilaria e Pintura');
     if (r.em_alinhamento)        itens.push('Alinhamento / Balanceamento');
+    if (r.em_suspensao)        itens.push('Servico de Suspensao');
     if (r.em_borracharia)        itens.push('Borracharia / Troca de Pneu');
     if (r.em_solda_aguard)        itens.push('Aguardando Solda');
     if (r.em_checklist_prev)        itens.push('Checklist Preventivo');
@@ -26018,6 +26033,7 @@ function renderMobIndisp() {
       if (r.em_socorro)        prevItens.push(`<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🆘 Serviço de Socorro</span>`);
       if (r.em_funilaria)        prevItens.push(`<span style="background:#FCE7F3;color:#9D174D;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔨 Funilaria e Pintura</span>`);
       if (r.em_alinhamento)        prevItens.push(`<span style="background:#CFFAFE;color:#155E75;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚖️ Alinhamento / Balanceamento</span>`);
+      if (r.em_suspensao)        prevItens.push(`<span style="background:#ECFCCB;color:#3F6212;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔩 Serviço de Suspensão</span>`);
       if (r.em_borracharia)        prevItens.push(`<span style="background:#E2E8F0;color:#1E293B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_PNEU}&nbsp;Borracharia / Troca de Pneu</span>`);
       if (r.em_solda_aguard)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔥 Aguardando Solda</span>`);
       if (r.em_checklist_prev)        prevItens.push(`<span style="background:#E0E7FF;color:#3730A3;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📋 Checklist Preventivo</span>`);

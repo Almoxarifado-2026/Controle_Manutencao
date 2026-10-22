@@ -978,6 +978,22 @@ table.tbl-check tbody tr:nth-child(even) { background:#EAF0FB; }
 table.tbl-check tbody tr:nth-child(odd)  { background:#FFFFFF; }
 table.tbl-check tbody tr:hover { filter:brightness(.97); }
 
+/* ── Checklist: barra de totais/filtros e cabeçalho da tabela FIXOS ao rolar (desktop/tablet) ──
+   --nav-h e --check-bar-h são medidos por JS (ver ajustarFixosChecklist), pois a altura muda
+   conforme a largura da tela. A tabela rola dentro do próprio quadro (.check-scroll), então o
+   cabeçalho gruda no topo dele; a barra roxa fica colada logo abaixo do menu de abas. */
+@media (min-width: 768px) {
+  #pag-checklist .check-totais { position: sticky; top: var(--nav-h, 56px); z-index: 800; }
+  #pag-checklist .check-scroll {
+    overflow: auto;
+    max-height: calc(100vh - var(--nav-h, 56px) - var(--check-bar-h, 70px) - 40px); /* 40px = margem inferior da página */
+    border-radius: 22px;
+  }
+  /* overflow:hidden na própria tabela a transformaria em "quadro de rolagem" e quebraria o sticky do cabeçalho */
+  #pag-checklist table.tbl-check { overflow: visible; }
+  #pag-checklist table.tbl-check thead th { position: sticky; top: 0; z-index: 5; box-shadow: inset 0 -1px 0 rgba(255,255,255,.35); }
+}
+
 /* ══════════════════════════════════════════
    § 17 · CARDS MOBILE (.vcard / .mob-card-ind / .mob-card-chk / .mob-card-doc / .mob-card-comb)
    Visíveis apenas em telas ≤ 767px via media query
@@ -2756,7 +2772,7 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
   </div>
 
-  <div style="overflow-x:auto">
+  <div class="check-scroll" style="overflow-x:auto">
     <table class="tbl-check">
       <thead>
         <tr>
@@ -26551,6 +26567,29 @@ window.addEventListener('resize', () => {
       .observe(document.body, { childList: true, subtree: true });         // tabela redesenhada
   } catch (e) {}
   agendar(300);
+})();
+</script>
+<script>
+/* Mede o menu de abas e a barra de totais do Checklist para o CSS fixar a barra e o cabeçalho da tabela. */
+(function ajustarFixosChecklist() {
+  function medir() {
+    try {
+      var nav = document.querySelector('.nav-abas');
+      var bar = document.querySelector('#pag-checklist .check-totais');
+      var root = document.documentElement;
+      if (nav && nav.offsetHeight) root.style.setProperty('--nav-h', nav.offsetHeight + 'px');
+      if (bar && bar.offsetHeight) root.style.setProperty('--check-bar-h', bar.offsetHeight + 'px');
+    } catch (e) {}
+  }
+  window.addEventListener('resize', medir);
+  window.addEventListener('load', medir);
+  document.addEventListener('DOMContentLoaded', medir);
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(medir);
+    var nav = document.querySelector('.nav-abas'); if (nav) ro.observe(nav);
+    var bar = document.querySelector('#pag-checklist .check-totais'); if (bar) ro.observe(bar);
+  }
+  setTimeout(medir, 400);
 })();
 </script>
 </body>

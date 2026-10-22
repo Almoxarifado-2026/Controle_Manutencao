@@ -23423,7 +23423,7 @@ function _renderTabela(lista, tbodyId) {
         ${Array.isArray(r.etapas) && r.etapas.length > 1
           ? `<div style="font-size:10px;font-weight:800;color:${r.etapas.every(e=>e.concluida)?'#16a34a':'#d97706'};margin-bottom:3px">${r.etapas.filter(e=>e.concluida).length}/${r.etapas.length} ETAPAS ✓</div>`
           : ''}
-        ${r.reclamacao||'—'}
+        ${_reclamacaoEtapasHTML(r, false)}
       </td>
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center">
         <div style="background:${statusBg};color:${statusCor};border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;line-height:1.5;word-break:break-word;text-align:center">${r.status||'—'}</div>
@@ -23664,6 +23664,31 @@ function _listaOS(str) {
    pra não repetir o mesmo ternário em cada lugar que exibe esse campo
    (tabela, cards mobile, painel de TV, PDF, WhatsApp). */
 const _ICO_PNEU = '<svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>';
+// ── Reclamação com as ETAPAS e o mecânico/fornecedor de cada uma ──
+// Usado na tabela da tela e no "Print para WhatsApp". Registro com 2+ etapas lista cada etapa
+// (✅/⏳ + número + texto + 🔧 quem executa). Com 1 etapa mostra só o texto; se mostrarMecGeral,
+// acrescenta os mecânicos/fornecedores logo abaixo (o Print não tem coluna de mecânico).
+function _reclamacaoEtapasHTML(r, mostrarMecGeral) {
+  const chip = n => `<span style="display:inline-block;background:#CCFBF1;color:#0f766e;border-radius:6px;padding:1px 6px;font-weight:700;white-space:nowrap">🔧 ${escapeHtml(n)}</span>`;
+  if (Array.isArray(r.etapas) && r.etapas.length > 1) {
+    return r.etapas.map((e, i) =>
+      `<div style="text-align:left;margin:2px 0">${e.concluida ? '✅' : '⏳'} <b>${i + 1}.</b> ${escapeHtml(e.reclamacao || '—')}${e.mecanico ? ' ' + chip(e.mecanico) : ''}</div>`
+    ).join('');
+  }
+  let h = escapeHtml(r.reclamacao || '—');
+  if (mostrarMecGeral && r.mecanico) {
+    h += `<div style="margin-top:3px">${String(r.mecanico).split(',').map(n => n.trim()).filter(Boolean).map(chip).join(' ')}</div>`;
+  }
+  return h;
+}
+// Versão em texto puro para o PDF (jsPDF não imprime emoji): "1. Reclamação (MEC: NOME)"
+function _reclamacaoEtapasTexto(r) {
+  if (Array.isArray(r.etapas) && r.etapas.length > 1) {
+    return r.etapas.map((e, i) => `${i + 1}. ${e.reclamacao || '-'}${e.mecanico ? ' (MEC: ' + e.mecanico + ')' : ''}`).join('\n');
+  }
+  return r.reclamacao || '';
+}
+
 function _previsaoLiberacaoItens(r) {
   const itens = [];
   if (r.em_guincho) itens.push({ icon:'🚛', label:'Aguardando Guincho/Reboque', labelCurta:'Guincho', cor:'#854D0E', bg:'#FEF9C3' });
@@ -24725,7 +24750,7 @@ function imprimirPDFIndisp() {
     // Linhas de dados
     lista.forEach((rec, idx) => {
       // Calcular altura da linha com base no texto mais longo
-      const recl = limpar(rec.reclamacao);
+      const recl = _reclamacaoEtapasTexto(rec).split('\n').map(limpar).join('\n');
       const stat = limpar(rec.status);
       const linesRecl = doc.splitTextToSize(recl, COLS[5].w - 3);
       const linesStat = doc.splitTextToSize(stat, COLS[6].w - 3);
@@ -24962,7 +24987,7 @@ async function capturarTelaIndisp() {
           <td style="padding:5px 8px;font-size:9px;color:#64748b;text-align:center;white-space:nowrap">${fmtDT(r.entrada)}</td>
           <td style="padding:5px 8px;font-size:9px;text-align:center;white-space:nowrap">${semSaida?'<span style="background:#FEF3C7;color:#92400e;border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700">EM MANUTENÇÃO</span>':fmtDT(r.saida)}</td>
           <td style="padding:5px 8px;font-weight:700;font-size:11px;text-align:center;white-space:nowrap;color:${semSaida?'#D97706':'#16A34A'}">${hrs}</td>
-          <td style="padding:5px 8px;font-size:9px;color:#374151;text-align:center;word-break:break-word;line-height:1.3">${r.reclamacao||'—'}</td>
+          <td style="padding:5px 8px;font-size:9px;color:#374151;text-align:center;word-break:break-word;line-height:1.3">${_reclamacaoEtapasHTML(r, true)}</td>
           <td style="padding:5px 8px;font-size:9px;color:#64748b;text-align:center;white-space:nowrap">${r.tipoManut||'—'}</td>
           <td style="padding:5px 8px;font-size:9px;text-align:center"><div style="background:${semSaida?'#FEF3C7':'#DCFCE7'};color:${semSaida?'#92400e':'#166534'};border-radius:6px;padding:3px 7px;font-size:9px;font-weight:600;line-height:1.4;word-break:break-word;text-align:center">${r.status||'—'}</div></td>
           <td style="padding:5px 8px;font-size:9px;text-align:center;max-width:110px">${_previsaoLiberacaoBadgesHTML(r, {curto:true, justify:'center'})}</td>

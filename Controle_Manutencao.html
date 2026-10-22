@@ -992,6 +992,18 @@ table.tbl-check tbody tr:hover { filter:brightness(.97); }
   /* overflow:hidden na própria tabela a transformaria em "quadro de rolagem" e quebraria o sticky do cabeçalho */
   #pag-checklist table.tbl-check { overflow: visible; }
   #pag-checklist table.tbl-check thead th { position: sticky; top: 0; z-index: 5; box-shadow: inset 0 -1px 0 rgba(255,255,255,.35); }
+
+  /* ── Documentos: filtros, cartões de resumo e cabeçalho da tabela FIXOS ao rolar ──
+     O título rola para fora; o resto fica. Os cartões só ficam fixos se a tela for alta
+     o bastante (classe doc-kpi-fixo, ligada por ajustarFixosChecklist). */
+  #pag-documentos > .barra-det { position: sticky; top: var(--nav-h, 56px); z-index: 800; }
+  #pag-documentos.doc-kpi-fixo > #doc-kpis { position: sticky; top: calc(var(--nav-h, 56px) + var(--doc-bar-h, 56px)); z-index: 790; }
+  #pag-documentos .doc-scroll {
+    overflow: auto;
+    max-height: calc(100vh - var(--nav-h, 56px) - var(--doc-bar-h, 56px) - var(--doc-kpi-h, 0px) - 40px);
+  }
+  #pag-documentos .doc-scroll table { overflow: visible; } /* overflow:hidden global da tabela quebraria o sticky */
+  #pag-documentos .doc-scroll table thead th { position: sticky; top: 0; z-index: 5; box-shadow: inset 0 -1px 0 rgba(255,255,255,.35); }
 }
 
 /* ══════════════════════════════════════════
@@ -3155,7 +3167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Tabela por veículo -->
 <div style="padding:0 18px 24px;background:#f1f5f9">
   <div style="background:#fff;border-radius:22px;box-shadow:0 10px 30px rgba(15,23,42,.08);overflow:hidden">
-    <div style="overflow-x:auto">
+    <div class="doc-scroll" style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px">
         <thead>
           <tr>
@@ -11571,6 +11583,16 @@ function _diasCorridos(inicio, fim) {
   return Math.max(0, Math.round((alvo - d) / 86400000));
 }
 
+// Dias sem revisão COM SINAL: data da última preventiva no futuro → negativo (ex.: amanhã = -1).
+// Data passada/hoje → dias corridos menos os dias de pausa (nunca abaixo de 0).
+function _diasSemRevisao(inicio, fim, diasPausados) {
+  if (!(inicio instanceof Date) || !(fim instanceof Date) || isNaN(inicio) || isNaN(fim)) return 0;
+  const a = new Date(inicio); a.setHours(0,0,0,0);
+  const b = new Date(fim);    b.setHours(0,0,0,0);
+  const bruto = Math.round((b - a) / 86400000);
+  return bruto < 0 ? bruto : Math.max(0, bruto - (diasPausados || 0));
+}
+
 // Calcula os "dias sem revisão" de um registro do Checklist:
 // - Conta dias corridos normais (domingo conta igual aos outros dias).
 // - Se o registro estiver PAUSADO (c.pausado — veículo parado, sem rodar),
@@ -11587,8 +11609,7 @@ function recalcDias(c) {
     const inicio = new Date(+a, +m-1, +d);
     const hoje = new Date(); hoje.setHours(0,0,0,0);
     const fimContagem = (c.pausado && c.data_inicio_pausa) ? new Date(c.data_inicio_pausa) : hoje;
-    const bruto = _diasCorridos(inicio, fimContagem);
-    c.dias = Math.max(0, bruto - (c.dias_pausados_acumulados || 0));
+    c.dias = _diasSemRevisao(inicio, fimContagem, c.dias_pausados_acumulados);
   } catch { c.dias = 0; }
 }
 
@@ -18990,8 +19011,7 @@ async function carregarDados() {
             if (!isNaN(dt)) {
               const hoje = new Date(); hoje.setHours(0,0,0,0);
               const fimContagem = (c.pausado && c.data_inicio_pausa) ? new Date(c.data_inicio_pausa) : hoje;
-              const bruto = _diasCorridos(dt, fimContagem);
-              c.dias = Math.max(0, bruto - (c.dias_pausados_acumulados || 0));
+              c.dias = _diasSemRevisao(dt, fimContagem, c.dias_pausados_acumulados);
             }
           } catch(e) {}
         }
@@ -19102,6 +19122,16 @@ function _diasCorridos(inicio, fim) {
   const alvo = new Date(fim); alvo.setHours(0,0,0,0);
   return Math.max(0, Math.round((alvo - d) / 86400000));
 }
+
+// Dias sem revisão COM SINAL: data da última preventiva no futuro → negativo (ex.: amanhã = -1).
+// Data passada/hoje → dias corridos menos os dias de pausa (nunca abaixo de 0).
+function _diasSemRevisao(inicio, fim, diasPausados) {
+  if (!(inicio instanceof Date) || !(fim instanceof Date) || isNaN(inicio) || isNaN(fim)) return 0;
+  const a = new Date(inicio); a.setHours(0,0,0,0);
+  const b = new Date(fim);    b.setHours(0,0,0,0);
+  const bruto = Math.round((b - a) / 86400000);
+  return bruto < 0 ? bruto : Math.max(0, bruto - (diasPausados || 0));
+}
 function recalcDias(c) {
   if (!c.ult_prev) { /* preserva c.dias existente se não tiver ult_prev */ return; }
   const partes = c.ult_prev.split('/');
@@ -19110,8 +19140,7 @@ function recalcDias(c) {
   if (isNaN(d)) { return; }
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const fimContagem = (c.pausado && c.data_inicio_pausa) ? new Date(c.data_inicio_pausa) : hoje;
-  const bruto = _diasCorridos(d, fimContagem);
-  c.dias = Math.max(0, bruto - (c.dias_pausados_acumulados || 0));
+  c.dias = _diasSemRevisao(d, fimContagem, c.dias_pausados_acumulados);
 }
 
 function recalcVeiculos() {
@@ -26579,6 +26608,16 @@ window.addEventListener('resize', () => {
       var root = document.documentElement;
       if (nav && nav.offsetHeight) root.style.setProperty('--nav-h', nav.offsetHeight + 'px');
       if (bar && bar.offsetHeight) root.style.setProperty('--check-bar-h', bar.offsetHeight + 'px');
+      // Documentos: barra de filtros + cartões (cartões só fixos em tela alta)
+      var pagDoc = document.getElementById('pag-documentos');
+      var barDoc = document.querySelector('#pag-documentos > .barra-det');
+      var kpiDoc = document.getElementById('doc-kpis');
+      if (pagDoc && barDoc && kpiDoc) {
+        var fixaCards = window.innerHeight >= 760;
+        pagDoc.classList.toggle('doc-kpi-fixo', fixaCards);
+        if (barDoc.offsetHeight) root.style.setProperty('--doc-bar-h', barDoc.offsetHeight + 'px');
+        root.style.setProperty('--doc-kpi-h', (fixaCards && kpiDoc.offsetHeight ? kpiDoc.offsetHeight : 0) + 'px');
+      }
     } catch (e) {}
   }
   window.addEventListener('resize', medir);
@@ -26588,6 +26627,8 @@ window.addEventListener('resize', () => {
     var ro = new ResizeObserver(medir);
     var nav = document.querySelector('.nav-abas'); if (nav) ro.observe(nav);
     var bar = document.querySelector('#pag-checklist .check-totais'); if (bar) ro.observe(bar);
+    var bd = document.querySelector('#pag-documentos > .barra-det'); if (bd) ro.observe(bd);
+    var kd = document.getElementById('doc-kpis'); if (kd) ro.observe(kd);
   }
   setTimeout(medir, 400);
 })();

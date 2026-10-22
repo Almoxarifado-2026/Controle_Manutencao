@@ -3817,6 +3817,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="font-size:13px;font-weight:600;color:#475569">🛡️ Em Garantia</span>
             <span style="font-size:12px;color:#94a3b8">(resolvendo com o fornecedor/fabricante)</span>
           </label>
+          <!-- Nova opção: Retorno de Serviço (serviço já feito que voltou com problema) -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-retorno-servico">
+            <input type="checkbox" id="indisp-retorno-servico" onchange="onPrevTipoChange()" style="accent-color:#A21CAF;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569">🔁 Retorno de Serviço</span>
+            <span style="font-size:12px;color:#94a3b8">(serviço já feito que voltou com problema / retrabalho)</span>
+          </label>
           <!-- Opção 4b: aguardando enviar para o prestador de serviço -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-envio-prestador">
             <input type="checkbox" id="indisp-envio-prestador" onchange="onPrevTipoChange()" style="accent-color:#DB2777;width:16px;height:16px;cursor:pointer">
@@ -19243,6 +19249,7 @@ function renderIndisp() {
     if (r.em_pneu)        itens.push(\`<span class="tv-prev-badge" style="background:#FFE4E6;color:#9F1239">⭕ Pneu/Recap.</span>\`);
     if (r.em_usinagem)        itens.push(\`<span class="tv-prev-badge" style="background:#EBDDCF;color:#6B4423">⚙️ Usinagem/Retífica</span>\`);
     if (r.em_garantia)        itens.push(\`<span class="tv-prev-badge" style="background:#D1FAE5;color:#065F46">🛡️ Garantia</span>\`);
+    if (r.em_retorno_servico)        itens.push(\`<span class="tv-prev-badge" style="background:#FAE8FF;color:#86198F">🔁 Retorno de serviço</span>\`);
     if (r.em_envio_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#FCE7F3;color:#BE185D">🚚 Aguard. Envio</span>\`);
     if (r.em_no_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#C2410C">🔧 No Prestador</span>\`);
     if (r.em_retorno_prestador)        itens.push(\`<span class="tv-prev-badge" style="background:#CCFBF1;color:#0F766E">↩️ Aguard. Retorno</span>\`);
@@ -23481,6 +23488,7 @@ function onPrevTipoChange() {
   const isPne   = document.getElementById('indisp-pneu') && document.getElementById('indisp-pneu').checked;
   const isUsi   = document.getElementById('indisp-usinagem') && document.getElementById('indisp-usinagem').checked;
   const isGar   = document.getElementById('indisp-garantia') && document.getElementById('indisp-garantia').checked;
+  const isRSv   = document.getElementById('indisp-retorno-servico') && document.getElementById('indisp-retorno-servico').checked;
   const isEnv   = document.getElementById('indisp-envio-prestador') && document.getElementById('indisp-envio-prestador').checked;
   const isNoP   = document.getElementById('indisp-no-prestador') && document.getElementById('indisp-no-prestador').checked;
   const isRet   = document.getElementById('indisp-retorno-prestador') && document.getElementById('indisp-retorno-prestador').checked;
@@ -23509,6 +23517,7 @@ function onPrevTipoChange() {
   const lblPne  = document.getElementById('label-pneu');
   const lblUsi  = document.getElementById('label-usinagem');
   const lblGar  = document.getElementById('label-garantia');
+  const lblRSv  = document.getElementById('label-retorno-servico');
   const lblEnv  = document.getElementById('label-envio-prestador');
   const lblNoP  = document.getElementById('label-no-prestador');
   const lblRet  = document.getElementById('label-retorno-prestador');
@@ -23541,6 +23550,7 @@ function onPrevTipoChange() {
   if (lblPne)  { lblPne.style.borderColor  = isPne  ? '#E11D48' : '#dbe4f0'; lblPne.style.background  = isPne  ? '#FFE4E6' : '#f8fafc'; }
   if (lblUsi)  { lblUsi.style.borderColor  = isUsi  ? '#8B5A2B' : '#dbe4f0'; lblUsi.style.background  = isUsi  ? '#EBDDCF' : '#f8fafc'; }
   if (lblGar)  { lblGar.style.borderColor  = isGar  ? '#059669' : '#dbe4f0'; lblGar.style.background  = isGar  ? '#D1FAE5' : '#f8fafc'; }
+  if (lblRSv)  { lblRSv.style.borderColor  = isRSv  ? '#A21CAF' : '#dbe4f0'; lblRSv.style.background  = isRSv  ? '#FAE8FF' : '#f8fafc'; }
   if (lblEnv)  { lblEnv.style.borderColor  = isEnv  ? '#DB2777' : '#dbe4f0'; lblEnv.style.background  = isEnv  ? '#FCE7F3' : '#f8fafc'; }
   if (lblNoP)  { lblNoP.style.borderColor  = isNoP  ? '#EA580C' : '#dbe4f0'; lblNoP.style.background  = isNoP  ? '#FFEDD5' : '#f8fafc'; }
   if (lblRet)  { lblRet.style.borderColor  = isRet  ? '#0D9488' : '#dbe4f0'; lblRet.style.background  = isRet  ? '#CCFBF1' : '#f8fafc'; }
@@ -23591,6 +23601,7 @@ function _resetDiagnostico() {
   const lblPne  = document.getElementById('label-pneu');
   const lblUsi  = document.getElementById('label-usinagem');
   const lblGar  = document.getElementById('label-garantia');
+  const lblRSv  = document.getElementById('label-retorno-servico');
   const lblEnv  = document.getElementById('label-envio-prestador');
   const lblNoP  = document.getElementById('label-no-prestador');
   const lblRet  = document.getElementById('label-retorno-prestador');
@@ -23607,10 +23618,10 @@ function _resetDiagnostico() {
   const lblLav  = document.getElementById('label-lavagem');
   const lblVis  = document.getElementById('label-vistoria');
   const lblTes  = document.getElementById('label-teste');
-  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblBor, lblSol, lblChk, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblRSv, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblBor, lblSol, lblChk, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   // Registro NOVO começa sem nenhum status marcado (antes só o destaque visual era
   // limpo e a caixinha marcada na edição anterior ia junto pro registro novo).
-  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
+  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-retorno-servico','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
     .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
@@ -23653,6 +23664,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_pneu)        itens.push({ icon:'⭕', label:'Aguardando Pneu/Recapagem',       labelCurta:'Pneu/Recapagem',cor:'#9F1239', bg:'#FFE4E6' });
   if (r.em_usinagem)        itens.push({ icon:'⚙️', label:'Aguardando Usinagem/Retífica',       labelCurta:'Usinagem/Retífica',cor:'#6B4423', bg:'#EBDDCF' });
   if (r.em_garantia)        itens.push({ icon:'🛡️', label:'Em Garantia',       labelCurta:'Garantia',cor:'#065F46', bg:'#D1FAE5' });
+  if (r.em_retorno_servico)        itens.push({ icon:'🔁', label:'Retorno de Serviço', labelCurta:'Retorno',cor:'#86198F', bg:'#FAE8FF' });
   if (r.em_envio_prestador)        itens.push({ icon:'🚚', label:'Aguardando Envio ao Prestador', labelCurta:'Aguard. Envio',cor:'#BE185D', bg:'#FCE7F3' });
   if (r.em_no_prestador)        itens.push({ icon:'🔧', label:'No Prestador (serviço externo)', labelCurta:'No Prestador',cor:'#C2410C', bg:'#FFEDD5' });
   if (r.em_retorno_prestador)        itens.push({ icon:'↩️', label:'Aguardando Retorno do Prestador', labelCurta:'Aguard. Retorno',cor:'#0F766E', bg:'#CCFBF1' });
@@ -23848,6 +23860,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-pneu').checked = !!r.em_pneu;
   document.getElementById('indisp-usinagem').checked = !!r.em_usinagem;
   document.getElementById('indisp-garantia').checked = !!r.em_garantia;
+  document.getElementById('indisp-retorno-servico').checked = !!r.em_retorno_servico;
   document.getElementById('indisp-envio-prestador').checked = !!r.em_envio_prestador;
   document.getElementById('indisp-no-prestador').checked   = !!r.em_no_prestador;
   document.getElementById('indisp-retorno-prestador').checked = !!r.em_retorno_prestador;
@@ -23944,6 +23957,7 @@ function salvarIndisp() {
     em_pneu: document.getElementById('indisp-pneu') ? document.getElementById('indisp-pneu').checked : false,
     em_usinagem: document.getElementById('indisp-usinagem') ? document.getElementById('indisp-usinagem').checked : false,
     em_garantia: document.getElementById('indisp-garantia') ? document.getElementById('indisp-garantia').checked : false,
+    em_retorno_servico: document.getElementById('indisp-retorno-servico') ? document.getElementById('indisp-retorno-servico').checked : false,
     em_envio_prestador: document.getElementById('indisp-envio-prestador') ? document.getElementById('indisp-envio-prestador').checked : false,
     em_no_prestador: document.getElementById('indisp-no-prestador') ? document.getElementById('indisp-no-prestador').checked : false,
     em_retorno_prestador: document.getElementById('indisp-retorno-prestador') ? document.getElementById('indisp-retorno-prestador').checked : false,
@@ -24022,7 +24036,7 @@ function _resumirMudancasIndisp(antes, depois) {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
     em_guincho: 'Aguardando guincho/reboque', em_chegada: 'Aguardando chegada do veículo', em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento', em_aprovacao: 'Aguardando aprovação',
-    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
+    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_retorno_servico: 'Retorno de serviço', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -24580,6 +24594,7 @@ function imprimirPDFIndisp() {
     if (r.em_pneu)        itens.push('Aguard. Pneu/Recapagem');
     if (r.em_usinagem)        itens.push('Aguard. Usinagem/Retifica');
     if (r.em_garantia)        itens.push('Em Garantia');
+    if (r.em_retorno_servico)        itens.push('Retorno de Servico');
     if (r.em_envio_prestador)        itens.push('Aguard. Envio ao Prestador');
     if (r.em_no_prestador)        itens.push('No Prestador');
     if (r.em_retorno_prestador)        itens.push('Aguard. Retorno do Prestador');
@@ -26071,6 +26086,7 @@ function renderMobIndisp() {
       if (r.em_pneu)        prevItens.push(`<span style="background:#FFE4E6;color:#9F1239;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⭕ Aguard. Pneu/Recapagem</span>`);
       if (r.em_usinagem)        prevItens.push(`<span style="background:#EBDDCF;color:#6B4423;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚙️ Aguard. Usinagem/Retífica</span>`);
       if (r.em_garantia)        prevItens.push(`<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛡️ Em Garantia</span>`);
+      if (r.em_retorno_servico)        prevItens.push(`<span style="background:#FAE8FF;color:#86198F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔁 Retorno de Serviço</span>`);
       if (r.em_envio_prestador)        prevItens.push(`<span style="background:#FCE7F3;color:#BE185D;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🚚 Aguard. Envio ao Prestador</span>`);
       if (r.em_no_prestador)        prevItens.push(`<span style="background:#FFEDD5;color:#C2410C;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔧 No Prestador</span>`);
       if (r.em_retorno_prestador)        prevItens.push(`<span style="background:#CCFBF1;color:#0F766E;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">↩️ Aguard. Retorno do Prestador</span>`);

@@ -11290,17 +11290,72 @@ function _bdFmtNum(n) { return Math.round(n).toLocaleString('pt-BR'); }
 function _bdFmtData(ts) { return ts ? new Date(ts).toLocaleString('pt-BR') : ''; }
 function _bdBytes(str) { return new TextEncoder().encode(str).length; }
 
+// Prazo total para uma operação assíncrona (cabeçalho + corpo da resposta).
+// _fetchComTimeout só limita a espera pelos cabeçalhos; baixar o corpo de um
+// nó grande podia ficar pendurado para sempre ("Calculando..." sem fim).
+function _bdComPrazo(promessa, ms) {
+  return Promise.race([promessa, new Promise(res => setTimeout(() => res({ __prazo: true }), ms))]);
+}
+
 // Lê um nó do Firebase e devolve { ok, bytes, dados }. "ok:false" quando a
 // leitura falhou (assim não confundimos falha de rede com nó vazio).
 async function _bdLerNo(path) {
+  const r = await _bdComPrazo((async () => {
+    try {
+      const resp = await _fetchComTimeout(FIREBASE_URL + path, { cache: 'no-store' }, 20000);
+      if (!resp.ok) return { ok: false, bytes: 0, dados: null };
+      const txt = await resp.text();
+      const dados = txt && txt !== 'null' ? JSON.parse(txt) : null;
+      return { ok: true, bytes: dados === null ? 0 : _bdBytes(txt), dados };
+    } catch (e) {
+      return { ok: false, bytes: 0, dados: null };
+    }
+  })(), 30000);
+  return r.__prazo ? { ok: false, bytes: 0, dados: null } : r;
+}
+
+// Conta os bytes de um GET sem guardar o conteúdo (lê em pedaços).
+async function _bdContarBytesGet(path) {
+  const resp = await _fetchComTimeout(FIREBASE_URL + path, { cache: 'no-store' }, 20000);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  if (resp.body && resp.body.getReader) {
+    const leitor = resp.body.getReader();
+    let total = 0;
+    for (;;) { const { done, value } = await leitor.read(); if (done) break; total += value.length; }
+    return total;
+  }
+  return _bdBytes(await resp.text());
+}
+
+// Nós pesados (backups, PDFs): lista só as chaves (?shallow=true) e mede cada
+// item separadamente, 4 por vez, dentro de um orçamento de tempo. Se não der
+// tempo de medir tudo, extrapola pela média dos itens medidos (estimativa).
+async function _bdMedirPesado(path, rotulo, maxAmostra, onProgresso) {
   try {
-    const r = await _fetchComTimeout(FIREBASE_URL + path, { cache: 'no-store' }, 45000);
-    if (!r.ok) return { ok: false, bytes: 0, dados: null };
-    const txt = await r.text();
-    const dados = txt && txt !== 'null' ? JSON.parse(txt) : null;
-    return { ok: true, bytes: dados === null ? 0 : _bdBytes(txt), dados };
+    const rs = await _bdComPrazo(_fetchComTimeout(FIREBASE_URL + path.replace('.json', '.json?shallow=true'), { cache: 'no-store' }, 15000), 20000);
+    if (rs.__prazo || !rs.ok) return { ok: false, bytes: 0, qtd: 0, estimado: false };
+    const obj = await rs.json();
+    const chaves = obj ? Object.keys(obj) : [];
+    if (!chaves.length) return { ok: true, bytes: 0, qtd: 0, estimado: false };
+    const alvo = maxAmostra ? chaves.slice(-maxAmostra) : chaves; // backups: os mais recentes
+    const limite = Date.now() + 40000;
+    let medidos = 0, soma = 0, idx = 0;
+    const trabalhador = async () => {
+      while (idx < alvo.length && Date.now() < limite) {
+        const k = alvo[idx++];
+        try {
+          const b = await _bdComPrazo(_bdContarBytesGet(path.replace('.json', '/' + encodeURIComponent(k) + '.json')), 30000);
+          if (!b.__prazo) { soma += b; medidos++; }
+        } catch (e) {}
+        if (onProgresso) onProgresso(`${rotulo}: ${medidos}/${alvo.length}`);
+      }
+    };
+    await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
+    if (!medidos) return { ok: false, bytes: 0, qtd: chaves.length, estimado: false };
+    const estimado = medidos < chaves.length;
+    return { ok: true, bytes: estimado ? Math.round(soma / medidos * chaves.length) : soma, qtd: chaves.length, estimado };
   } catch (e) {
-    return { ok: false, bytes: 0, dados: null };
+    return { ok: false, bytes: 0, qtd: 0, estimado: false };
   }
 }
 
@@ -11319,7 +11374,7 @@ function _bdDataConclusao(reg) {
 
 // Mede o banco inteiro. Devolve o total, o detalhamento e os registros
 // concluídos do Histórico (para a limpeza).
-async function _bdMedir() {
+async function _bdMedir(onProgresso) {
   const nos = {
     hist:    '/manutencao/hist_manut.json',
     indisp:  '/manutencao/indisponiveis.json',
@@ -11331,14 +11386,20 @@ async function _bdMedir() {
     planos:  '/manutencao/planos.json',
     abast:   '/manutencao/abastecimentos.json',
     docs:    '/manutencao/documentos.json',
-    docsPdf: '/manutencao/documentos_pdf.json',
-    backups: BACKUP_PATH,
   };
   const chaves = Object.keys(nos);
-  const lidos = await Promise.all(chaves.map(k => _bdLerNo(nos[k])));
+  if (onProgresso) onProgresso('lendo os dados…');
+  const [lidos, docsPdf, backups] = await Promise.all([
+    Promise.all(chaves.map(k => _bdLerNo(nos[k]))),
+    _bdMedirPesado('/manutencao/documentos_pdf.json', 'PDFs', 0, onProgresso),
+    _bdMedirPesado(BACKUP_PATH, 'backups', 5, onProgresso),
+  ]);
   const r = {};
   chaves.forEach((k, i) => { r[k] = lidos[i]; });
-  const falhas = chaves.filter(k => !r[k].ok);
+  r.docsPdf = { ok: docsPdf.ok, bytes: docsPdf.bytes };
+  r.backups = { ok: backups.ok, bytes: backups.bytes };
+  const falhas = Object.keys(r).filter(k => !r[k].ok);
+  const estimados = [docsPdf.estimado ? 'PDFs' : '', backups.estimado ? 'backups' : ''].filter(Boolean);
 
   const histPares = _bdPares(r.hist.dados);
   const agora = Date.now();
@@ -11355,12 +11416,12 @@ async function _bdMedir() {
     { rotulo: 'Checklist preventivo',                   bytes: r.check.bytes,  extra: `${_bdFmtNum(_bdContar(r.check.dados))} registros` },
     { rotulo: 'Veículos, planos e trocas de óleo',      bytes: r.veic.bytes + r.hisOleo.bytes + r.planos.bytes, extra: `${_bdFmtNum(_bdContar(r.veic.dados))} veículos` },
     { rotulo: 'Combustível',                            bytes: r.abast.bytes,  extra: `${_bdFmtNum(_bdContar(r.abast.dados))} abastecimentos` },
-    { rotulo: 'Documentos e PDFs',                      bytes: r.docs.bytes + r.docsPdf.bytes, extra: '' },
-    { rotulo: 'Backups automáticos',                    bytes: r.backups.bytes, extra: `${_bdFmtNum(_bdContar(r.backups.dados))} cópias` },
+    { rotulo: 'Documentos e PDFs',                      bytes: r.docs.bytes + r.docsPdf.bytes, extra: `${_bdFmtNum(docsPdf.qtd)} PDFs${docsPdf.estimado ? ' (tamanho estimado)' : ''}` },
+    { rotulo: 'Backups automáticos',                    bytes: r.backups.bytes, extra: `${_bdFmtNum(backups.qtd)} cópias${backups.estimado ? ' (tamanho estimado pelas mais recentes)' : ''}` },
   ];
   const total = itens.reduce((s, i) => s + i.bytes, 0);
   const mediaHist = histPares.length ? r.hist.bytes / histPares.length : BD_MEDIA_PADRAO;
-  return { total, itens, elegiveis, mediaHist, histOk: r.hist.ok, falhas, calculadoEm: agora };
+  return { total, itens, elegiveis, mediaHist, histOk: r.hist.ok, falhas, estimados, calculadoEm: agora };
 }
 
 function _bdRenderResultado(m) {
@@ -11378,6 +11439,7 @@ function _bdRenderResultado(m) {
     m.itens.map(i => `<li>${i.rotulo}: <b style="color:#e2e8f0">${_bdFmtBytes(i.bytes)}</b>${i.extra ? ' — ' + i.extra : ''}</li>`).join('') +
     `<li>Média por registro do histórico: <b style="color:#e2e8f0">${_bdFmtBytes(m.mediaHist)}</b></li>` +
     `<li>Ainda cabem ≈ <b style="color:#e2e8f0">${_bdFmtNum(cabem)}</b> registros como os atuais.</li>` +
+    (m.estimados && m.estimados.length ? `<li style="color:#94a3b8">ℹ️ Tamanho de ${m.estimados.join(' e ')} estimado por amostra (para não baixar tudo).</li>` : '') +
     (m.falhas.length ? `<li style="color:#fbbf24">⚠️ Não foi possível ler ${m.falhas.length} parte(s) do banco (rede lenta?) — o total pode estar subestimado.</li>` : '');
   document.getElementById('bd-calculado-em').textContent = 'Calculado em ' + _bdFmtData(m.calculadoEm);
 }
@@ -11388,7 +11450,7 @@ async function bdCalcularEspaco() {
   const btn = document.getElementById('bd-btn-calcular');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Calculando...'; }
   try {
-    _bdRenderResultado(await _bdMedir());
+    _bdRenderResultado(await _bdMedir(t => { if (btn) btn.textContent = '⏳ Calculando… ' + t; }));
   } catch (e) {
     console.error('[bdCalcularEspaco]', e);
     mostrarIndicador('❌ Não foi possível calcular o espaço usado', '#FCA5A5');
@@ -11451,7 +11513,7 @@ async function bdVerificarELiberar(origem) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
   let msg = '';
   try {
-    const m = await _bdMedir();
+    const m = await _bdMedir(t => { if (btn) btn.textContent = '⏳ ' + t; });
     _bdRenderResultado(m);
     const limiteBytes = BD_LIMITE_BYTES * _bdCfg.limitePct / 100;
     const metaBytes = limiteBytes * 0.9; // folga: 10% abaixo do limite
@@ -11500,7 +11562,9 @@ async function bdVerificarELiberar(origem) {
         }
         msg = `${_bdFmtNum(apagados)} registro(s) antigo(s) do Histórico apagado(s), ≈ ${_bdFmtBytes(liberado)} liberados`;
         mostrarIndicador('🧹 ' + msg, '#86EFAC');
-        _bdRenderResultado(await _bdMedir()); // atualiza o painel com o novo total
+        m.total -= liberado; m.itens[0].bytes = Math.max(0, m.itens[0].bytes - liberado); // atualiza o painel sem baixar tudo de novo
+        m.elegiveis = m.elegiveis.slice(escolhidos.length); m.itens[0].extra = `${_bdFmtNum(Math.max(0, parseInt((m.itens[0].extra.match(/^\d+/) || ['0'])[0].replace(/\./g, ''), 10) - apagados))} registros`;
+        _bdRenderResultado(m);
       }
     }
   } catch (e) {

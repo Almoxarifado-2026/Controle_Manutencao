@@ -23817,7 +23817,11 @@ function _renderTabela(lista, tbodyId) {
         ${Array.isArray(r.etapas) && r.etapas.length > 1
           ? `<div style="font-size:10px;font-weight:800;color:${r.etapas.every(e=>e.concluida)?'#16a34a':'#d97706'};margin-bottom:3px">${r.etapas.filter(e=>e.concluida).length}/${r.etapas.length} ETAPAS ✓</div>`
           : ''}
-        ${r.reclamacao||'—'}
+        ${Array.isArray(r.etapas) && r.etapas.length > 1 && r.etapas.some(e => e && e.reclamacao)
+          ? r.etapas.filter(e => e && e.reclamacao).map(e => e.concluida
+              ? `<span style="color:#16a34a;font-weight:800" title="Etapa finalizada">${escapeHtml(e.reclamacao)}</span>`
+              : `<span>${escapeHtml(e.reclamacao)}</span>`).join(' / ')
+          : (r.reclamacao||'—')}
       </td>
       <td style="padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf4;text-align:center">
         <div style="background:${statusBg};color:${statusCor};border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;line-height:1.5;word-break:break-word;text-align:center">${r.status||'—'}</div>

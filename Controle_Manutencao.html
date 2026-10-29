@@ -3637,6 +3637,50 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
 
+    <!-- Espaço usado no banco (Firebase) + limpeza automática -->
+    <div class="edit-only" style="margin-bottom:28px">
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">💾 Espaço usado no banco</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:#1e293b;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px">
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:12px">
+            O plano gratuito do Firebase guarda até <b style="color:#e2e8f0">1 GB</b>. Clique para calcular quanto já foi usado. É uma <b style="color:#e2e8f0">estimativa</b> feita lendo os dados do banco agora; o número exato está no console do Firebase (Realtime Database → Uso).
+          </div>
+          <button id="bd-btn-calcular" onclick="bdCalcularEspaco()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Calcular espaço usado</button>
+          <div id="bd-resultado" style="margin-top:14px;display:none">
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:6px">
+              <span id="bd-resumo">—</span><span id="bd-pct">0,00%</span>
+            </div>
+            <div style="height:12px;background:#0f172a;border-radius:8px;overflow:hidden">
+              <div id="bd-barra" style="height:100%;width:0;background:#16A34A;border-radius:8px;transition:width .4s"></div>
+            </div>
+            <ul id="bd-lista" style="margin:12px 0 0 18px;padding:0;font-size:12px;color:#cbd5e1;line-height:1.7"></ul>
+            <div id="bd-calculado-em" style="font-size:10px;color:#64748b;margin-top:8px"></div>
+          </div>
+        </div>
+
+        <div style="background:#1e293b;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px">
+          <div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:6px">Se o espaço do banco encher</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:12px">
+            Quando o banco passar do limite escolhido, o painel apaga os <b style="color:#e2e8f0">registros concluídos do Histórico de Manutenções mais antigos primeiro</b>, até sobrar folga (10% abaixo do limite). Nunca apaga veículos em manutenção (Indisponíveis em aberto), ordens corretivas, checklist, nem registros concluídos nos últimos 90 dias.
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label for="bd-limite-sel" style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px">Quando passar de</label>
+            <select id="bd-limite-sel" style="padding:9px 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;font-size:13px;background:#0f172a;color:#e2e8f0">
+              <option value="0">Desativado</option>
+              <option value="50">50% do espaço</option>
+              <option value="60">60% do espaço</option>
+              <option value="70">70% do espaço</option>
+              <option value="80">80% do espaço</option>
+              <option value="90">90% do espaço</option>
+            </select>
+            <button onclick="bdSalvarLimite()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Salvar</button>
+            <button id="bd-btn-liberar" onclick="bdVerificarELiberar('manual')" style="background:#0f172a;color:#e2e8f0;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Verificar e liberar agora</button>
+          </div>
+          <div id="bd-status-limpeza" style="font-size:11px;color:#94a3b8;margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Ferramentas de sistema -->
     <div>
       <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Ferramentas do sistema</div>
@@ -11213,6 +11257,288 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', carregarConfigNotificacoes);
 } else {
   carregarConfigNotificacoes();
+}
+
+// ═════════════════════════════════════════════════════════════════
+//  § ESPAÇO USADO NO BANCO + LIMPEZA AUTOMÁTICA (Configuração)
+//  - Calcula uma ESTIMATIVA do espaço usado no Firebase (limite do plano
+//    gratuito: 1 GB) lendo cada nó do banco e medindo o tamanho em bytes.
+//  - Se o usuário escolher um limite (ex.: 70%), ao passar dele apaga os
+//    registros CONCLUÍDOS do Histórico de Manutenções, os mais antigos
+//    primeiro, até sobrar folga (10% abaixo do limite).
+//  - NUNCA apaga: Indisponíveis em aberto, corretivas, checklist, veículos,
+//    documentos, nem registros concluídos nos últimos 90 dias.
+//  - A conferência automática roda a cada 3 dias, quando a aba
+//    Configuração é aberta no Modo Edição.
+// ═════════════════════════════════════════════════════════════════
+const BD_LIMITE_BYTES   = 1024 * 1024 * 1024;           // 1 GB (plano gratuito)
+const BD_CFG_PATH       = '/manutencao/config_limpeza_banco.json';
+const BD_DIAS_PROTEGIDOS = 90;                           // não apaga o que foi concluído nesse período
+const BD_INTERVALO_AUTO = 3 * 24 * 60 * 60 * 1000;       // confere a cada 3 dias
+const BD_MEDIA_PADRAO   = 1536;                          // ~1,5 KB por registro, se ainda não houver nenhum
+let _bdCfg = { limitePct: 0, ultimaVerificacao: 0, ultimaMsg: '' };
+let _bdOcupado = false;
+
+function _bdFmtBytes(n) {
+  const un = ['B', 'KB', 'MB', 'GB'];
+  let i = 0, v = n;
+  while (v >= 1024 && i < un.length - 1) { v /= 1024; i++; }
+  const txt = i === 0 ? String(Math.round(v)) : v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return txt + ' ' + un[i];
+}
+function _bdFmtNum(n) { return Math.round(n).toLocaleString('pt-BR'); }
+function _bdFmtData(ts) { return ts ? new Date(ts).toLocaleString('pt-BR') : ''; }
+function _bdBytes(str) { return new TextEncoder().encode(str).length; }
+
+// Lê um nó do Firebase e devolve { ok, bytes, dados }. "ok:false" quando a
+// leitura falhou (assim não confundimos falha de rede com nó vazio).
+async function _bdLerNo(path) {
+  try {
+    const r = await _fetchComTimeout(FIREBASE_URL + path, { cache: 'no-store' }, 45000);
+    if (!r.ok) return { ok: false, bytes: 0, dados: null };
+    const txt = await r.text();
+    const dados = txt && txt !== 'null' ? JSON.parse(txt) : null;
+    return { ok: true, bytes: dados === null ? 0 : _bdBytes(txt), dados };
+  } catch (e) {
+    return { ok: false, bytes: 0, dados: null };
+  }
+}
+
+// Converte array/objeto do Firebase em lista de { chave, reg }
+function _bdPares(dados) {
+  if (!dados || typeof dados !== 'object') return [];
+  if (Array.isArray(dados)) return dados.map((reg, i) => ({ chave: String(i), reg })).filter(p => p.reg && typeof p.reg === 'object');
+  return Object.keys(dados).map(k => ({ chave: k, reg: dados[k] })).filter(p => p.reg && typeof p.reg === 'object');
+}
+function _bdContar(dados) { return _bdPares(dados).length; }
+
+function _bdDataConclusao(reg) {
+  const t = Date.parse(reg.saida || reg.dataFinalizacao || '');
+  return isNaN(t) ? null : t;
+}
+
+// Mede o banco inteiro. Devolve o total, o detalhamento e os registros
+// concluídos do Histórico (para a limpeza).
+async function _bdMedir() {
+  const nos = {
+    hist:    '/manutencao/hist_manut.json',
+    indisp:  '/manutencao/indisponiveis.json',
+    corr:    '/manutencao/corretivas.json',
+    fech:    '/manutencao/ordens_fechadas.json',
+    check:   '/manutencao/checklist.json',
+    veic:    DB_PATH,
+    hisOleo: '/manutencao/historico.json',
+    planos:  '/manutencao/planos.json',
+    abast:   '/manutencao/abastecimentos.json',
+    docs:    '/manutencao/documentos.json',
+    docsPdf: '/manutencao/documentos_pdf.json',
+    backups: BACKUP_PATH,
+  };
+  const chaves = Object.keys(nos);
+  const lidos = await Promise.all(chaves.map(k => _bdLerNo(nos[k])));
+  const r = {};
+  chaves.forEach((k, i) => { r[k] = lidos[i]; });
+  const falhas = chaves.filter(k => !r[k].ok);
+
+  const histPares = _bdPares(r.hist.dados);
+  const agora = Date.now();
+  const limiteProtecao = agora - BD_DIAS_PROTEGIDOS * 24 * 60 * 60 * 1000;
+  const elegiveis = histPares
+    .map(p => ({ chave: p.chave, id: p.reg.id || p.chave, ts: _bdDataConclusao(p.reg), bytes: _bdBytes(JSON.stringify(p.reg)) }))
+    .filter(p => p.ts !== null && p.ts < limiteProtecao)
+    .sort((a, b) => a.ts - b.ts); // mais antigos primeiro
+
+  const itens = [
+    { rotulo: 'Histórico de manutenções (concluídas)', bytes: r.hist.bytes,   extra: `${_bdFmtNum(histPares.length)} registros, ${_bdFmtNum(elegiveis.length)} com mais de ${BD_DIAS_PROTEGIDOS} dias` },
+    { rotulo: 'Indisponíveis',                          bytes: r.indisp.bytes, extra: `${_bdFmtNum(_bdContar(r.indisp.dados))} registros` },
+    { rotulo: 'Ordens corretivas e fechadas',           bytes: r.corr.bytes + r.fech.bytes, extra: `${_bdFmtNum(_bdContar(r.corr.dados))} corretivas, ${_bdFmtNum(_bdContar(r.fech.dados))} fechadas` },
+    { rotulo: 'Checklist preventivo',                   bytes: r.check.bytes,  extra: `${_bdFmtNum(_bdContar(r.check.dados))} registros` },
+    { rotulo: 'Veículos, planos e trocas de óleo',      bytes: r.veic.bytes + r.hisOleo.bytes + r.planos.bytes, extra: `${_bdFmtNum(_bdContar(r.veic.dados))} veículos` },
+    { rotulo: 'Combustível',                            bytes: r.abast.bytes,  extra: `${_bdFmtNum(_bdContar(r.abast.dados))} abastecimentos` },
+    { rotulo: 'Documentos e PDFs',                      bytes: r.docs.bytes + r.docsPdf.bytes, extra: '' },
+    { rotulo: 'Backups automáticos',                    bytes: r.backups.bytes, extra: `${_bdFmtNum(_bdContar(r.backups.dados))} cópias` },
+  ];
+  const total = itens.reduce((s, i) => s + i.bytes, 0);
+  const mediaHist = histPares.length ? r.hist.bytes / histPares.length : BD_MEDIA_PADRAO;
+  return { total, itens, elegiveis, mediaHist, histOk: r.hist.ok, falhas, calculadoEm: agora };
+}
+
+function _bdRenderResultado(m) {
+  const pct = m.total / BD_LIMITE_BYTES * 100;
+  const caixa = document.getElementById('bd-resultado');
+  if (!caixa) return;
+  caixa.style.display = 'block';
+  document.getElementById('bd-resumo').textContent = `≈ ${_bdFmtBytes(m.total)} de 1 GB`;
+  document.getElementById('bd-pct').textContent = pct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+  const barra = document.getElementById('bd-barra');
+  barra.style.width = Math.max(pct, 0.6) + '%';
+  barra.style.background = pct >= 80 ? '#DC2626' : pct >= 50 ? '#F59E0B' : '#16A34A';
+  const cabem = Math.max(0, Math.floor((BD_LIMITE_BYTES - m.total) / m.mediaHist));
+  document.getElementById('bd-lista').innerHTML =
+    m.itens.map(i => `<li>${i.rotulo}: <b style="color:#e2e8f0">${_bdFmtBytes(i.bytes)}</b>${i.extra ? ' — ' + i.extra : ''}</li>`).join('') +
+    `<li>Média por registro do histórico: <b style="color:#e2e8f0">${_bdFmtBytes(m.mediaHist)}</b></li>` +
+    `<li>Ainda cabem ≈ <b style="color:#e2e8f0">${_bdFmtNum(cabem)}</b> registros como os atuais.</li>` +
+    (m.falhas.length ? `<li style="color:#fbbf24">⚠️ Não foi possível ler ${m.falhas.length} parte(s) do banco (rede lenta?) — o total pode estar subestimado.</li>` : '');
+  document.getElementById('bd-calculado-em').textContent = 'Calculado em ' + _bdFmtData(m.calculadoEm);
+}
+
+async function bdCalcularEspaco() {
+  if (_bdOcupado) return;
+  _bdOcupado = true;
+  const btn = document.getElementById('bd-btn-calcular');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Calculando...'; }
+  try {
+    _bdRenderResultado(await _bdMedir());
+  } catch (e) {
+    console.error('[bdCalcularEspaco]', e);
+    mostrarIndicador('❌ Não foi possível calcular o espaço usado', '#FCA5A5');
+  } finally {
+    _bdOcupado = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Calcular espaço usado'; }
+  }
+}
+
+function _bdRenderStatus() {
+  const sel = document.getElementById('bd-limite-sel');
+  const el = document.getElementById('bd-status-limpeza');
+  if (sel) sel.value = String(_bdCfg.limitePct || 0);
+  if (!el) return;
+  const ult = _bdCfg.ultimaVerificacao ? ` Última verificação: ${_bdFmtData(_bdCfg.ultimaVerificacao)}${_bdCfg.ultimaMsg ? ' — ' + _bdCfg.ultimaMsg : ''}.` : '';
+  el.textContent = _bdCfg.limitePct > 0
+    ? `Ativo: passou de ${_bdCfg.limitePct}% de 1 GB, os registros concluídos mais antigos do Histórico são apagados primeiro (confere a cada 3 dias, quando o painel é aberto).${ult}`
+    : 'Desativado: nenhum registro é apagado automaticamente.' + ult;
+}
+
+async function bdCarregarConfig() {
+  const cfg = await fbGet(BD_CFG_PATH);
+  if (cfg && typeof cfg === 'object') {
+    _bdCfg = {
+      limitePct: parseInt(cfg.limitePct, 10) || 0,
+      ultimaVerificacao: Number(cfg.ultimaVerificacao) || 0,
+      ultimaMsg: cfg.ultimaMsg || '',
+    };
+  }
+  _bdRenderStatus();
+}
+
+async function _bdGravarConfig() {
+  return fbPut(BD_CFG_PATH, { ..._bdCfg, atualizado_em: new Date().toISOString() });
+}
+
+async function bdSalvarLimite() {
+  if (!_checkEdicao()) return;
+  _bdCfg.limitePct = parseInt(document.getElementById('bd-limite-sel').value, 10) || 0;
+  const ok = await _bdGravarConfig();
+  _bdRenderStatus();
+  if (ok) mostrarIndicador(_bdCfg.limitePct > 0 ? `✅ Limpeza automática ativada em ${_bdCfg.limitePct}%` : '✅ Limpeza automática desativada', '#86EFAC');
+}
+
+// origem: 'manual' (botão, pede confirmação) ou 'auto' (ao abrir a aba)
+async function bdVerificarELiberar(origem) {
+  if (_bdOcupado) return;
+  const manual = origem === 'manual';
+  if (manual && !_checkEdicao()) return;
+  if (!(_bdCfg.limitePct > 0)) {
+    if (manual) mostrarIndicador('Escolha um limite e clique em Salvar primeiro', '#FCD34D');
+    return;
+  }
+  if (typeof _histManutSyncPendente !== 'undefined' && _histManutSyncPendente) {
+    if (manual) mostrarIndicador('⏳ Há um salvamento do Histórico em andamento — tente em instantes', '#FCD34D');
+    return;
+  }
+  _bdOcupado = true;
+  const btn = document.getElementById('bd-btn-liberar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+  let msg = '';
+  try {
+    const m = await _bdMedir();
+    _bdRenderResultado(m);
+    const limiteBytes = BD_LIMITE_BYTES * _bdCfg.limitePct / 100;
+    const metaBytes = limiteBytes * 0.9; // folga: 10% abaixo do limite
+    const pctAtual = (m.total / BD_LIMITE_BYTES * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+    if (!m.histOk) {
+      msg = 'não foi possível ler o Histórico — nada apagado';
+    } else if (m.total <= limiteBytes) {
+      msg = `abaixo do limite (${pctAtual}%) — nada apagado`;
+    } else {
+      // Escolhe os mais antigos até liberar o suficiente
+      let faltaLiberar = m.total - metaBytes, liberado = 0;
+      const escolhidos = [];
+      for (const p of m.elegiveis) {
+        if (liberado >= faltaLiberar) break;
+        escolhidos.push(p); liberado += p.bytes;
+      }
+      if (!escolhidos.length) {
+        msg = `passou do limite (${pctAtual}%), mas não há registros concluídos com mais de ${BD_DIAS_PROTEGIDOS} dias para apagar`;
+      } else if (manual && !confirm(`O banco está em ${pctAtual}% (limite escolhido: ${_bdCfg.limitePct}%).\n\nVão ser apagados ${escolhidos.length} registro(s) concluídos do Histórico de Manutenções, do mais antigo (${_bdFmtData(escolhidos[0].ts).split(',')[0]}) ao mais recente (${_bdFmtData(escolhidos[escolhidos.length - 1].ts).split(',')[0]}), liberando ≈ ${_bdFmtBytes(liberado)}.\n\nEsta ação é definitiva. Confirmar?`)) {
+        msg = 'cancelado pelo usuário — nada apagado';
+      } else {
+        // Marca como "tocados" antes de apagar, para a sincronização não ressuscitar os registros
+        escolhidos.forEach(p => { if (typeof _histManutIdsTocados !== 'undefined') _histManutIdsTocados.add(p.id); });
+        if (typeof _timerFBHist !== 'undefined' && _timerFBHist) { clearTimeout(_timerFBHist); _timerFBHist = null; }
+        let apagados = 0;
+        for (let i = 0; i < escolhidos.length; i += 200) {
+          const lote = escolhidos.slice(i, i + 200);
+          const corpo = {};
+          lote.forEach(p => { corpo[p.chave] = null; });
+          const resp = await _fetchComTimeout(FIREBASE_URL + HIST_FB_PATH, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8', 'X-HTTP-Method-Override': 'PATCH' },
+            body: JSON.stringify(corpo)
+          }, 20000);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          apagados += lote.length;
+        }
+        // Reflete na memória/cache desta aba
+        const ids = new Set(escolhidos.map(p => p.id));
+        if (typeof HIST_MANUT !== 'undefined') {
+          for (let i = HIST_MANUT.length - 1; i >= 0; i--) if (HIST_MANUT[i] && ids.has(HIST_MANUT[i].id)) HIST_MANUT.splice(i, 1);
+          try { localStorage.setItem('hist_manut_cache', JSON.stringify(HIST_MANUT)); } catch (e) {}
+          if (typeof _histFiltrado !== 'undefined') _histFiltrado = null;
+          try { renderHistorico(); atualizarBadgeHistorico(); } catch (e) {}
+        }
+        msg = `${_bdFmtNum(apagados)} registro(s) antigo(s) do Histórico apagado(s), ≈ ${_bdFmtBytes(liberado)} liberados`;
+        mostrarIndicador('🧹 ' + msg, '#86EFAC');
+        _bdRenderResultado(await _bdMedir()); // atualiza o painel com o novo total
+      }
+    }
+  } catch (e) {
+    console.error('[bdVerificarELiberar]', e);
+    msg = 'erro ao verificar — tente de novo';
+    mostrarIndicador('❌ Erro ao liberar espaço — tente novamente', '#FCA5A5');
+  } finally {
+    _bdCfg.ultimaVerificacao = Date.now();
+    _bdCfg.ultimaMsg = msg;
+    await _bdGravarConfig();
+    _bdRenderStatus();
+    _bdOcupado = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Verificar e liberar agora'; }
+  }
+}
+
+// Conferência automática: ao abrir a aba Configuração (Modo Edição),
+// se já passaram 3 dias desde a última verificação.
+async function _bdAoAbrirConfig() {
+  await bdCarregarConfig();
+  if (localStorage.getItem('modoEdicao') !== '1') return;
+  if (_bdCfg.limitePct > 0 && Date.now() - _bdCfg.ultimaVerificacao >= BD_INTERVALO_AUTO) {
+    bdVerificarELiberar('auto');
+  }
+}
+(function _bdInstalarGancho() {
+  const original = window.mudarPagina;
+  if (typeof original !== 'function') return;
+  window.mudarPagina = mudarPagina = function (id) {
+    const ret = original.apply(this, arguments);
+    if (id === 'config') _bdAoAbrirConfig();
+    return ret;
+  };
+})();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bdCarregarConfig);
+} else {
+  bdCarregarConfig();
 }
 
 // Atualiza o texto do botão assim que a página carrega

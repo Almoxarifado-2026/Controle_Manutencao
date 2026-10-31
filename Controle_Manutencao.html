@@ -3505,8 +3505,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="indisp-subtab-btn" data-v="motoristas" onclick="_dispVer('motoristas')">👷 Ranking Motoristas</button>
       <button class="indisp-subtab-btn" data-v="escala" onclick="_dispVer('escala')">🗓️ Escala Motoristas</button>
     </div>
-    <button onclick="_vincAbrir()" style="margin-left:auto;background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔗 Vincular motorista</button>
-    <button onclick="_apAbrir()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">➕ Lançar parada</button>
+    <button class="edit-only" onclick="_vincAbrir()" style="margin-left:auto;background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔗 Vincular motorista</button>
+    <button class="edit-only" onclick="_apAbrir()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">➕ Lançar parada</button>
     <button onclick="gerarPDFDisp()" style="background:#DC2626;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📄 Gerar PDF</button>
   </div>
   <div id="disp-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:16px 18px;background:#f1f5f9"></div>
@@ -3762,7 +3762,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:18px">
     <h2 id="indisp-modal-titulo" style="font-size:18px;font-weight:700;color:#1B3A6D;margin:0">🚧 Registrar Veículo Indisponível</h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button id="indisp-btn-excluir-top" onclick="excluirIndisp()" style="display:none;background:#FEF2F2;color:#DC2626;border:none;border-radius:12px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">🗑️ Excluir</button>
+      <button id="indisp-btn-excluir-top" class="edit-only" onclick="excluirIndisp()" style="display:none;background:#FEF2F2;color:#DC2626;border:none;border-radius:12px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">🗑️ Excluir</button>
       <button onclick="fecharModalIndisp()" style="background:#f1f5f9;color:#64748b;border:none;border-radius:12px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer">Cancelar</button>
       <button onclick="salvarIndisp()" style="background:#1D4ED8;color:#fff;border:none;border-radius:12px;padding:8px 18px;font-weight:700;font-size:12px;cursor:pointer">💾 Salvar</button>
     </div>
@@ -4024,7 +4024,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
     <div class="modal-btns">
-      <button id="indisp-btn-excluir" onclick="excluirIndisp()" style="display:none;background:#FEF2F2;color:#DC2626;border:none;border-radius:12px;padding:10px 18px;font-weight:700;cursor:pointer;margin-right:auto">🗑️ Excluir</button>
+      <button id="indisp-btn-excluir" class="edit-only" onclick="excluirIndisp()" style="display:none;background:#FEF2F2;color:#DC2626;border:none;border-radius:12px;padding:10px 18px;font-weight:700;cursor:pointer;margin-right:auto">🗑️ Excluir</button>
       <select id="indisp-tipo-servico-2" onchange="trocarServicoIndisp(this.value)" title="Mover para outra tabela de serviço ao salvar" style="border:1px solid #dbe4f0;border-radius:12px;padding:10px 12px;font-weight:700;font-size:12px;background:#f8fafc;color:#1B3A6D;cursor:pointer">
         <option value="interno">🏭 Interno</option>
         <option value="externo">🔧 Externo</option>
@@ -4206,7 +4206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" id="doc-pdf-input" style="display:none" onchange="processarPDFDoc(this)">
           </label>
           <span id="doc-pdf-nome" style="font-size:12px;color:#64748b;flex:1">Nenhum arquivo selecionado</span>
-          <button id="doc-pdf-limpar" onclick="limparPDFDoc()" style="display:none;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">✕ Remover</button>
+          <button id="doc-pdf-limpar" class="edit-only" onclick="limparPDFDoc()" style="display:none;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">✕ Remover</button>
         </div>
         <div id="doc-pdf-preview" style="display:none;margin-top:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:11px;color:#166534;font-weight:600"></div>
         <div class="hint">Formatos aceitos: PDF, JPG, PNG. Tamanho máximo: 5 MB.</div>
@@ -4255,7 +4255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="fecharModalCheck()">Cancelar</button>
-      <button class="btn-del-modal" id="btn-del-check" style="display:none;background:#DC2626;color:#fff" onclick="excluirCheck()">🗑️ Excluir</button>
+      <button class="btn-del-modal edit-only" id="btn-del-check" style="display:none;background:#DC2626;color:#fff" onclick="excluirCheck()">🗑️ Excluir</button>
       <button id="btn-dup-check" class="edit-only" style="display:none;background:#0f766e;color:#fff;padding:12px 20px;border-radius:14px;border:none;font-size:13px;font-weight:700;cursor:pointer" onclick="duplicarCheck()">📋 Duplicar</button>
       <button class="btn-salvar" onclick="salvarCheck()">✅ Salvar</button>
     </div>
@@ -7726,7 +7726,7 @@ function _renderExcecoesLimiteChecklist() {
           <span style="font-weight:800;color:#1B3A6D;flex:1">${p}</span>
           <span style="font-size:11px;color:#92400e">🟡 ${v.amarelo}d</span>
           <span style="font-size:11px;color:#991b1b">🔴 ${v.vermelho}d</span>
-          <button onclick="removerLimitePlacaChecklist('${p}')" title="Remover exceção" style="background:#FEF2F2;color:#DC2626;border:none;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer">🗑️</button>
+          <button class="edit-only" onclick="removerLimitePlacaChecklist('${p}')" title="Remover exceção" style="background:#FEF2F2;color:#DC2626;border:none;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer">🗑️</button>
         </div>`;
       }).join('')
     : '<div style="font-size:12px;color:#94a3b8;padding:6px 0">Nenhuma exceção configurada — todas as placas usam o padrão acima.</div>';
@@ -8928,7 +8928,7 @@ function renderTimeline() {
           <div style="display:flex;align-items:center;gap:6px">
             <span class="tl-data">${h.data || '—'}</span>
             <button class="edit-only" onclick="editarRegistroHist(${h.ts})" title="Editar" style="background:none;border:none;color:#2563eb;font-size:13px;cursor:pointer;padding:0 2px">✏️</button>
-            <button class="tl-del" onclick="deletarTroca(${h.ts})" title="Remover">✕</button>
+            <button class="tl-del edit-only" onclick="deletarTroca(${h.ts})" title="Remover">✕</button>
           </div>
         </div>
         <div class="tl-info">
@@ -10626,7 +10626,7 @@ function renderDisp() {
     (linhas.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>${['Placa', 'Motorista', 'Início', 'Fim', 'Ocorr.', 'Horas Indisp.', 'Horas Alocadas', 'Em manutenção agora', 'Ocorr. C/P', 'Horas C/P', ''].map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + linhas.map((l, i) => {
       const f = s => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '<i>em andamento</i>';
       return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${esc(l.placa)}</td><td style="${_dispTd}">${esc(l.motorista)}</td><td style="${_dispTd}">${f(l.inicio)}</td><td style="${_dispTd}">${f(l.fim)}</td><td style="${_dispTd}">${l.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(l.h)}</td><td style="${_dispTd}">${_dispHfmt(l.aloc)}</td><td style="${_dispTd}">${l.agora ? '🔴 Sim' : '—'}</td><td style="${_dispTd}">${l.oC} / ${l.oP}</td><td style="${_dispTd}">${_dispHfmt(l.hC)} / ${_dispHfmt(l.hP)}</td>
-      <td style="${_dispTd};white-space:nowrap"><button onclick="_escEditar('${esc(l.id)}')" title="Editar" style="background:none;border:none;cursor:pointer">✏️</button><button onclick="_escExcluir('${esc(l.id)}')" title="Excluir" style="background:none;border:none;cursor:pointer">🗑️</button></td></tr>`;
+      <td style="${_dispTd};white-space:nowrap"><button onclick="_escEditar('${esc(l.id)}')" title="Editar" style="background:none;border:none;cursor:pointer">✏️</button><button class="edit-only" onclick="_escExcluir('${esc(l.id)}')" title="Excluir" style="background:none;border:none;cursor:pointer">🗑️</button></td></tr>`;
     }).join('') + '</tbody></table>' : '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhum período de escala cadastrado.</div>');
   _dispUltimo = null;
   nota.textContent = 'Registre uma linha por período em que o motorista esteve com a placa. Trocou de veículo? Informe a Data Fim na linha antiga e crie uma nova linha. As horas das colunas são do mês escolhido.';
@@ -10810,7 +10810,7 @@ function _apAbrir(id, placa, dia) {
     <label style="${lb}">Entrada (dia e hora em que parou)</label><input id="ap-ent" type="datetime-local" value="${ent}" style="${inp}">
     <label style="${lb}">Saída (dia e hora em que voltou — deixe vazio se ainda está parado)</label><input id="ap-sai" type="datetime-local" value="${reg && reg.saida ? reg.saida : ''}" style="${inp}">
     <label style="${lb}">Observação (opcional)</label><input id="ap-obs" type="text" value="${escapeHtml(reg ? reg.obs || '' : '')}" placeholder="Ex.: freio, OS 7839" style="${inp}">
-    ${reg ? `<button onclick="_apExcluir('${escapeHtml(reg.id)}');_apFechar()" style="margin-top:14px;background:#FEF2F2;color:#DC2626;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:12px;cursor:pointer">🗑️ Excluir lançamento</button>` : ''}
+    ${reg ? `<button class="edit-only" onclick="_apExcluir('${escapeHtml(reg.id)}');_apFechar()" style="margin-top:14px;background:#FEF2F2;color:#DC2626;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:12px;cursor:pointer">🗑️ Excluir lançamento</button>` : ''}
   </div>`;
   document.body.appendChild(o);
 }
@@ -13381,7 +13381,7 @@ function renderModalPlano() {
         let multiHtml = '';
         multiList.forEach(function(item, mi) {
           const removeBtn = multiList.length > 1
-            ? '<button onclick="removerMultiSpec(\'' + chave + '\',' + mi + ')" style="position:absolute;top:5px;right:5px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;padding:1px 5px;line-height:1.4">✕</button>'
+            ? '<button class="edit-only" onclick="removerMultiSpec(\'' + chave + '\',' + mi + ')" style="position:absolute;top:5px;right:5px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;padding:1px 5px;line-height:1.4">✕</button>'
             : '';
           const refLabel = multiList.length > 1 ? 'Especificação / Referência ' + (mi+1) : 'Especificação / Referência';
           const tmpoFieldHtml = temTempo
@@ -13446,7 +13446,7 @@ function renderModalPlano() {
     extras.forEach((ex, idx) => {
       extrasHtml += `
         <div class="plano-card fluid" style="background:#EFF6FF;position:relative" id="extra-card-${idx}">
-          <button onclick="removerItemExtra(${idx})" title="Remover item" style="position:absolute;top:6px;right:6px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;padding:1px 6px">✕</button>
+          <button class="edit-only" onclick="removerItemExtra(${idx})" title="Remover item" style="position:absolute;top:6px;right:6px;background:#FEE2E2;color:#DC2626;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;padding:1px 6px">✕</button>
           <div style="margin-right:20px">
             <label style="${labelStyle}">Nome do Item</label>
             <input data-extra="${idx}" data-sub="label" value="${ex.label||''}" placeholder="Ex: Freios, Amortecedor..." style="${inputStyle}">
@@ -13463,7 +13463,7 @@ function renderModalPlano() {
     html += `
       <div class="plano-section-title" style="margin-top:20px">➕ Itens Adicionais</div>
       <div class="plano-cards" id="extras-cards-wrap">${extrasHtml}</div>
-      <button onclick="adicionarItemExtra()" style="margin-top:10px;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
+      <button class="edit-only" onclick="adicionarItemExtra()" style="margin-top:10px;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
         ➕ Adicionar Novo Item
       </button>
 
@@ -13973,7 +13973,7 @@ async function salvarPlano() {
         <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">Apaga direto do Firebase, sem depender do que qualquer aba tem em memória — use quando um registro "fantasma" resiste a tudo. Cole um ou mais IDs separados por vírgula.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input id="diag-migracao-ids-manual" type="text" placeholder="ex: ind_1782411359023, ind_1782412353584" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid #e2e8f0;border-radius:10px;font-size:12px">
-          <button onclick="_excluirIdsIndispManual()" style="padding:9px 16px;background:#DC2626;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Excluir do Firebase</button>
+          <button class="edit-only" onclick="_excluirIdsIndispManual()" style="padding:9px 16px;background:#DC2626;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Excluir do Firebase</button>
         </div>
       </div>
     </div>
@@ -15758,7 +15758,7 @@ async function renderListaBackups() {
           style="background:#dcfce7;border:none;border-radius:8px;color:#16a34a;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">↩ Restaurar</button>
         <button onclick="restaurarBackup('${chave}', event)" title="MESCLAR: compara cada registro com o Firebase e mantém sempre a versão mais recente (não é restauração)"
           style="background:#dbeafe;border:none;border-radius:8px;color:#1d4ed8;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">🔀 Mesclar</button>
-        <button onclick="excluirBackup('${chave}', event)" title="Excluir" style="background:#fee2e2;border:none;border-radius:8px;color:#dc2626;font-size:13px;width:28px;height:28px;cursor:pointer;font-weight:700">✕</button>
+        <button class="edit-only" onclick="excluirBackup('${chave}', event)" title="Excluir" style="background:#fee2e2;border:none;border-radius:8px;color:#dc2626;font-size:13px;width:28px;height:28px;cursor:pointer;font-weight:700">✕</button>
       </div>
     </div>`;
   }).join('');
@@ -16047,7 +16047,7 @@ function _renderListaEmMemoria(lista, el) {
           style="background:#dcfce7;border:none;border-radius:8px;color:#16a34a;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">↩ Restaurar</button>
         <button onclick="restaurarBackupLocal(${idx})" title="MESCLAR: compara cada registro com o Firebase e mantém sempre a versão mais recente (não é restauração)"
           style="background:#dbeafe;border:none;border-radius:8px;color:#1d4ed8;font-size:11px;padding:4px 10px;cursor:pointer;font-weight:700">🔀 Mesclar</button>
-        <button onclick="excluirBackupLocal(${idx})" title="Excluir"
+        <button class="edit-only" onclick="excluirBackupLocal(${idx})" title="Excluir"
           style="background:#fee2e2;border:none;border-radius:8px;color:#dc2626;font-size:13px;width:28px;height:28px;cursor:pointer;font-weight:700">✕</button>
       </div>
     </div>`;
@@ -22271,7 +22271,7 @@ function renderDocumentos() {
 
   function cellDoc(doc, tipo, placa) {
     if (!doc) return `<td style="padding:7px 10px;text-align:center">
-      <button onclick="abrirModalDocPlaca('${placa}','${tipo}')" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:4px 8px;font-size:10px;color:#94a3b8;cursor:pointer" title="Adicionar ${DOC_LABELS[tipo]}">+ Add</button>
+      <button class="edit-only" onclick="abrirModalDocPlaca('${placa}','${tipo}')" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:4px 8px;font-size:10px;color:#94a3b8;cursor:pointer" title="Adicionar ${DOC_LABELS[tipo]}">+ Add</button>
     </td>`;
     const st   = statusDoc(doc.vencimento);
     const dias = diasParaVencer(doc.vencimento);
@@ -22363,7 +22363,7 @@ function renderDocumentos() {
       <td style="padding:7px 10px;color:#64748b;font-size:10px">${v.tipo||'REBOQUE'}</td>
       ${cellsReboque}
       <td style="padding:7px 10px;text-align:center;border-left:2px solid #e2e8f0">
-        <button onclick="abrirModalDocPlaca('${v.placa}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.15)">➕</button>
+        <button class="edit-only" onclick="abrirModalDocPlaca('${v.placa}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.15)">➕</button>
       </td>
     </tr>`;
   }
@@ -22395,14 +22395,14 @@ function renderDocumentos() {
     // Botão único com mini-menu
     const menuId = `menu-${v.placa.replace(/[^A-Z0-9]/g,'')}`;
     const btnAdd = rebPlaca
-      ? `<div style="position:relative;display:inline-block">
+      ? `<div class="edit-only" style="position:relative;display:inline-block">
            <button onclick="toggleMenuAdd('${menuId}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.15)">➕</button>
            <div id="${menuId}" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.15);z-index:999;min-width:160px;overflow:hidden">
              <div onclick="abrirModalDocPlaca('${v.placa}');fecharMenusAdd()" style="padding:10px 14px;cursor:pointer;font-size:11px;font-weight:700;color:#1B3A6D;border-bottom:1px solid #f1f5f9;white-space:nowrap" onmouseover="this.style.background='#EFF6FF'" onmouseout="this.style.background=''">🚛 ${v.placa}</div>
              <div onclick="abrirModalDocPlaca('${rebPlaca}');fecharMenusAdd()" style="padding:10px 14px;cursor:pointer;font-size:11px;font-weight:700;color:#0369a1;white-space:nowrap" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background=''">🚌 ${rebPlaca}</div>
            </div>
          </div>`
-      : `<button onclick="abrirModalDocPlaca('${v.placa}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.15)">➕</button>`;
+      : `<button class="edit-only" onclick="abrirModalDocPlaca('${v.placa}')" style="background:#EFF6FF;color:#1D4ED8;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.15)">➕</button>`;
 
     rows += `<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #e2e8f0">
       <!-- Caminhão -->
@@ -22415,7 +22415,7 @@ function renderDocumentos() {
       ${cellsReboque}
       <!-- Ações -->
       <td style="padding:7px 10px;text-align:center;border-left:2px solid #e2e8f0;white-space:nowrap">
-        <div style="display:flex;gap:6px;justify-content:center;align-items:center">${btnAdd}<button onclick="abrirExcluirDocPlaca('${v.placa}','${rebPlaca || ''}')" title="Excluir documentos ou remover a placa" style="background:#FEF2F2;color:#DC2626;border:none;border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.12)">🗑</button></div>
+        <div style="display:flex;gap:6px;justify-content:center;align-items:center">${btnAdd}<button class="edit-only" onclick="abrirExcluirDocPlaca('${v.placa}','${rebPlaca || ''}')" title="Excluir documentos ou remover a placa" style="background:#FEF2F2;color:#DC2626;border:none;border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.12)">🗑</button></div>
       </td>
     </tr>`;
   });
@@ -24333,7 +24333,7 @@ function _renderIndispEtapasForm() {
           <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:${e.concluida ? '#16a34a' : '#64748b'};cursor:pointer;text-transform:none">
             <input type="checkbox" ${e.concluida ? 'checked' : ''} onchange="_indispEtapaToggleConcluida(${i})" style="accent-color:#16A34A;width:14px;height:14px;cursor:pointer"> Concluída
           </label>
-          ${_indispEtapasEdit.length > 1 ? `<button type="button" onclick="_indispEtapaRemover(${i})" title="Remover etapa" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:14px;padding:0;line-height:1">🗑</button>` : ''}
+          ${_indispEtapasEdit.length > 1 ? `<button type="button" class="edit-only" onclick="_indispEtapaRemover(${i})" title="Remover etapa" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:14px;padding:0;line-height:1">🗑</button>` : ''}
         </div>
       </div>
       <textarea data-etapa-campo="reclamacao" data-etapa-idx="${i}" rows="2" spellcheck="true" lang="pt-BR" placeholder="Reclamação / Ordem de Serviço" oninput="_indispEtapaSetCampo(${i},'reclamacao',this.value)" style="width:100%;padding:9px 12px;border:1px solid #dbe4f0;border-radius:10px;font-size:12.5px;margin-bottom:6px;resize:vertical;background:#fff"></textarea>
@@ -26112,7 +26112,7 @@ function renderHistorico(lista) {
       <td style="padding:10px 12px;text-align:center">
         <div class="edit-only" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
           <button onclick="restaurarDoHistorico('${r.id}')" style="background:#f1f5f9;color:#1B3A6D;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#f1f5f9'">↩️ Restaurar</button>
-          <button onclick="excluirRegistroHist('${r.id}')" style="background:#FEF2F2;color:#DC2626;border:1px solid #fecaca;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#FEF2F2'">🗑 Excluir</button>
+          <button class="edit-only" onclick="excluirRegistroHist('${r.id}')" style="background:#FEF2F2;color:#DC2626;border:1px solid #fecaca;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#FEF2F2'">🗑 Excluir</button>
         </div>
       </td>
     </tr>`;
@@ -26814,7 +26814,7 @@ function renderMobHist() {
       ${status && status !== '—' ? `<div class="mci-obs-wrap" style="padding-top:0"><div class="mci-obs-label">Último Status</div><div class="mci-obs-txt status-chip-fixo" style="background:#dcfce7;color:#166534">${status}</div></div>` : ''}
       ${id ? `<div class="edit-only" style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid #f1f5f9">
         <button onclick="restaurarDoHistorico('${id}')" style="flex:1;background:#f1f5f9;color:#1B3A6D;border:1px solid #cbd5e1;border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">↩️ Restaurar</button>
-        <button onclick="excluirRegistroHist('${id}')" style="flex:1;background:#FEF2F2;color:#DC2626;border:1px solid #fecaca;border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Excluir</button>
+        <button class="edit-only" onclick="excluirRegistroHist('${id}')" style="flex:1;background:#FEF2F2;color:#DC2626;border:1px solid #fecaca;border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Excluir</button>
       </div>` : ''}
     </div>`;
   }).join('');

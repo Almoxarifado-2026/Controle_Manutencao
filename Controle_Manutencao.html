@@ -10552,8 +10552,8 @@ function renderDisp() {
 
   if (_dispVista === 'frota' || _dispVista === 'quadro') {
     const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || _normPlaca(g.reboque).includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)))
-    // Em manutenção agora primeiro (menor disponibilidade no topo); os demais seguem a ordem do ranking (Pos.).
-    lista.sort((x, y) => (x.aberto === y.aberto) ? (x.aberto ? x.disp - y.disp || x.pos - y.pos : x.pos - y.pos) : (x.aberto ? -1 : 1));
+    // Em manutenção agora primeiro; depois a MENOR disponibilidade (%) no topo, em cada grupo.
+    lista.sort((x, y) => (x.aberto !== y.aberto) ? (x.aberto ? -1 : 1) : (x.disp - y.disp || x.pos - y.pos));
     if (!F.lista.length) { kp.innerHTML = ''; corpo.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhuma placa no 📋 Checklist Preventiva. Abra a aba Checklist Preventiva para carregar os veículos.</div>'; nota.textContent = ''; _dispUltimo = null; return; }
     const crit = F.lista.length ? F.lista[F.lista.length - 1].placa : '-';
     kp.innerHTML = [

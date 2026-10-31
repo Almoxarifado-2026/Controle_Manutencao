@@ -10092,6 +10092,8 @@ function _tpCalcular() {
   const lista = Object.values(porPlaca);
   const ordem = (document.getElementById('tp-ordem') || {}).value || 'tempo';
   lista.sort((a, b) => {
+    // Veículos parados AGORA sempre vêm primeiro; a ordem escolhida vale dentro de cada grupo.
+    if (a.aberto !== b.aberto) return a.aberto ? -1 : 1;
     if (ordem === 'qtd')   return b.qtd - a.qtd || b.total - a.total;
     if (ordem === 'maior') return b.maior - a.maior;
     if (ordem === 'placa') return a.placa.localeCompare(b.placa);

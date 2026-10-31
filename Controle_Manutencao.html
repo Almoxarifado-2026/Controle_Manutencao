@@ -4002,6 +4002,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span id="label-lavagem-txt1" style="font-size:13px;font-weight:600;color:#475569">🧼 Lavagem e Lubrificação</span>
             <span id="label-lavagem-txt2" style="font-size:12px;color:#94a3b8">(na lavagem/lubrificação)</span>
           </label>
+          <!-- Opção 6a: troca de óleo e filtros -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-troca-oleo">
+            <input type="checkbox" id="indisp-troca-oleo" onchange="onPrevTipoChange()" style="accent-color:#A16207;width:16px;height:16px;cursor:pointer">
+            <span id="label-troca-oleo-txt1" style="font-size:13px;font-weight:600;color:#475569">🛢️ Troca de Óleo e Filtros</span>
+            <span id="label-troca-oleo-txt2" style="font-size:12px;color:#94a3b8">(serviço de troca de óleo e filtros)</span>
+          </label>
           <!-- Opção 6b: aguardando vistoria/laudo (pronto, mas depende de inspeção/laudo pra voltar a rodar) -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-vistoria">
             <input type="checkbox" id="indisp-vistoria" onchange="onPrevTipoChange()" style="accent-color:#C026D3;width:16px;height:16px;cursor:pointer">
@@ -19837,6 +19843,7 @@ function renderIndisp() {
     if (r.em_compra_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔩 Aguard. Compra</span>\`);
     if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.12);color:#000000">🛠️ Em Execução</span>\`);
     if (r.em_lavagem)     itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#0891B2">🧼 Lavagem/Lubrif.</span>\`);
+    if (r.em_troca_oleo)  itens.push(\`<span class="tv-prev-badge" style="background:#FEF08A;color:#854D0E">🛢️ Troca de Óleo/Filtros</span>\`);
     if (r.em_vistoria)     itens.push(\`<span class="tv-prev-badge" style="background:#FAE8FF;color:#86198F">📋 Vistoria/Laudo</span>\`);
     if (r.em_teste)     itens.push(\`<span class="tv-prev-badge" style="background:#ECFCCB;color:#3F6212">🧪 Teste Final</span>\`);
     if (r.em_liberado)    itens.push(\`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`);
@@ -24081,6 +24088,7 @@ function onPrevTipoChange() {
   const isCom   = document.getElementById('indisp-compra') && document.getElementById('indisp-compra').checked;
   const isExec  = document.getElementById('indisp-execucao')   && document.getElementById('indisp-execucao').checked;
   const isLav   = document.getElementById('indisp-lavagem')    && document.getElementById('indisp-lavagem').checked;
+  const isOle   = document.getElementById('indisp-troca-oleo') && document.getElementById('indisp-troca-oleo').checked;
   const isVis   = document.getElementById('indisp-vistoria')   && document.getElementById('indisp-vistoria').checked;
   const isTes   = document.getElementById('indisp-teste')      && document.getElementById('indisp-teste').checked;
   const isLib   = document.getElementById('indisp-liberado')   && document.getElementById('indisp-liberado').checked;
@@ -24111,6 +24119,7 @@ function onPrevTipoChange() {
   const lblCom  = document.getElementById('label-compra');
   const lblExec = document.getElementById('label-execucao');
   const lblLav  = document.getElementById('label-lavagem');
+  const lblOle  = document.getElementById('label-troca-oleo');
   const lblVis  = document.getElementById('label-vistoria');
   const lblTes  = document.getElementById('label-teste');
   const lblLib  = document.getElementById('label-liberado');
@@ -24152,6 +24161,7 @@ function onPrevTipoChange() {
     if (t2) t2.style.color = isExec ? '#374151' : '#94a3b8';
   }
   if (lblLav)  { lblLav.style.borderColor  = isLav  ? '#0891B2' : '#dbe4f0'; lblLav.style.background  = isLav  ? '#CFFAFE' : '#f8fafc'; }
+  if (lblOle)  { lblOle.style.borderColor  = isOle  ? '#A16207' : '#dbe4f0'; lblOle.style.background  = isOle  ? '#FEF08A' : '#f8fafc'; }
   if (lblVis)  { lblVis.style.borderColor  = isVis  ? '#C026D3' : '#dbe4f0'; lblVis.style.background  = isVis  ? '#FAE8FF' : '#f8fafc'; }
   if (lblTes)  { lblTes.style.borderColor  = isTes  ? '#65A30D' : '#dbe4f0'; lblTes.style.background  = isTes  ? '#ECFCCB' : '#f8fafc'; }
   if (lblLib)  { lblLib.style.borderColor  = isLib  ? '#16A34A' : '#dbe4f0'; lblLib.style.background  = isLib  ? '#DCFCE7' : '#f8fafc'; }
@@ -24197,12 +24207,13 @@ function _resetDiagnostico() {
   const lblCom  = document.getElementById('label-compra');
   const lblExec = document.getElementById('label-execucao');
   const lblLav  = document.getElementById('label-lavagem');
+  const lblOle  = document.getElementById('label-troca-oleo');
   const lblVis  = document.getElementById('label-vistoria');
   const lblTes  = document.getElementById('label-teste');
-  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblRSv, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblEle, lblBor, lblSol, lblChk, lblExec, lblLav, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblRSv, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblEle, lblBor, lblSol, lblChk, lblExec, lblLav, lblOle, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   // Registro NOVO começa sem nenhum status marcado (antes só o destaque visual era
   // limpo e a caixinha marcada na edição anterior ia junto pro registro novo).
-  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-retorno-servico','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-eletrica','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-vistoria','indisp-teste','indisp-liberado']
+  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-retorno-servico','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-eletrica','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-troca-oleo','indisp-vistoria','indisp-teste','indisp-liberado']
     .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
@@ -24286,6 +24297,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_compra_peca)        itens.push({ icon:'🔩', label:'Aguardando Compra de Peça', labelCurta:'Aguard. Compra',cor:'#9A3412', bg:'#FFEDD5' });
   if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#000000', bg:'rgba(0,0,0,.12)' });
   if (r.em_lavagem)     itens.push({ icon:'🧼', label:'Lavagem e Lubrificação', labelCurta:'Lavagem/Lubrif.', cor:'#0891B2', bg:'#CFFAFE' });
+  if (r.em_troca_oleo)  itens.push({ icon:'🛢️', label:'Troca de Óleo e Filtros', labelCurta:'Troca Óleo/Filtros', cor:'#854D0E', bg:'#FEF08A' });
   if (r.em_vistoria)     itens.push({ icon:'📋', label:'Aguardando Vistoria/Laudo', labelCurta:'Vistoria/Laudo', cor:'#86198F', bg:'#FAE8FF' });
   if (r.em_teste)     itens.push({ icon:'🧪', label:'Aguardando Teste/Inspeção Final', labelCurta:'Teste Final', cor:'#3F6212', bg:'#ECFCCB' });
   if (r.em_liberado)    itens.push({ icon:'✅', label:'Liberado (aguard. motorista)', labelCurta:'Liberado', cor:'#15803d', bg:'#DCFCE7' });
@@ -24483,6 +24495,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-compra').checked = !!r.em_compra_peca;
   document.getElementById('indisp-execucao').checked       = !!r.em_execucao;
   document.getElementById('indisp-lavagem').checked        = !!r.em_lavagem;
+  document.getElementById('indisp-troca-oleo').checked     = !!r.em_troca_oleo;
   document.getElementById('indisp-vistoria').checked       = !!r.em_vistoria;
   document.getElementById('indisp-teste').checked          = !!r.em_teste;
   document.getElementById('indisp-liberado').checked       = !!r.em_liberado;
@@ -24581,6 +24594,7 @@ function salvarIndisp() {
     em_compra_peca: document.getElementById('indisp-compra') ? document.getElementById('indisp-compra').checked : false,
     em_execucao:    document.getElementById('indisp-execucao')   ? document.getElementById('indisp-execucao').checked   : false,
     em_lavagem:     document.getElementById('indisp-lavagem')    ? document.getElementById('indisp-lavagem').checked    : false,
+    em_troca_oleo:  document.getElementById('indisp-troca-oleo') ? document.getElementById('indisp-troca-oleo').checked : false,
     em_vistoria:    document.getElementById('indisp-vistoria')   ? document.getElementById('indisp-vistoria').checked   : false,
     em_teste:       document.getElementById('indisp-teste')      ? document.getElementById('indisp-teste').checked      : false,
     em_liberado:    document.getElementById('indisp-liberado')   ? document.getElementById('indisp-liberado').checked   : false,
@@ -24645,7 +24659,7 @@ function _resumirMudancasIndisp(antes, depois) {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
     em_guincho: 'Aguardando guincho/reboque', em_chegada: 'Aguardando chegada do veículo', em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento', em_aprovacao: 'Aguardando aprovação',
-    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_retorno_servico: 'Retorno de serviço', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_eletrica: 'Serviço de parte elétrica', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
+    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_retorno_servico: 'Retorno de serviço', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_eletrica: 'Serviço de parte elétrica', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_troca_oleo: 'Troca de óleo e filtros', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -25219,6 +25233,7 @@ function imprimirPDFIndisp() {
     if (r.em_compra_peca)        itens.push('Aguardando Compra de Peça');
     if (r.em_execucao)    itens.push('Em Execucao');
     if (r.em_lavagem)     itens.push('Lavagem e Lubrificacao');
+    if (r.em_troca_oleo)  itens.push('Troca de Oleo e Filtros');
     if (r.em_vistoria)     itens.push('Aguard. Vistoria/Laudo');
     if (r.em_teste)     itens.push('Aguard. Teste/Inspecao Final');
     if (r.em_liberado)    itens.push('Liberado (Aguard. motorista)');
@@ -26712,6 +26727,7 @@ function renderMobIndisp() {
       if (r.em_compra_peca)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔩 Aguardando Compra de Peça</span>`);
       if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.12);color:#000000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
       if (r.em_lavagem)     prevItens.push(`<span style="background:#CFFAFE;color:#0891B2;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧼 Lavagem/Lubrif.</span>`);
+      if (r.em_troca_oleo)  prevItens.push(`<span style="background:#FEF08A;color:#854D0E;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛢️ Troca de Óleo e Filtros</span>`);
       if (r.em_vistoria)     prevItens.push(`<span style="background:#FAE8FF;color:#86198F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📋 Aguard. Vistoria/Laudo</span>`);
       if (r.em_teste)     prevItens.push(`<span style="background:#ECFCCB;color:#3F6212;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧪 Aguard. Teste/Inspeção Final</span>`);
       if (r.em_liberado)    prevItens.push(`<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`);

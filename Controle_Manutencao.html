@@ -3429,7 +3429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <tbody id="tm-tbody"></tbody>
       </table>
     </div>
-    <div style="font-size:11px;color:#64748b;margin-top:8px">Cada parada em manutenção conta como 1 manutenção, de acordo com o tipo (corretiva ou preventiva) e a data de entrada no mês escolhido. Inclui as que ainda estão em aberto e os lançamentos manuais.</div>
+    <div style="font-size:11px;color:#64748b;margin-top:8px">Cada parada em manutenção conta como 1 manutenção, de acordo com o tipo (corretiva ou preventiva) e a data de entrada no mês escolhido. Inclui as que ainda estão em aberto e os lançamentos manuais. Mostra somente as placas do Checklist Preventiva (cavalo e reboque).</div>
   </div>
 </div>
 
@@ -3479,7 +3479,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <tbody id="tp-tbody"></tbody>
       </table>
     </div>
-    <div style="font-size:11px;color:#64748b;margin-top:8px">Mostra as placas ativas (Troca de Óleo ou Checklist) e todo veículo parado agora em Indisponíveis. Toque numa placa para ver cada parada. Serviços ainda em aberto contam até agora. O mês atual aparece por padrão; escolha outro mês no filtro para consultar os anteriores. Só o tempo dentro do mês escolhido é somado (parada que atravessa a virada de mês é dividida).</div>
+    <div style="font-size:11px;color:#64748b;margin-top:8px">Mostra somente as placas do Checklist Preventiva (cavalo e reboque). Toque numa placa para ver cada parada. Serviços ainda em aberto contam até agora. O mês atual aparece por padrão; escolha outro mês no filtro para consultar os anteriores. Só o tempo dentro do mês escolhido é somado (parada que atravessa a virada de mês é dividida).</div>
   </div>
 </div>
 
@@ -10104,19 +10104,15 @@ function _tpCalcular() {
   const porPlaca = {};
   // Só placas ATIVAS (cadastradas na Troca de Óleo ou no Checklist Preventivo).
   // Se as duas listas ainda estiverem vazias (carregando), não filtra.
-  const ativas = new Set([
-    ...(typeof VEICULOS !== 'undefined' ? VEICULOS : []).map(v => _normPlaca(v && v.placa)),
-    ...(typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).map(c => _normPlaca(c && (c.cavalo || c.placa || '')))
-  ].filter(Boolean));
+  // Só placas do CHECKLIST PREVENTIVA (cavalo/placa e reboque). Se o Checklist ainda
+  // estiver vazio (carregando), não filtra.
+  const ativas = new Set((typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).flatMap(c => c ? [_normPlaca(c.cavalo || c.placa || ''), _normPlaca(c.reboque || '')] : []).filter(Boolean));
 
   const _tpRegs = _tpRegistros();
-  // Placa parada AGORA (registro em aberto em Indisponíveis) sempre aparece,
-  // mesmo que não esteja cadastrada na Troca de Óleo/Checklist.
-  const paradasAgora = new Set(_tpRegs.filter(r => r._aberto).map(r => _normPlaca(r.placa)));
   _tpRegs.forEach(r => {
     const key = _normPlaca(r.placa);
     if (!key || (busca && !key.includes(busca))) return;
-    if (ativas.size && !ativas.has(key) && !paradasAgora.has(key)) return;
+    if (ativas.size && !ativas.has(key)) return;
     const serv = String(r.servico || '').toLowerCase();
     if (fServ && serv !== fServ) return;
     if (fTipo && String(r.tipoManut || 'CORRETIVA').toUpperCase() !== fTipo) return;
@@ -10923,9 +10919,12 @@ function renderTiposManut() {
 
   const porPlaca = {};
   let totC = 0, totP = 0, abertasC = 0, abertasP = 0;
+  // Só placas do CHECKLIST PREVENTIVA (cavalo/placa e reboque). Se o Checklist ainda estiver vazio (carregando), não filtra.
+  const ativas = new Set((typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).flatMap(c => c ? [_normPlaca(c.cavalo || c.placa || ''), _normPlaca(c.reboque || '')] : []).filter(Boolean));
   _tpRegistros().forEach(r => {
     const key = _normPlaca(r.placa);
     if (!key || (busca && !key.includes(busca))) return;
+    if (ativas.size && !ativas.has(key)) return;
     if (fServ && String(r.servico || '').toLowerCase() !== fServ) return;
     const ent = new Date(r.entrada);
     if (isNaN(ent)) return;

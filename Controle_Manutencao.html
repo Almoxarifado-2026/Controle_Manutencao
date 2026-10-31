@@ -3217,6 +3217,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <button id="indisp-subtab-atual" class="indisp-subtab-btn active" onclick="mudarSubAbaIndisp('atual')">🚧 Em Aberto</button>
   <button id="indisp-subtab-historico" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('historico')" style="position:relative">📋 Histórico <span id="hist-badge" style="display:none;position:absolute;top:2px;right:2px;background:#DC2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;align-items:center;justify-content:center;line-height:16px">0</span></button>
   <button id="indisp-subtab-tempo" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('tempo')">⏱️ Tempo Parado</button>
+  <button id="indisp-subtab-tipos" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('tipos')">🔧 Corretiva x Preventiva</button>
   <button id="indisp-subtab-disp" class="indisp-subtab-btn" onclick="mudarSubAbaIndisp('disp')">📊 Disponibilidade</button>
   <button onclick="abrirConfigPainelTV()" title="Modo Painel — tela cheia para TV" style="margin-left:auto;background:#581c87;color:#e9d5ff;border:none;border-radius:10px 10px 0 0;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📺 PAINEL TV</button>
 </div>
@@ -3392,6 +3393,46 @@ document.addEventListener('DOMContentLoaded', () => {
      clicar em "📋 Histórico" no seletor de sub-abas.
      Dados em: HIST_MANUT[]  — § 29 do JS
      ══════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════
+     SUB-ABA · CORRETIVA x PREVENTIVA (#pag-tipos-manut)
+     Conta quantas manutenções corretivas e preventivas cada placa teve
+     (finalizadas + em aberto + lançamentos manuais), por mês/ano.
+     ══════════════════════════════════════════════════ -->
+<div id="pag-tipos-manut" style="display:none">
+  <div class="header-principal" style="position:relative;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:14px;flex-wrap:nowrap">
+    <h1 style="margin:0">🔧 Manutenções Corretivas x Preventivas</h1>
+  </div>
+  <div style="background:#f1f5f9;padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input id="tm-busca" type="text" placeholder="🔎 Buscar placa" oninput="renderTiposManut()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px;min-width:140px">
+    <select id="tm-periodo" onchange="renderTiposManut()" title="Mês a consultar" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px"></select>
+    <select id="tm-servico" onchange="renderTiposManut()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
+      <option value="">Todos os serviços</option>
+      <option value="interno">🏭 Interno</option>
+      <option value="externo">🔧 Externo</option>
+      <option value="solda">🔥 Solda</option>
+    </select>
+    <select id="tm-ordem" onchange="renderTiposManut()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
+      <option value="total">Ordenar: mais manutenções</option>
+      <option value="corretiva">Ordenar: mais corretivas</option>
+      <option value="preventiva">Ordenar: mais preventivas</option>
+      <option value="placa">Ordenar: placa (A–Z)</option>
+    </select>
+  </div>
+  <div id="tm-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 18px;background:#f1f5f9"></div>
+  <div style="padding:0 18px 24px;background:#f1f5f9">
+    <div class="tabela-wrap" style="overflow-x:auto;background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(15,23,42,.08)">
+      <table id="tm-tabela" style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#0f172a;color:#fff;text-align:center">
+          <th style="padding:10px 8px">Placa</th><th style="padding:10px 8px">🔴 Corretivas</th><th style="padding:10px 8px">🟢 Preventivas</th>
+          <th style="padding:10px 8px">Total</th><th style="padding:10px 8px">% Corretiva</th><th style="padding:10px 8px">Em aberto agora</th>
+        </tr></thead>
+        <tbody id="tm-tbody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:#64748b;margin-top:8px">Cada parada em manutenção conta como 1 manutenção, de acordo com o tipo (corretiva ou preventiva) e a data de entrada no mês escolhido. Inclui as que ainda estão em aberto e os lançamentos manuais.</div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════
      SUB-ABA · TEMPO PARADO POR PLACA (#pag-tempo-parado)
      Soma, por placa, quanto tempo ficou em manutenção (interno, externo,
@@ -6722,7 +6763,7 @@ function _renderAbaAtiva(origem) {
   // qualquer mudança chegava de qualquer lugar. Passando _histFiltrado
   // (quando existe um filtro ativo) mantém a visão filtrada mesmo com a
   // tela atualizando em tempo real.
-  else if (idAtivo === 'indisponiveis') (_indispSubAtiva === 'historico') ? renderHistorico(_histFiltrado || undefined) : (_indispSubAtiva === 'tempo') ? renderTempoParado() : renderIndisponiveis();
+  else if (idAtivo === 'indisponiveis') (_indispSubAtiva === 'historico') ? renderHistorico(_histFiltrado || undefined) : (_indispSubAtiva === 'tempo') ? renderTempoParado() : (_indispSubAtiva === 'tipos') ? renderTiposManut() : renderIndisponiveis();
   else if (idAtivo === 'combustivel')   renderCombustivel();
   else if (idAtivo === 'dashboard')     renderDashboard();
   mostrarIndicador('🔄 Sincronizado', '#93C5FD');
@@ -9907,6 +9948,10 @@ function mudarSubAbaIndisp(sub) {
   const elHist   = document.getElementById('pag-historico');
   const btnTempo = document.getElementById('indisp-subtab-tempo');
   const elTempo  = document.getElementById('pag-tempo-parado');
+  const btnTipos = document.getElementById('indisp-subtab-tipos');
+  const elTipos  = document.getElementById('pag-tipos-manut');
+  if (btnTipos) btnTipos.classList.toggle('active', sub === 'tipos');
+  if (elTipos)  elTipos.style.display = (sub === 'tipos') ? '' : 'none';
   const btnDisp = document.getElementById('indisp-subtab-disp');
   const elDisp  = document.getElementById('pag-disp');
   if (btnDisp) btnDisp.classList.toggle('active', sub === 'disp');
@@ -9922,6 +9967,8 @@ function mudarSubAbaIndisp(sub) {
     _ativarSubAbaIndispHistorico();
   } else if (sub === 'tempo') {
     _ativarSubAbaIndispTempo();
+  } else if (sub === 'tipos') {
+    _ativarSubAbaIndispTipos();
   } else if (sub === 'disp') {
     _ativarSubAbaIndispDisp();
   } else {
@@ -10836,6 +10883,126 @@ function gerarPDFDisp() {
   });
   doc.setFontSize(7); doc.setTextColor(120); doc.text('Pág. ' + doc.internal.getNumberOfPages(), PW - ML, PH - 4, { align: 'right' });
   doc.save(U.titulo.replace(/[^A-Za-z0-9]+/g, '_') + '_' + new Date().toISOString().slice(0, 7) + '.pdf');
+}
+
+// ── Sub-aba Corretiva x Preventiva ─────────────────────────────────────
+function _tmPopularPeriodos() {
+  const sel = document.getElementById('tm-periodo');
+  if (!sel || sel.options.length) return;
+  const agora = new Date(), nomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    const o = document.createElement('option');
+    o.value = 'm:' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    o.textContent = (i === 0 ? 'Mês atual — ' : '') + nomes[d.getMonth()] + '/' + d.getFullYear();
+    sel.appendChild(o);
+  }
+  [['ano', 'Este ano inteiro'], ['tudo', 'Todo o período']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); });
+  sel.value = sel.options[0].value;
+}
+
+let _tmExpandida = null; // placa com a lista de ordens em aberto aberta
+function _tmAlternar(key) {
+  _tmExpandida = (_tmExpandida === key) ? null : key;
+  renderTiposManut();
+}
+
+function renderTiposManut() {
+  const tbody = document.getElementById('tm-tbody');
+  if (!tbody) return;
+  _tmPopularPeriodos();
+  const periodo = (document.getElementById('tm-periodo') || {}).value || 'tudo';
+  const fServ = (document.getElementById('tm-servico') || {}).value || '';
+  const busca = _normPlaca((document.getElementById('tm-busca') || {}).value || '');
+  const ordem = (document.getElementById('tm-ordem') || {}).value || 'total';
+  const { ini, fim } = _tpJanela(periodo);
+
+  const porPlaca = {};
+  let totC = 0, totP = 0, abertasC = 0, abertasP = 0;
+  _tpRegistros().forEach(r => {
+    const key = _normPlaca(r.placa);
+    if (!key || (busca && !key.includes(busca))) return;
+    if (fServ && String(r.servico || '').toLowerCase() !== fServ) return;
+    const ent = new Date(r.entrada);
+    if (isNaN(ent)) return;
+    if (ini && ent < ini) return;
+    if (fim && ent >= fim) return;
+    const prev = String(r.tipoManut || 'CORRETIVA').toUpperCase() === 'PREVENTIVA';
+    const g = porPlaca[key] || (porPlaca[key] = { key, placa: r.placa, c: 0, p: 0, ac: 0, ap: 0, abertas: [] });
+    if (r._aberto) g.abertas.push(r);
+    if (prev) { g.p++; totP++; if (r._aberto) { g.ap++; abertasP++; } }
+    else      { g.c++; totC++; if (r._aberto) { g.ac++; abertasC++; } }
+  });
+
+  const lista = Object.values(porPlaca);
+  lista.sort((a, b) => {
+    // Placas com manutenção em aberto sempre primeiro; depois vale a ordem escolhida.
+    const abA = (a.ac + a.ap) > 0, abB = (b.ac + b.ap) > 0;
+    if (abA !== abB) return abA ? -1 : 1;
+    if (ordem === 'corretiva')  return b.c - a.c || (b.c + b.p) - (a.c + a.p);
+    if (ordem === 'preventiva') return b.p - a.p || (b.c + b.p) - (a.c + a.p);
+    if (ordem === 'placa')      return String(a.placa).localeCompare(String(b.placa));
+    return (b.c + b.p) - (a.c + a.p) || b.c - a.c;
+  });
+
+  const total = totC + totP;
+  const pct = n => total ? Math.round(n / total * 100) + '%' : '0%';
+  const kpis = [
+    { v: total, l: 'TOTAL DE MANUTENÇÕES', bg: '#0f172a' },
+    { v: totC, l: 'CORRETIVAS · ' + pct(totC), bg: '#DC2626' },
+    { v: totP, l: 'PREVENTIVAS · ' + pct(totP), bg: '#16A34A' },
+    { v: lista.length, l: 'PLACAS ATENDIDAS', bg: '#1D4ED8' },
+  ];
+  const elK = document.getElementById('tm-kpis');
+  if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.85;margin-top:2px">${k.l}</div></div>`).join('');
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px;color:#94a3b8">Nenhuma manutenção encontrada para esse filtro.</td></tr>';
+    return;
+  }
+  const td = 'padding:9px 8px;text-align:center;border-top:1px solid #e2e8f0';
+  const aberto = g => (g.ac || g.ap)
+    ? `<span onclick="_tmAlternar('${g.key}')" title="Clique para ver as ordens em aberto" style="cursor:pointer;background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:3px 10px;font-weight:800;font-size:11px;white-space:nowrap">${g.ac ? g.ac + ' corretiva' + (g.ac > 1 ? 's' : '') : ''}${g.ac && g.ap ? ' + ' : ''}${g.ap ? g.ap + ' preventiva' + (g.ap > 1 ? 's' : '') : ''} ${_tmExpandida === g.key ? '▲' : '▼'}</span>`
+    : '<span style="color:#94a3b8">—</span>';
+  const fmtD = s => { const d = new Date(s); return isNaN(d) ? '—' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+  const detalhes = g => {
+    const agora = Date.now();
+    const cards = g.abertas.slice().sort((a, b) => new Date(a.entrada) - new Date(b.entrada)).map(r => {
+      const prev = String(r.tipoManut || 'CORRETIVA').toUpperCase() === 'PREVENTIVA';
+      const os = (typeof _listaOS === 'function' ? _listaOS(r.numero_os) : []).join(' / ');
+      const campo = (t, v) => v ? `<div><span style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase">${t}</span><div style="font-weight:600;color:#1e293b">${v}</div></div>` : '';
+      return `<div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid ${prev ? '#16A34A' : '#DC2626'};border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 16px;text-align:left">
+        ${campo('Tipo', prev ? '🟢 Preventiva' : '🔴 Corretiva')}
+        ${campo('Nº da OS', escapeHtml(os))}
+        ${campo('Serviço', escapeHtml(r.servico ? r.servico.charAt(0).toUpperCase() + r.servico.slice(1) : ''))}
+        ${campo('Entrada', fmtD(r.entrada))}
+        ${campo('Parado há', _tpFmtDur(agora - new Date(r.entrada)))}
+        ${campo('Status', escapeHtml(r.status || ''))}
+        ${campo('Mecânico / fornecedor', escapeHtml(r.mecanico || ''))}
+        <div style="grid-column:1/-1">${campo('Reclamação / OS', _reclamacaoEtapasHTML(r, false))}</div>
+      </div>`;
+    }).join('');
+    return `<tr><td colspan="6" style="padding:10px 14px;background:#f8fafc;border-top:1px solid #e2e8f0"><div style="display:flex;flex-direction:column;gap:8px">${cards}</div></td></tr>`;
+  };
+  tbody.innerHTML = lista.map(g => {
+    const t = g.c + g.p;
+    return `<tr>
+      <td style="${td};font-weight:800;color:#1e293b">${escapeHtml(g.placa)}</td>
+      <td style="${td};font-weight:800;color:#B91C1C">${g.c}</td>
+      <td style="${td};font-weight:800;color:#15803D">${g.p}</td>
+      <td style="${td};font-weight:800">${t}</td>
+      <td style="${td}">${Math.round(g.c / t * 100)}%</td>
+      <td style="${td}">${aberto(g)}</td>
+    </tr>` + (_tmExpandida === g.key && g.abertas.length ? detalhes(g) : '');
+  }).join('') + `<tr style="background:#f1f5f9;font-weight:800">
+      <td style="${td}">TOTAL</td><td style="${td};color:#B91C1C">${totC}</td><td style="${td};color:#15803D">${totP}</td>
+      <td style="${td}">${total}</td><td style="${td}">${pct(totC)}</td>
+      <td style="${td}">${abertasC + abertasP ? abertasC + ' corr. + ' + abertasP + ' prev.' : '—'}</td></tr>`;
+}
+
+function _ativarSubAbaIndispTipos() {
+  renderTiposManut();
+  if (typeof carregarHistoricoFirebase === 'function') carregarHistoricoFirebase().then(renderTiposManut).catch(() => {});
 }
 
 function _ativarSubAbaIndispTempo() {

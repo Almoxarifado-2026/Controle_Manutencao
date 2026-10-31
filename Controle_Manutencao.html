@@ -10435,6 +10435,8 @@ const _dispHorasReg = (r, w0, w1) => r.segs.reduce((t, sg) => t + _dispOv(sg[0],
 function _dispCalcFrota() {
   const { a, b, dias, horasMes } = _dispJanelaMes();
   const agora = new Date(), A = +a, B = +b, N = +agora, CAP = N > A ? Math.max(N, A) : B;
+  // Mês em andamento: a base é o tempo JÁ decorrido (não conta horas futuras como disponíveis). Mês passado/futuro: mês inteiro.
+  const horasBase = (N > A && N < B) ? (N - A) / 3600000 : horasMes;
   const { pm, grupos } = _dispConjuntos(); _dispPM = pm;
   const regs = _tpRegistros().map(r => {
     const e = new Date(r.entrada), s = r._aberto ? agora : new Date(r.saida);
@@ -10464,7 +10466,7 @@ function _dispCalcFrota() {
     }
   });
   const lista = Object.values(mapa);
-  lista.forEach(g => { g.h = Math.min(g.h, horasMes); g.disp = (horasMes - g.h) / horasMes; });
+  lista.forEach(g => { g.h = Math.min(g.h, horasBase); g.disp = horasBase > 0 ? (horasBase - g.h) / horasBase : 1; });
   lista.sort((x, y) => y.disp - x.disp || x.ocorr - y.ocorr || String(x.placa).localeCompare(String(y.placa)));
   lista.forEach((g, i) => g.pos = i + 1);
   // Motorista atual: mês em andamento = quem está com a placa AGORA. Mês passado = quem estava na última entrada do mês
@@ -10482,7 +10484,7 @@ function _dispCalcFrota() {
     }
     g.motorista = m;
   });
-  return { a, b, dias, horasMes, lista, regs, pm };
+  return { a, b, dias, horasMes: horasBase, lista, regs, pm };
 }
 
 function _dispMotoristaEm(key, t) {
@@ -10501,7 +10503,7 @@ function _dispCalcMotoristas(F) {
   const mapa = {};
   const linhas = ESCALA.map(e => {
     const k0 = _normPlaca(e.placa), key = (F.pm && F.pm.get(k0)) || k0, i = +new Date(e.inicio), f = e.fim ? +new Date(e.fim) : Infinity;
-    const w0 = Math.max(i, A), w1 = Math.min(f, B);
+    const w0 = Math.max(i, A), w1 = Math.min(f, B, Math.max(N, A)); // não conta alocação futura
     const L = { id: e.id, placa: e.placa, motorista: e.motorista, inicio: e.inicio, fim: e.fim, w0, w1, ocorr: 0, oC: 0, oP: 0, h: 0, hC: 0, hP: 0, aloc: 0, agora: false };
     if (isNaN(w0) || w1 <= w0) return L;
     L.aloc = (w1 - w0) / 3600000;
@@ -10549,7 +10551,9 @@ function renderDisp() {
   const esc = escapeHtml;
 
   if (_dispVista === 'frota' || _dispVista === 'quadro') {
-    const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || _normPlaca(g.reboque).includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)));
+    const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || _normPlaca(g.reboque).includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)))
+    // Em manutenção agora primeiro (menor disponibilidade no topo); os demais seguem a ordem do ranking (Pos.).
+    lista.sort((x, y) => (x.aberto === y.aberto) ? (x.aberto ? x.disp - y.disp || x.pos - y.pos : x.pos - y.pos) : (x.aberto ? -1 : 1));
     if (!F.lista.length) { kp.innerHTML = ''; corpo.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhuma placa no 📋 Checklist Preventiva. Abra a aba Checklist Preventiva para carregar os veículos.</div>'; nota.textContent = ''; _dispUltimo = null; return; }
     const crit = F.lista.length ? F.lista[F.lista.length - 1].placa : '-';
     kp.innerHTML = [

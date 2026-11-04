@@ -24312,7 +24312,11 @@ function _previsaoLiberacaoItens(r) {
 function _previsaoLiberacaoTexto(r, multilinha) {
   const itens = _previsaoLiberacaoItens(r);
   if (!itens.length) return '—';
-  const textos = itens.map(i => `${i.icon} ${i.label}`);
+  // A data prevista (prev_lib) sempre vem FIXADA em primeiro, logo abaixo de
+  // "Previsão:", e os status marcados vêm depois dela.
+  const dataPrev = r.prev_lib ? itens.filter(i => i.icon === '📅' && i.label === fmtDT(r.prev_lib)) : [];
+  const ordenados = dataPrev.concat(itens.filter(i => dataPrev.indexOf(i) === -1));
+  const textos = ordenados.map(i => `${i.icon} ${i.label}`);
   return multilinha ? textos.join('\n') : textos.join(' + ');
 }
 

@@ -3832,6 +3832,9 @@ document.addEventListener('DOMContentLoaded', () => {
         </label>
         <p style="font-size:11px;color:#94a3b8;margin:2px 0 8px">Use mais de uma etapa quando a mesma placa tiver mais de um serviço em andamento. Só finaliza e vai pro Histórico quando TODAS estiverem concluídas.</p>
         <div id="indisp-etapas-container" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button type="button" onclick="_indispEtapaAdd()" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #bfdbfe;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;text-transform:none">+ Adicionar Etapa</button>
+        </div>
       </div>
       <div class="full">
         <label>🔧 Mecânico(s) Responsável(is) <span style="text-transform:none;font-weight:400;color:#94a3b8;font-size:11px">(pode adicionar mais de um — cada um numa etapa diferente)</span></label>

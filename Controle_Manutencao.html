@@ -9111,6 +9111,8 @@ function popularTipos(){
   const tiposGpCompleto = [...new Set([...tiposVeiculoCompleto, 'REBOQUE', 'SEMI-REBOQUE'])].sort();
   const dlGp = document.getElementById('lista-tipos-gp');
   if (dlGp) dlGp.innerHTML = tiposGpCompleto.map(t=>`<option>${t}</option>`).join('');
+  // reaplica os tipos personalizados (o innerHTML acima os apagava da lista)
+  try { popularDatalistTiposGP(); } catch(e) {}
 }
 
 function toggleVeiculoNovo(){
@@ -22500,7 +22502,25 @@ let TIPOS_PLACA_CUSTOM = [];
 
 async function carregarTiposPlacaCustom() {
   const d = await fbGet('/manutencao/tipos_placa_custom.json');
-  if (Array.isArray(d)) TIPOS_PLACA_CUSTOM = d;
+  if (Array.isArray(d)) TIPOS_PLACA_CUSTOM = _dedupTiposPlaca(d);
+}
+
+// Normaliza um tipo (espaços extras, maiúsculas) — "Julieta", "JULIETA " e
+// "JULIETA" passam a ser o MESMO tipo. Antes, a comparação era feita com o
+// texto cru, então cada variação virava uma opção nova (duplicada) na lista.
+function _normTipoPlaca(t) {
+  return String(t == null ? '' : t).replace(/\s+/g, ' ').trim().toUpperCase();
+}
+function _dedupTiposPlaca(arr) {
+  const vistos = new Set();
+  const out = [];
+  (Array.isArray(arr) ? arr : []).forEach(t => {
+    const n = _normTipoPlaca(t);
+    if (!n || vistos.has(n)) return;
+    vistos.add(n);
+    out.push(n);
+  });
+  return out;
 }
 
 async function salvarTiposPlacaCustom() {
@@ -22510,7 +22530,7 @@ async function salvarTiposPlacaCustom() {
     // acabado de cadastrar em outro dispositivo.
     const remoto = await fbGet('/manutencao/tipos_placa_custom.json');
     const remotoArr = Array.isArray(remoto) ? remoto : [];
-    const mesclado = [...new Set([...remotoArr, ...TIPOS_PLACA_CUSTOM])];
+    const mesclado = _dedupTiposPlaca([...remotoArr, ...TIPOS_PLACA_CUSTOM]);
     TIPOS_PLACA_CUSTOM.length = 0;
     mesclado.forEach(t => TIPOS_PLACA_CUSTOM.push(t));
     await fbPut('/manutencao/tipos_placa_custom.json', mesclado);
@@ -22526,13 +22546,13 @@ function popularDatalistTiposGP() {
   ['lista-tipos-gp', 'lista-tipos-indisp'].forEach(id => {
     const dl = document.getElementById(id);
     if (!dl) return;
-    const existentes = new Set([...dl.querySelectorAll('option')].map(o => o.textContent.trim().toUpperCase()));
-    TIPOS_PLACA_CUSTOM.forEach(t => {
-      if (!t || existentes.has(t.toUpperCase())) return;
+    const existentes = new Set([...dl.querySelectorAll('option')].map(o => _normTipoPlaca(o.textContent)));
+    _dedupTiposPlaca(TIPOS_PLACA_CUSTOM).forEach(t => {
+      if (existentes.has(t)) return;
       const opt = document.createElement('option');
       opt.textContent = t;
       dl.appendChild(opt);
-      existentes.add(t.toUpperCase());
+      existentes.add(t);
     });
   });
 }
@@ -22619,11 +22639,19 @@ function _ehTipoReboque(tipo) {
   return TIPOS_REBOQUE_PADRAO.has(t) || /REBOQUE/.test(t);
 }
 function _registrarTipoPlacaCustom(tipo) {
-  if (!tipo) return;
-  const dls = ['lista-tipos-gp', 'lista-tipos-indisp'].map(id => document.getElementById(id)).filter(Boolean);
-  const jaExiste = dls.some(dl => [...dl.querySelectorAll('option')].some(o => o.textContent.trim().toUpperCase() === tipo.toUpperCase()));
-  if (jaExiste) return;
-  TIPOS_PLACA_CUSTOM.push(tipo);
+  const n = _normTipoPlaca(tipo);
+  if (!n) return;
+  // ⚠️ Antes, o tipo era considerado "já existente" se aparecesse em QUALQUER
+  // lista (inclusive a de Gerenciar Placas, que já é reconstruída com os
+  // tipos dos veículos recém-salvos) — então o tipo novo nunca chegava a ser
+  // gravado no Firebase e sumia das outras telas/dispositivos. Agora só vale
+  // como "existente" se já estiver na lista de tipos personalizados ou na
+  // lista fixa de Indisponíveis.
+  const dlInd = document.getElementById('lista-tipos-indisp');
+  const naListaFixa = dlInd && [...dlInd.querySelectorAll('option')].some(o => _normTipoPlaca(o.textContent) === n);
+  const jaCustom = TIPOS_PLACA_CUSTOM.some(t => _normTipoPlaca(t) === n);
+  if (naListaFixa || jaCustom) { popularDatalistTiposGP(); return; }
+  TIPOS_PLACA_CUSTOM.push(n);
   salvarTiposPlacaCustom();
   popularDatalistTiposGP();
 }
@@ -24577,7 +24605,7 @@ function salvarIndisp() {
     placa,
     reboque: document.getElementById('indisp-reboque').value.trim().toUpperCase(),
     numero_os: document.getElementById('indisp-numero-os').value.trim(),
-    tipoEquip: document.getElementById('indisp-tipo-equip').value,
+    tipoEquip: _normTipoPlaca(document.getElementById('indisp-tipo-equip').value),
     tipoManut: document.getElementById('indisp-tipo-manut').value,
     entrada: document.getElementById('indisp-entrada').value || null,
     saida: document.getElementById('indisp-saida').value || null,

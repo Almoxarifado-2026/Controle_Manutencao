@@ -3963,6 +3963,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="font-size:13px;font-weight:600;color:#475569">🔩 Serviço de Suspensão</span>
             <span style="font-size:12px;color:#94a3b8">(molas, amortecedores, buchas, feixe de molas)</span>
           </label>
+          <!-- Nova opção: Serviço de Freio -->
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-freio">
+            <input type="checkbox" id="indisp-freio" onchange="onPrevTipoChange()" style="accent-color:#B91C1C;width:16px;height:16px;cursor:pointer">
+            <span style="font-size:13px;font-weight:600;color:#475569;display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><svg width="16" height="16" style="flex:0 0 16px;display:block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#64748B"/><circle cx="12" cy="12" r="7.6" fill="none" stroke="#CBD5E1" stroke-width="1.1" stroke-dasharray="1.8 1.4"/><circle cx="12" cy="12" r="4.2" fill="#E2E8F0"/><circle cx="12" cy="12" r="1.3" fill="#475569"/><circle cx="12" cy="9.4" r=".7" fill="#475569"/><circle cx="12" cy="14.6" r=".7" fill="#475569"/><circle cx="9.4" cy="12" r=".7" fill="#475569"/><circle cx="14.6" cy="12" r=".7" fill="#475569"/><rect x="15.2" y="5.5" width="7.6" height="13" rx="2.6" fill="#DC2626"/><rect x="17.2" y="8.5" width="3.6" height="7" rx="1.2" fill="#FECACA"/></svg>Serviço de Freio</span>
+            <span style="font-size:12px;color:#94a3b8">(sistema de freio: lonas, pastilhas, tambores, discos, cuícas, válvulas)</span>
+          </label>
           <!-- Nova opção: Serviço de Parte Elétrica -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-eletrica">
             <input type="checkbox" id="indisp-eletrica" onchange="onPrevTipoChange()" style="accent-color:#B45309;width:16px;height:16px;cursor:pointer">
@@ -19839,6 +19845,7 @@ function renderIndisp() {
     if (r.em_funilaria)        itens.push(\`<span class="tv-prev-badge" style="background:#FCE7F3;color:#9D174D">🔨 Funilaria</span>\`);
     if (r.em_alinhamento)        itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#155E75">⚖️ Alinhamento</span>\`);
     if (r.em_suspensao)        itens.push(\`<span class="tv-prev-badge" style="background:#ECFCCB;color:#3F6212">🔩 Suspensão</span>\`);
+    if (r.em_freio)        itens.push(\`<span class="tv-prev-badge" style="background:#FEE2E2;color:#B91C1C"><svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#64748B"/><circle cx="12" cy="12" r="7.6" fill="none" stroke="#CBD5E1" stroke-width="1.1" stroke-dasharray="1.8 1.4"/><circle cx="12" cy="12" r="4.2" fill="#E2E8F0"/><circle cx="12" cy="12" r="1.3" fill="#475569"/><circle cx="12" cy="9.4" r=".7" fill="#475569"/><circle cx="12" cy="14.6" r=".7" fill="#475569"/><circle cx="9.4" cy="12" r=".7" fill="#475569"/><circle cx="14.6" cy="12" r=".7" fill="#475569"/><rect x="15.2" y="5.5" width="7.6" height="13" rx="2.6" fill="#DC2626"/><rect x="17.2" y="8.5" width="3.6" height="7" rx="1.2" fill="#FECACA"/></svg>&nbsp;Freio</span>\`);
     if (r.em_eletrica)        itens.push(\`<span class="tv-prev-badge" style="background:#FDE68A;color:#78350F">⚡ Elétrica</span>\`);
     if (r.em_borracharia)        itens.push(\`<span class="tv-prev-badge" style="background:#E2E8F0;color:#1E293B"><svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>&nbsp;Borracharia</span>\`);
     if (r.em_solda_aguard)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔥 Aguard. Solda</span>\`);
@@ -24084,6 +24091,7 @@ function onPrevTipoChange() {
   const isFun   = document.getElementById('indisp-funilaria') && document.getElementById('indisp-funilaria').checked;
   const isAli   = document.getElementById('indisp-alinhamento') && document.getElementById('indisp-alinhamento').checked;
   const isSus   = document.getElementById('indisp-suspensao') && document.getElementById('indisp-suspensao').checked;
+  const isFre   = document.getElementById('indisp-freio') && document.getElementById('indisp-freio').checked;
   const isEle   = document.getElementById('indisp-eletrica') && document.getElementById('indisp-eletrica').checked;
   const isBor   = document.getElementById('indisp-borracharia') && document.getElementById('indisp-borracharia').checked;
   const isSol   = document.getElementById('indisp-solda') && document.getElementById('indisp-solda').checked;
@@ -24115,6 +24123,7 @@ function onPrevTipoChange() {
   const lblFun  = document.getElementById('label-funilaria');
   const lblAli  = document.getElementById('label-alinhamento');
   const lblSus  = document.getElementById('label-suspensao');
+  const lblFre  = document.getElementById('label-freio');
   const lblEle  = document.getElementById('label-eletrica');
   const lblBor  = document.getElementById('label-borracharia');
   const lblSol  = document.getElementById('label-solda');
@@ -24150,6 +24159,7 @@ function onPrevTipoChange() {
   if (lblFun)  { lblFun.style.borderColor  = isFun  ? '#BE185D' : '#dbe4f0'; lblFun.style.background  = isFun  ? '#FCE7F3' : '#f8fafc'; }
   if (lblAli)  { lblAli.style.borderColor  = isAli  ? '#0E7490' : '#dbe4f0'; lblAli.style.background  = isAli  ? '#CFFAFE' : '#f8fafc'; }
   if (lblSus)  { lblSus.style.borderColor  = isSus  ? '#4D7C0F' : '#dbe4f0'; lblSus.style.background  = isSus  ? '#ECFCCB' : '#f8fafc'; }
+  if (lblFre)  { lblFre.style.borderColor  = isFre  ? '#B91C1C' : '#dbe4f0'; lblFre.style.background  = isFre  ? '#FEE2E2' : '#f8fafc'; }
   if (lblEle)  { lblEle.style.borderColor  = isEle  ? '#B45309' : '#dbe4f0'; lblEle.style.background  = isEle  ? '#FDE68A' : '#f8fafc'; }
   if (lblBor)  { lblBor.style.borderColor  = isBor  ? '#334155' : '#dbe4f0'; lblBor.style.background  = isBor  ? '#E2E8F0' : '#f8fafc'; }
   if (lblSol)  { lblSol.style.borderColor  = isSol  ? '#C2410C' : '#dbe4f0'; lblSol.style.background  = isSol  ? '#FFEDD5' : '#f8fafc'; }
@@ -24203,6 +24213,7 @@ function _resetDiagnostico() {
   const lblFun  = document.getElementById('label-funilaria');
   const lblAli  = document.getElementById('label-alinhamento');
   const lblSus  = document.getElementById('label-suspensao');
+  const lblFre  = document.getElementById('label-freio');
   const lblEle  = document.getElementById('label-eletrica');
   const lblBor  = document.getElementById('label-borracharia');
   const lblSol  = document.getElementById('label-solda');
@@ -24213,10 +24224,10 @@ function _resetDiagnostico() {
   const lblOle  = document.getElementById('label-troca-oleo');
   const lblVis  = document.getElementById('label-vistoria');
   const lblTes  = document.getElementById('label-teste');
-  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblRSv, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblEle, lblBor, lblSol, lblChk, lblExec, lblLav, lblOle, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
+  [lblGui, lblChe, lblDiag, lblOrc, lblApr, lblPeca, lblPne, lblUsi, lblGar, lblRSv, lblEnv, lblNoP, lblRet, lblMao, lblSoc, lblCom, lblFun, lblAli, lblSus, lblFre, lblEle, lblBor, lblSol, lblChk, lblExec, lblLav, lblOle, lblVis, lblTes, lblLib].forEach(l => { if(l){ l.style.borderColor='#dbe4f0'; l.style.background='#f8fafc'; } });
   // Registro NOVO começa sem nenhum status marcado (antes só o destaque visual era
   // limpo e a caixinha marcada na edição anterior ia junto pro registro novo).
-  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-retorno-servico','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-eletrica','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-troca-oleo','indisp-vistoria','indisp-teste','indisp-liberado']
+  ['indisp-guincho','indisp-chegada','indisp-diagnostico','indisp-orcamento','indisp-aprovacao','indisp-peca','indisp-pneu','indisp-usinagem','indisp-garantia','indisp-retorno-servico','indisp-envio-prestador','indisp-no-prestador','indisp-retorno-prestador','indisp-mao-obra','indisp-socorro','indisp-compra','indisp-funilaria','indisp-alinhamento','indisp-suspensao','indisp-freio','indisp-eletrica','indisp-borracharia','indisp-solda','indisp-checkprev','indisp-execucao','indisp-lavagem','indisp-troca-oleo','indisp-vistoria','indisp-teste','indisp-liberado']
     .forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
   const t1 = document.getElementById('label-execucao-txt1');
   const t2 = document.getElementById('label-execucao-txt2');
@@ -24247,6 +24258,7 @@ function _listaOS(str) {
    "Aguardando Peça" + uma data prevista de retorno). Centraliza a lógica
    pra não repetir o mesmo ternário em cada lugar que exibe esse campo
    (tabela, cards mobile, painel de TV, PDF, WhatsApp). */
+const _ICO_FREIO = '<svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#64748B"/><circle cx="12" cy="12" r="7.6" fill="none" stroke="#CBD5E1" stroke-width="1.1" stroke-dasharray="1.8 1.4"/><circle cx="12" cy="12" r="4.2" fill="#E2E8F0"/><circle cx="12" cy="12" r="1.3" fill="#475569"/><circle cx="12" cy="9.4" r=".7" fill="#475569"/><circle cx="12" cy="14.6" r=".7" fill="#475569"/><circle cx="9.4" cy="12" r=".7" fill="#475569"/><circle cx="14.6" cy="12" r=".7" fill="#475569"/><rect x="15.2" y="5.5" width="7.6" height="13" rx="2.6" fill="#DC2626"/><rect x="17.2" y="8.5" width="3.6" height="7" rx="1.2" fill="#FECACA"/></svg>';
 const _ICO_PNEU = '<svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>';
 // ── Reclamação com as ETAPAS e o mecânico/fornecedor de cada uma ──
 // Usado na tabela da tela e no "Print para WhatsApp". Registro com 2+ etapas lista cada etapa
@@ -24293,6 +24305,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_funilaria)        itens.push({ icon:'🔨', label:'Funilaria e Pintura', labelCurta:'Funilaria',cor:'#9D174D', bg:'#FCE7F3' });
   if (r.em_alinhamento)        itens.push({ icon:'⚖️', label:'Alinhamento / Balanceamento', labelCurta:'Alinhamento',cor:'#155E75', bg:'#CFFAFE' });
   if (r.em_suspensao)        itens.push({ icon:'🔩', label:'Serviço de Suspensão', labelCurta:'Suspensão',cor:'#3F6212', bg:'#ECFCCB' });
+  if (r.em_freio)        itens.push({ icon:'🛑', svg:_ICO_FREIO, label:'Serviço de Freio', labelCurta:'Freio',cor:'#B91C1C', bg:'#FEE2E2' });
   if (r.em_eletrica)        itens.push({ icon:'⚡', label:'Serviço de Parte Elétrica', labelCurta:'Elétrica',cor:'#78350F', bg:'#FDE68A' });
   if (r.em_borracharia)        itens.push({ icon:'⚫', svg:_ICO_PNEU, label:'Serviço de Borracharia / Troca de Pneu', labelCurta:'Borracharia',cor:'#1E293B', bg:'#E2E8F0' });
   if (r.em_solda_aguard)        itens.push({ icon:'🔥', label:'Aguardando Solda', labelCurta:'Aguard. Solda',cor:'#9A3412', bg:'#FFEDD5' });
@@ -24495,6 +24508,7 @@ function editarIndisp(id) {
   document.getElementById('indisp-funilaria').checked = !!r.em_funilaria;
   document.getElementById('indisp-alinhamento').checked = !!r.em_alinhamento;
   document.getElementById('indisp-suspensao').checked = !!r.em_suspensao;
+  if (document.getElementById('indisp-freio')) document.getElementById('indisp-freio').checked = !!r.em_freio;
   document.getElementById('indisp-eletrica').checked = !!r.em_eletrica;
   { const _b = document.getElementById('indisp-borracharia'); if (_b) _b.checked = !!r.em_borracharia; }
   document.getElementById('indisp-solda').checked = !!r.em_solda_aguard;
@@ -24594,6 +24608,7 @@ function salvarIndisp() {
     em_funilaria: document.getElementById('indisp-funilaria') ? document.getElementById('indisp-funilaria').checked : false,
     em_alinhamento: document.getElementById('indisp-alinhamento') ? document.getElementById('indisp-alinhamento').checked : false,
     em_suspensao: document.getElementById('indisp-suspensao') ? document.getElementById('indisp-suspensao').checked : false,
+    em_freio: document.getElementById('indisp-freio') ? document.getElementById('indisp-freio').checked : false,
     em_eletrica: document.getElementById('indisp-eletrica') ? document.getElementById('indisp-eletrica').checked : false,
     em_borracharia: document.getElementById('indisp-borracharia') ? document.getElementById('indisp-borracharia').checked : false,
     em_solda_aguard: document.getElementById('indisp-solda') ? document.getElementById('indisp-solda').checked : false,
@@ -24666,7 +24681,7 @@ function _resumirMudancasIndisp(antes, depois) {
     status: 'Status', mecanico: 'Mecânico', prev_lib: 'Previsão',
     saida: 'Saída', reclamacao: 'Reclamação/OS', tipoManut: 'Tipo de manutenção',
     em_guincho: 'Aguardando guincho/reboque', em_chegada: 'Aguardando chegada do veículo', em_diagnostico: 'Em diagnóstico', em_orcamento: 'Em orçamento', em_aprovacao: 'Aguardando aprovação',
-    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_retorno_servico: 'Retorno de serviço', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_eletrica: 'Serviço de parte elétrica', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_troca_oleo: 'Troca de óleo e filtros', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
+    em_peca: 'Aguardando peça', em_pneu: 'Aguardando pneu/recapagem', em_usinagem: 'Aguardando usinagem/retífica', em_garantia: 'Em garantia', em_retorno_servico: 'Retorno de serviço', em_envio_prestador: 'Aguardando envio ao prestador', em_no_prestador: 'No prestador', em_retorno_prestador: 'Aguardando retorno do prestador', em_mao_obra: 'Aguardando mecânico/mão de obra', em_socorro: 'Serviço de socorro', em_funilaria: 'Funilaria e Pintura', em_alinhamento: 'Alinhamento / Balanceamento', em_suspensao: 'Serviço de suspensão', em_freio: 'Serviço de freio', em_eletrica: 'Serviço de parte elétrica', em_borracharia: 'Serviço de borracharia / troca de pneu', em_solda_aguard: 'Aguardando Solda', em_checklist_prev: 'Checklist Preventivo', em_compra_peca: 'Aguardando Compra de Peça', em_execucao: 'Em execução', em_lavagem: 'Lavagem e lubrificação', em_troca_oleo: 'Troca de óleo e filtros', em_vistoria: 'Aguardando vistoria/laudo', em_teste: 'Aguardando teste/inspeção final', em_liberado: 'Liberado',
   };
   const linhas = [];
   Object.keys(labels).forEach(campo => {
@@ -25233,6 +25248,7 @@ function imprimirPDFIndisp() {
     if (r.em_funilaria)        itens.push('Funilaria e Pintura');
     if (r.em_alinhamento)        itens.push('Alinhamento / Balanceamento');
     if (r.em_suspensao)        itens.push('Servico de Suspensao');
+    if (r.em_freio)        itens.push('Servico de Freio');
     if (r.em_eletrica)        itens.push('Servico de Parte Eletrica');
     if (r.em_borracharia)        itens.push('Borracharia / Troca de Pneu');
     if (r.em_solda_aguard)        itens.push('Aguardando Solda');
@@ -26727,6 +26743,7 @@ function renderMobIndisp() {
       if (r.em_funilaria)        prevItens.push(`<span style="background:#FCE7F3;color:#9D174D;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔨 Funilaria e Pintura</span>`);
       if (r.em_alinhamento)        prevItens.push(`<span style="background:#CFFAFE;color:#155E75;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚖️ Alinhamento / Balanceamento</span>`);
       if (r.em_suspensao)        prevItens.push(`<span style="background:#ECFCCB;color:#3F6212;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔩 Serviço de Suspensão</span>`);
+      if (r.em_freio)        prevItens.push(`<span style="background:#FEE2E2;color:#B91C1C;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_FREIO}&nbsp;Serviço de Freio</span>`);
       if (r.em_eletrica)        prevItens.push(`<span style="background:#FDE68A;color:#78350F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚡ Serviço de Parte Elétrica</span>`);
       if (r.em_borracharia)        prevItens.push(`<span style="background:#E2E8F0;color:#1E293B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_PNEU}&nbsp;Borracharia / Troca de Pneu</span>`);
       if (r.em_solda_aguard)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔥 Aguardando Solda</span>`);

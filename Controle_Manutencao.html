@@ -3894,7 +3894,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- Nova opção: Aguardando Pneu/Recapagem -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-pneu">
             <input type="checkbox" id="indisp-pneu" onchange="onPrevTipoChange()" style="accent-color:#E11D48;width:16px;height:16px;cursor:pointer">
-            <span style="font-size:13px;font-weight:600;color:#475569">⭕ Aguardando Pneu/Recapagem</span>
+            <span style="font-size:13px;font-weight:600;color:#475569;display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><svg width="16" height="16" style="flex:0 0 16px;display:block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="9" fill="none" stroke="#94A3B8" stroke-width="1.3" stroke-dasharray="2.2 1.5"/><circle cx="12" cy="12" r="5.4" fill="#FDA4AF"/><circle cx="12" cy="12" r="2" fill="#1E293B"/></svg>Aguardando Pneu/Recapagem</span>
             <span style="font-size:12px;color:#94a3b8">(pneu novo ou recapagem a caminho)</span>
           </label>
           <!-- Nova opção: Aguardando Usinagem/Retífica -->
@@ -3960,7 +3960,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- Nova opção: Serviço de Suspensão -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-suspensao">
             <input type="checkbox" id="indisp-suspensao" onchange="onPrevTipoChange()" style="accent-color:#4D7C0F;width:16px;height:16px;cursor:pointer">
-            <span style="font-size:13px;font-weight:600;color:#475569">🔩 Serviço de Suspensão</span>
+            <span style="font-size:13px;font-weight:600;color:#475569;display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><svg width="16" height="16" style="flex:0 0 16px;display:block" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#3F6212" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2V5M12 5L18 6.8L6 9.6L18 12.4L6 15.2L18 18L12 19.6M12 19.6V22"/></svg>Serviço de Suspensão</span>
             <span style="font-size:12px;color:#94a3b8">(molas, amortecedores, buchas, feixe de molas)</span>
           </label>
           <!-- Nova opção: Serviço de Freio -->
@@ -3996,7 +3996,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- Nova opção: Aguardando Compra de Peça -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-compra">
             <input type="checkbox" id="indisp-compra" onchange="onPrevTipoChange()" style="accent-color:#7C2D12;width:16px;height:16px;cursor:pointer">
-            <span style="font-size:13px;font-weight:600;color:#475569">🔩 Aguardando Compra de Peça</span>
+            <span style="font-size:13px;font-weight:600;color:#475569">🛒 Aguardando Compra de Peça</span>
             <span style="font-size:12px;color:#94a3b8">(pedido de compra ainda não feito)</span>
           </label>
           <!-- Opção 5: em execução -->
@@ -4020,7 +4020,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- Opção 6b: aguardando vistoria/laudo (pronto, mas depende de inspeção/laudo pra voltar a rodar) -->
           <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #dbe4f0;border-radius:14px;cursor:pointer;background:#f8fafc;transition:all .2s" id="label-vistoria">
             <input type="checkbox" id="indisp-vistoria" onchange="onPrevTipoChange()" style="accent-color:#C026D3;width:16px;height:16px;cursor:pointer">
-            <span style="font-size:13px;font-weight:600;color:#475569">📋 Aguardando Vistoria/Laudo</span>
+            <span style="font-size:13px;font-weight:600;color:#475569">📝 Aguardando Vistoria/Laudo</span>
             <span style="font-size:12px;color:#94a3b8">(pronto, depende de vistoria ou laudo)</span>
           </label>
           <!-- Opção 6c: aguardando teste/inspeção final (serviço acabou, falta conferência interna antes de liberar) -->
@@ -19835,7 +19835,7 @@ function renderIndisp() {
     if (r.em_orcamento)   itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">💰 Orçamento</span>\`);
     if (r.em_aprovacao)   itens.push(\`<span class="tv-prev-badge" style="background:#E0E7FF;color:#4338CA">✍️ Aprovação</span>\`);
     if (r.em_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#E0F2FE;color:#0369a1">📦 Aguard. Peça</span>\`);
-    if (r.em_pneu)        itens.push(\`<span class="tv-prev-badge" style="background:#FFE4E6;color:#9F1239">⭕ Pneu/Recap.</span>\`);
+    if (r.em_pneu)        itens.push(\`<span class="tv-prev-badge" style="background:#FFE4E6;color:#9F1239"><svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="9" fill="none" stroke="#94A3B8" stroke-width="1.3" stroke-dasharray="2.2 1.5"/><circle cx="12" cy="12" r="5.4" fill="#FDA4AF"/><circle cx="12" cy="12" r="2" fill="#1E293B"/></svg>&nbsp;Pneu/Recap.</span>\`);
     if (r.em_usinagem)        itens.push(\`<span class="tv-prev-badge" style="background:#EBDDCF;color:#6B4423">⚙️ Usinagem/Retífica</span>\`);
     if (r.em_garantia)        itens.push(\`<span class="tv-prev-badge" style="background:#D1FAE5;color:#065F46">🛡️ Garantia</span>\`);
     if (r.em_retorno_servico)        itens.push(\`<span class="tv-prev-badge" style="background:#FAE8FF;color:#86198F">🔁 Retorno de serviço</span>\`);
@@ -19846,17 +19846,17 @@ function renderIndisp() {
     if (r.em_socorro)        itens.push(\`<span class="tv-prev-badge" style="background:#FEE2E2;color:#991B1B">🆘 Socorro</span>\`);
     if (r.em_funilaria)        itens.push(\`<span class="tv-prev-badge" style="background:#FCE7F3;color:#9D174D">🔨 Funilaria</span>\`);
     if (r.em_alinhamento)        itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#155E75">⚖️ Alinhamento</span>\`);
-    if (r.em_suspensao)        itens.push(\`<span class="tv-prev-badge" style="background:#ECFCCB;color:#3F6212">🔩 Suspensão</span>\`);
+    if (r.em_suspensao)        itens.push(\`<span class="tv-prev-badge" style="background:#ECFCCB;color:#3F6212"><svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#3F6212" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2V5M12 5L18 6.8L6 9.6L18 12.4L6 15.2L18 18L12 19.6M12 19.6V22"/></svg>&nbsp;Suspensão</span>\`);
     if (r.em_freio)        itens.push(\`<span class="tv-prev-badge" style="background:#FEE2E2;color:#B91C1C"><svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#64748B"/><circle cx="12" cy="12" r="7.6" fill="none" stroke="#CBD5E1" stroke-width="1.1" stroke-dasharray="1.8 1.4"/><circle cx="12" cy="12" r="4.2" fill="#E2E8F0"/><circle cx="12" cy="12" r="1.3" fill="#475569"/><circle cx="12" cy="9.4" r=".7" fill="#475569"/><circle cx="12" cy="14.6" r=".7" fill="#475569"/><circle cx="9.4" cy="12" r=".7" fill="#475569"/><circle cx="14.6" cy="12" r=".7" fill="#475569"/><rect x="15.2" y="5.5" width="7.6" height="13" rx="2.6" fill="#DC2626"/><rect x="17.2" y="8.5" width="3.6" height="7" rx="1.2" fill="#FECACA"/></svg>&nbsp;Freio</span>\`);
     if (r.em_eletrica)        itens.push(\`<span class="tv-prev-badge" style="background:#FDE68A;color:#78350F">⚡ Elétrica</span>\`);
     if (r.em_borracharia)        itens.push(\`<span class="tv-prev-badge" style="background:#E2E8F0;color:#1E293B"><svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>&nbsp;Borracharia</span>\`);
     if (r.em_solda_aguard)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔥 Aguard. Solda</span>\`);
     if (r.em_checklist_prev)        itens.push(\`<span class="tv-prev-badge" style="background:#E0E7FF;color:#3730A3">📋 Checklist Prev.</span>\`);
-    if (r.em_compra_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🔩 Aguard. Compra</span>\`);
+    if (r.em_compra_peca)        itens.push(\`<span class="tv-prev-badge" style="background:#FFEDD5;color:#9A3412">🛒 Aguard. Compra</span>\`);
     if (r.em_execucao)    itens.push(\`<span class="tv-prev-badge" style="background:rgba(0,0,0,.12);color:#000000">🛠️ Em Execução</span>\`);
     if (r.em_lavagem)     itens.push(\`<span class="tv-prev-badge" style="background:#CFFAFE;color:#0891B2">🧼 Lavagem/Lubrif.</span>\`);
     if (r.em_troca_oleo)  itens.push(\`<span class="tv-prev-badge" style="background:#FEF08A;color:#854D0E">🛢️ Troca de Óleo/Filtros</span>\`);
-    if (r.em_vistoria)     itens.push(\`<span class="tv-prev-badge" style="background:#FAE8FF;color:#86198F">📋 Vistoria/Laudo</span>\`);
+    if (r.em_vistoria)     itens.push(\`<span class="tv-prev-badge" style="background:#FAE8FF;color:#86198F">📝 Vistoria/Laudo</span>\`);
     if (r.em_teste)     itens.push(\`<span class="tv-prev-badge" style="background:#ECFCCB;color:#3F6212">🧪 Teste Final</span>\`);
     if (r.em_liberado)    itens.push(\`<span class="tv-prev-badge" style="background:#DCFCE7;color:#15803d">✅ Liberado</span>\`);
     if (r.prev_lib)       itens.push(\`<span class="tv-prev-badge" style="background:#FEF3C7;color:#92400e">\${fmtDT(r.prev_lib)}</span>\`);
@@ -24286,6 +24286,8 @@ function _listaOS(str) {
    "Aguardando Peça" + uma data prevista de retorno). Centraliza a lógica
    pra não repetir o mesmo ternário em cada lugar que exibe esse campo
    (tabela, cards mobile, painel de TV, PDF, WhatsApp). */
+const _ICO_RECAP = '<svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="9" fill="none" stroke="#94A3B8" stroke-width="1.3" stroke-dasharray="2.2 1.5"/><circle cx="12" cy="12" r="5.4" fill="#FDA4AF"/><circle cx="12" cy="12" r="2" fill="#1E293B"/></svg>';
+const _ICO_SUSP = '<svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#3F6212" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2V5M12 5L18 6.8L6 9.6L18 12.4L6 15.2L18 18L12 19.6M12 19.6V22"/></svg>';
 const _ICO_FREIO = '<svg width="1.15em" height="1.15em" style="vertical-align:-0.2em;display:inline-block" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#64748B"/><circle cx="12" cy="12" r="7.6" fill="none" stroke="#CBD5E1" stroke-width="1.1" stroke-dasharray="1.8 1.4"/><circle cx="12" cy="12" r="4.2" fill="#E2E8F0"/><circle cx="12" cy="12" r="1.3" fill="#475569"/><circle cx="12" cy="9.4" r=".7" fill="#475569"/><circle cx="12" cy="14.6" r=".7" fill="#475569"/><circle cx="9.4" cy="12" r=".7" fill="#475569"/><circle cx="14.6" cy="12" r=".7" fill="#475569"/><rect x="15.2" y="5.5" width="7.6" height="13" rx="2.6" fill="#DC2626"/><rect x="17.2" y="8.5" width="3.6" height="7" rx="1.2" fill="#FECACA"/></svg>';
 const _ICO_PNEU = '<svg width="1.15em" height="1.15em" viewBox="0 0 24 24" style="vertical-align:-0.2em;display:inline-block" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1E293B"/><circle cx="12" cy="12" r="6.5" fill="#CBD5E1"/><circle cx="12" cy="12" r="2.2" fill="#1E293B"/><circle cx="12" cy="5.6" r="1" fill="#1E293B"/><circle cx="12" cy="18.4" r="1" fill="#1E293B"/><circle cx="5.6" cy="12" r="1" fill="#1E293B"/><circle cx="18.4" cy="12" r="1" fill="#1E293B"/></svg>';
 // ── Reclamação com as ETAPAS e o mecânico/fornecedor de cada uma ──
@@ -24321,7 +24323,7 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_orcamento)   itens.push({ icon:'💰', label:'Aguardando Orçamento',  labelCurta:'Orçamento',   cor:'#D97706', bg:'#FEF3C7' });
   if (r.em_aprovacao)   itens.push({ icon:'✍️', label:'Aguardando Aprovação', labelCurta:'Aprovação',   cor:'#4338CA', bg:'#E0E7FF' });
   if (r.em_peca)        itens.push({ icon:'📦', label:'Aguardando Peça',       labelCurta:'Aguard. Peça',cor:'#0369a1', bg:'#E0F2FE' });
-  if (r.em_pneu)        itens.push({ icon:'⭕', label:'Aguardando Pneu/Recapagem',       labelCurta:'Pneu/Recapagem',cor:'#9F1239', bg:'#FFE4E6' });
+  if (r.em_pneu)        itens.push({ icon:'⭕', svg:_ICO_RECAP, label:'Aguardando Pneu/Recapagem',       labelCurta:'Pneu/Recapagem',cor:'#9F1239', bg:'#FFE4E6' });
   if (r.em_usinagem)        itens.push({ icon:'⚙️', label:'Aguardando Usinagem/Retífica',       labelCurta:'Usinagem/Retífica',cor:'#6B4423', bg:'#EBDDCF' });
   if (r.em_garantia)        itens.push({ icon:'🛡️', label:'Em Garantia',       labelCurta:'Garantia',cor:'#065F46', bg:'#D1FAE5' });
   if (r.em_retorno_servico)        itens.push({ icon:'🔁', label:'Retorno de Serviço', labelCurta:'Retorno',cor:'#86198F', bg:'#FAE8FF' });
@@ -24332,17 +24334,17 @@ function _previsaoLiberacaoItens(r) {
   if (r.em_socorro)        itens.push({ icon:'🆘', label:'Serviço de Socorro', labelCurta:'Socorro',cor:'#991B1B', bg:'#FEE2E2' });
   if (r.em_funilaria)        itens.push({ icon:'🔨', label:'Funilaria e Pintura', labelCurta:'Funilaria',cor:'#9D174D', bg:'#FCE7F3' });
   if (r.em_alinhamento)        itens.push({ icon:'⚖️', label:'Alinhamento / Balanceamento', labelCurta:'Alinhamento',cor:'#155E75', bg:'#CFFAFE' });
-  if (r.em_suspensao)        itens.push({ icon:'🔩', label:'Serviço de Suspensão', labelCurta:'Suspensão',cor:'#3F6212', bg:'#ECFCCB' });
+  if (r.em_suspensao)        itens.push({ icon:'🔩', svg:_ICO_SUSP, label:'Serviço de Suspensão', labelCurta:'Suspensão',cor:'#3F6212', bg:'#ECFCCB' });
   if (r.em_freio)        itens.push({ icon:'🛑', svg:_ICO_FREIO, label:'Serviço de Freio', labelCurta:'Freio',cor:'#B91C1C', bg:'#FEE2E2' });
   if (r.em_eletrica)        itens.push({ icon:'⚡', label:'Serviço de Parte Elétrica', labelCurta:'Elétrica',cor:'#78350F', bg:'#FDE68A' });
   if (r.em_borracharia)        itens.push({ icon:'⚫', svg:_ICO_PNEU, label:'Serviço de Borracharia / Troca de Pneu', labelCurta:'Borracharia',cor:'#1E293B', bg:'#E2E8F0' });
   if (r.em_solda_aguard)        itens.push({ icon:'🔥', label:'Aguardando Solda', labelCurta:'Aguard. Solda',cor:'#9A3412', bg:'#FFEDD5' });
   if (r.em_checklist_prev)        itens.push({ icon:'📋', label:'Checklist Preventivo', labelCurta:'Checklist Prev.',cor:'#3730A3', bg:'#E0E7FF' });
-  if (r.em_compra_peca)        itens.push({ icon:'🔩', label:'Aguardando Compra de Peça', labelCurta:'Aguard. Compra',cor:'#9A3412', bg:'#FFEDD5' });
+  if (r.em_compra_peca)        itens.push({ icon:'🛒', label:'Aguardando Compra de Peça', labelCurta:'Aguard. Compra',cor:'#9A3412', bg:'#FFEDD5' });
   if (r.em_execucao)    itens.push({ icon:'🛠️', label:'Serviço em Execução',   labelCurta:'Em Execução', cor:'#000000', bg:'rgba(0,0,0,.12)' });
   if (r.em_lavagem)     itens.push({ icon:'🧼', label:'Lavagem e Lubrificação', labelCurta:'Lavagem/Lubrif.', cor:'#0891B2', bg:'#CFFAFE' });
   if (r.em_troca_oleo)  itens.push({ icon:'🛢️', label:'Troca de Óleo e Filtros', labelCurta:'Troca Óleo/Filtros', cor:'#854D0E', bg:'#FEF08A' });
-  if (r.em_vistoria)     itens.push({ icon:'📋', label:'Aguardando Vistoria/Laudo', labelCurta:'Vistoria/Laudo', cor:'#86198F', bg:'#FAE8FF' });
+  if (r.em_vistoria)     itens.push({ icon:'📝', label:'Aguardando Vistoria/Laudo', labelCurta:'Vistoria/Laudo', cor:'#86198F', bg:'#FAE8FF' });
   if (r.em_teste)     itens.push({ icon:'🧪', label:'Aguardando Teste/Inspeção Final', labelCurta:'Teste Final', cor:'#3F6212', bg:'#ECFCCB' });
   if (r.em_liberado)    itens.push({ icon:'✅', label:'Liberado (aguard. motorista)', labelCurta:'Liberado', cor:'#15803d', bg:'#DCFCE7' });
   if (r.prev_lib)       itens.push({ icon:'📅', label: fmtDT(r.prev_lib),      labelCurta: fmtDT(r.prev_lib), cor:'#92400e', bg:'#FEF3C7' });
@@ -26759,7 +26761,7 @@ function renderMobIndisp() {
       if (r.em_orcamento)   prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 Aguard. Orçamento</span>`);
       if (r.em_aprovacao)   prevItens.push(`<span style="background:#E0E7FF;color:#4338CA;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✍️ Aguard. Aprovação</span>`);
       if (r.em_peca)        prevItens.push(`<span style="background:#E0F2FE;color:#0369a1;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📦 Aguard. Peça</span>`);
-      if (r.em_pneu)        prevItens.push(`<span style="background:#FFE4E6;color:#9F1239;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⭕ Aguard. Pneu/Recapagem</span>`);
+      if (r.em_pneu)        prevItens.push(`<span style="background:#FFE4E6;color:#9F1239;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_RECAP}&nbsp;Aguard. Pneu/Recapagem</span>`);
       if (r.em_usinagem)        prevItens.push(`<span style="background:#EBDDCF;color:#6B4423;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚙️ Aguard. Usinagem/Retífica</span>`);
       if (r.em_garantia)        prevItens.push(`<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛡️ Em Garantia</span>`);
       if (r.em_retorno_servico)        prevItens.push(`<span style="background:#FAE8FF;color:#86198F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔁 Retorno de Serviço</span>`);
@@ -26770,17 +26772,17 @@ function renderMobIndisp() {
       if (r.em_socorro)        prevItens.push(`<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🆘 Serviço de Socorro</span>`);
       if (r.em_funilaria)        prevItens.push(`<span style="background:#FCE7F3;color:#9D174D;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔨 Funilaria e Pintura</span>`);
       if (r.em_alinhamento)        prevItens.push(`<span style="background:#CFFAFE;color:#155E75;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚖️ Alinhamento / Balanceamento</span>`);
-      if (r.em_suspensao)        prevItens.push(`<span style="background:#ECFCCB;color:#3F6212;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔩 Serviço de Suspensão</span>`);
+      if (r.em_suspensao)        prevItens.push(`<span style="background:#ECFCCB;color:#3F6212;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_SUSP}&nbsp;Serviço de Suspensão</span>`);
       if (r.em_freio)        prevItens.push(`<span style="background:#FEE2E2;color:#B91C1C;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_FREIO}&nbsp;Serviço de Freio</span>`);
       if (r.em_eletrica)        prevItens.push(`<span style="background:#FDE68A;color:#78350F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">⚡ Serviço de Parte Elétrica</span>`);
       if (r.em_borracharia)        prevItens.push(`<span style="background:#E2E8F0;color:#1E293B;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">${_ICO_PNEU}&nbsp;Borracharia / Troca de Pneu</span>`);
       if (r.em_solda_aguard)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔥 Aguardando Solda</span>`);
       if (r.em_checklist_prev)        prevItens.push(`<span style="background:#E0E7FF;color:#3730A3;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📋 Checklist Preventivo</span>`);
-      if (r.em_compra_peca)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🔩 Aguardando Compra de Peça</span>`);
+      if (r.em_compra_peca)        prevItens.push(`<span style="background:#FFEDD5;color:#9A3412;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛒 Aguardando Compra de Peça</span>`);
       if (r.em_execucao)    prevItens.push(`<span style="background:rgba(0,0,0,.12);color:#000000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛠️ Em Execução</span>`);
       if (r.em_lavagem)     prevItens.push(`<span style="background:#CFFAFE;color:#0891B2;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧼 Lavagem/Lubrif.</span>`);
       if (r.em_troca_oleo)  prevItens.push(`<span style="background:#FEF08A;color:#854D0E;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🛢️ Troca de Óleo e Filtros</span>`);
-      if (r.em_vistoria)     prevItens.push(`<span style="background:#FAE8FF;color:#86198F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📋 Aguard. Vistoria/Laudo</span>`);
+      if (r.em_vistoria)     prevItens.push(`<span style="background:#FAE8FF;color:#86198F;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📝 Aguard. Vistoria/Laudo</span>`);
       if (r.em_teste)     prevItens.push(`<span style="background:#ECFCCB;color:#3F6212;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">🧪 Aguard. Teste/Inspeção Final</span>`);
       if (r.em_liberado)    prevItens.push(`<span style="background:#DCFCE7;color:#15803d;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✅ Liberado</span>`);
       if (r.prev_lib)       prevItens.push(`<span style="background:#FEF3C7;color:#92400e;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📅 ${fmtDtLocal(r.prev_lib)}</span>`);

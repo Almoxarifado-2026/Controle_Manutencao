@@ -3457,6 +3457,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <option value="CORRETIVA">Só corretiva</option>
       <option value="PREVENTIVA">Só preventiva</option>
     </select>
+    <select id="tp-papel" onchange="renderTempoParado()" title="Separar cavalos e reboques" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
+      <option value="">Cavalos + Reboques</option>
+      <option value="CAVALO">Só cavalos</option>
+      <option value="REBOQUE">Só reboques</option>
+    </select>
     <select id="tp-ordem" onchange="renderTempoParado()" style="padding:9px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:12px">
       <option value="tempo">Ordenar: mais tempo parado</option>
       <option value="qtd">Ordenar: mais paradas</option>
@@ -10116,7 +10121,16 @@ function _tpCalcular() {
   const fServ   = (document.getElementById('tp-servico') || {}).value || '';
   const fTipo   = (document.getElementById('tp-tipo') || {}).value || '';
   const busca   = _normPlaca((document.getElementById('tp-busca') || {}).value || '');
+  const fPapel  = (document.getElementById('tp-papel') || {}).value || '';
   const { ini: ini0, fim: fim0 } = _tpJanela(periodo);
+  // Cavalo x reboque, conforme o Checklist Preventivo (cada linha = cavalo + reboque atrelado)
+  const papeis = {};
+  (typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).forEach(c => {
+    if (!c) return;
+    const kc = _normPlaca(c.cavalo || c.placa || ''), kr = _normPlaca(c.reboque || '');
+    if (kr) papeis[kr] = { papel: 'REBOQUE', par: String(c.cavalo || c.placa || '').trim() };
+    if (kc && !papeis[kc]) papeis[kc] = { papel: 'CAVALO', par: String(c.reboque || '').trim() };
+  });
   const agora = new Date();
   const porPlaca = {};
   // Só placas ATIVAS (cadastradas na Troca de Óleo ou no Checklist Preventivo).
@@ -10130,6 +10144,7 @@ function _tpCalcular() {
     const key = _normPlaca(r.placa);
     if (!key || (busca && !key.includes(busca))) return;
     if (ativas.size && !ativas.has(key)) return;
+    if (fPapel && (papeis[key] || {}).papel !== fPapel) return;
     const serv = String(r.servico || '').toLowerCase();
     if (fServ && serv !== fServ) return;
     if (fTipo && String(r.tipoManut || 'CORRETIVA').toUpperCase() !== fTipo) return;
@@ -10139,7 +10154,7 @@ function _tpCalcular() {
     if (fim0 && fim > fim0) fim = fim0;
     const ms = fim - ini;
     if (ms <= 0) return;
-    const g = porPlaca[key] || (porPlaca[key] = { key, placa: r.placa, total: 0, qtd: 0, interno: 0, externo: 0, solda: 0, outro: 0, maior: 0, aberto: false, ultimaEntrada: 0, paradas: [] });
+    const g = porPlaca[key] || (porPlaca[key] = { key, placa: r.placa, papel: (papeis[key] || {}).papel || '', par: (papeis[key] || {}).par || '', total: 0, qtd: 0, interno: 0, externo: 0, solda: 0, outro: 0, maior: 0, aberto: false, ultimaEntrada: 0, paradas: [] });
     g.total += ms; g.qtd++;
     if (serv === 'interno' || serv === 'externo' || serv === 'solda') g[serv] += ms; else g.outro += ms;
     if (ms > g.maior) g.maior = ms;
@@ -10173,13 +10188,13 @@ function renderTempoParado() {
   const totalMs = lista.reduce((s, g) => s + g.total, 0);
   const agoraN = lista.filter(g => g.aberto).length;
   const kpis = [
-    { v: lista.length, l: 'PLACAS COM PARADAS', bg: '#0f172a' },
+    { v: lista.length, l: 'PLACAS COM PARADAS', bg: '#0f172a', s: lista.filter(g => g.papel !== 'REBOQUE').length + ' cavalos · ' + lista.filter(g => g.papel === 'REBOQUE').length + ' reboques' },
     { v: _tpFmtDur(totalMs), l: 'TEMPO TOTAL PARADO', bg: '#7f1d1d' },
     { v: agoraN, l: 'PARADOS AGORA', bg: '#DC2626' },
     { v: lista.length ? _tpFmtDur(totalMs / lista.length) : '—', l: 'MÉDIA POR PLACA', bg: '#1D4ED8' },
   ];
   const elK = document.getElementById('tp-kpis');
-  if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.8;font-weight:700">${k.l}</div></div>`).join('');
+  if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.8;font-weight:700">${k.l}</div>${k.s ? `<div style="font-size:10px;opacity:.65;margin-top:2px">${k.s}</div>` : ''}</div>`).join('');
 
   if (!lista.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:28px;color:#94a3b8">Nenhuma parada encontrada para esse filtro.</td></tr>';
@@ -10194,7 +10209,7 @@ function renderTempoParado() {
       ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:3px 10px;font-weight:800;font-size:11px">🔴 Parado agora</span>'
       : '<span style="background:#DCFCE7;color:#166534;border-radius:20px;padding:3px 10px;font-weight:800;font-size:11px">✅ Liberado</span>';
     let linha = `<tr onclick="_tpAlternar('${g.key}')" style="cursor:pointer;${aberta ? 'background:#EEF2FF' : ''}">
-      <td style="${td};font-weight:800;color:#1e293b">${escapeHtml(g.placa)} <span style="color:#94a3b8;font-size:10px">${aberta ? '▲' : '▼'}</span></td>
+      <td style="${td};font-weight:800;color:#1e293b;${g.papel === 'REBOQUE' ? 'border-left:4px solid #7C3AED' : 'border-left:4px solid #1D4ED8'}">${escapeHtml(g.placa)} <span style="color:#94a3b8;font-size:10px">${aberta ? '▲' : '▼'}</span>${g.papel ? `<div style="margin-top:2px"><span style="background:${g.papel === 'REBOQUE' ? '#EDE9FE;color:#6D28D9' : '#DBEAFE;color:#1D4ED8'};border-radius:6px;padding:1px 6px;font-size:9px;font-weight:800">${g.papel}</span>${g.par ? `<span style="font-size:9px;color:#94a3b8;font-weight:700"> · ${escapeHtml(g.par)}</span>` : ''}</div>` : ''}</td>
       <td style="${td}">${situ}</td>
       <td style="${td}">${g.qtd}</td>
       <td style="${td};font-weight:800;color:#B91C1C">${_tpFmtDur(g.total)}</td>
@@ -10301,7 +10316,7 @@ function gerarPDFTempoParado() {
     doc.setDrawColor(226, 232, 240); doc.line(ML, y + RH, ML + TW, y + RH);
     let x = ML; const cy = y + 4.8;
     const cel = (t, i, bold, rgb) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(8); doc.setTextColor(...(rgb || [30, 41, 59])); doc.text(String(t), x + COLS[i].w / 2, cy, { align: 'center' }); x += COLS[i].w; };
-    cel(g.placa, 0, true);
+    cel(g.placa + (g.papel === 'REBOQUE' ? ' (reb.)' : ''), 0, true);
     // situação (pílula)
     const sw = COLS[1].w - 6;
     if (g.aberto) doc.setFillColor(254, 226, 226); else doc.setFillColor(220, 252, 231);
@@ -10361,8 +10376,8 @@ function exportarTempoParadoCSV() {
   const lista = _tpUltimoResultado || [];
   if (!lista.length) { alert('Nada para exportar com o filtro atual.'); return; }
   const h = v => (v / 3600000).toFixed(1).replace('.', ',');
-  const linhas = [['Placa', 'Situação', 'Paradas', 'Horas total', 'Horas interno', 'Horas externo', 'Horas solda', 'Média (h)', 'Maior parada (h)']];
-  lista.forEach(g => linhas.push([g.placa, g.aberto ? 'Parado agora' : 'Liberado', g.qtd, h(g.total), h(g.interno), h(g.externo), h(g.solda), h(g.total / g.qtd), h(g.maior)]));
+  const linhas = [['Placa', 'Tipo', 'Situação', 'Paradas', 'Horas total', 'Horas interno', 'Horas externo', 'Horas solda', 'Média (h)', 'Maior parada (h)']];
+  lista.forEach(g => linhas.push([g.placa, g.papel === 'REBOQUE' ? 'Reboque' : (g.papel === 'CAVALO' ? 'Cavalo' : ''), g.aberto ? 'Parado agora' : 'Liberado', g.qtd, h(g.total), h(g.interno), h(g.externo), h(g.solda), h(g.total / g.qtd), h(g.maior)]));
   const csv = '﻿' + linhas.map(l => l.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));

@@ -10064,6 +10064,19 @@ function _ativarSubAbaIndispAtual() {
 let _tpExpandida = null;
 let _tpUltimoResultado = [];
 
+// Cavalo x reboque conforme o Checklist Preventivo: { PLACA_NORMALIZADA: 'CAVALO' | 'REBOQUE' }
+function _papelMapa() {
+  const m = {};
+  (typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).forEach(c => {
+    if (!c) return;
+    const kc = _normPlaca(c.cavalo || c.placa || ''), kr = _normPlaca(c.reboque || '');
+    if (kr) m[kr] = 'REBOQUE';
+    if (kc && !m[kc]) m[kc] = 'CAVALO';
+  });
+  return m;
+}
+const _splitCR = (c, r) => c + (c === 1 ? ' cavalo' : ' cavalos') + ' · ' + r + (r === 1 ? ' reboque' : ' reboques');
+
 function _tpFmtDur(ms) {
   if (!ms || ms < 0) return '—';
   const min = Math.floor(ms / 60000);
@@ -10188,10 +10201,10 @@ function renderTempoParado() {
   const totalMs = lista.reduce((s, g) => s + g.total, 0);
   const agoraN = lista.filter(g => g.aberto).length;
   const kpis = [
-    { v: lista.length, l: 'PLACAS COM PARADAS', bg: '#0f172a', s: lista.filter(g => g.papel !== 'REBOQUE').length + ' cavalos · ' + lista.filter(g => g.papel === 'REBOQUE').length + ' reboques' },
-    { v: _tpFmtDur(totalMs), l: 'TEMPO TOTAL PARADO', bg: '#7f1d1d' },
-    { v: agoraN, l: 'PARADOS AGORA', bg: '#DC2626' },
-    { v: lista.length ? _tpFmtDur(totalMs / lista.length) : '—', l: 'MÉDIA POR PLACA', bg: '#1D4ED8' },
+    { v: lista.length, l: 'PLACAS COM PARADAS', bg: '#0f172a', s: _splitCR(lista.filter(g => g.papel !== 'REBOQUE').length, lista.filter(g => g.papel === 'REBOQUE').length) },
+    { v: _tpFmtDur(totalMs), l: 'TEMPO TOTAL PARADO', bg: '#7f1d1d', s: 'cavalos ' + _tpFmtDur(lista.filter(g => g.papel !== 'REBOQUE').reduce((t, g) => t + g.total, 0)) + ' · reboques ' + _tpFmtDur(lista.filter(g => g.papel === 'REBOQUE').reduce((t, g) => t + g.total, 0)) },
+    { v: agoraN, l: 'PARADOS AGORA', bg: '#DC2626', s: _splitCR(lista.filter(g => g.aberto && g.papel !== 'REBOQUE').length, lista.filter(g => g.aberto && g.papel === 'REBOQUE').length) },
+    { v: lista.length ? _tpFmtDur(totalMs / lista.length) : '—', l: 'MÉDIA POR PLACA', bg: '#1D4ED8', s: (() => { const c = lista.filter(g => g.papel !== 'REBOQUE'), r = lista.filter(g => g.papel === 'REBOQUE'); return 'cavalos ' + (c.length ? _tpFmtDur(c.reduce((t, g) => t + g.total, 0) / c.length) : '—') + ' · reboques ' + (r.length ? _tpFmtDur(r.reduce((t, g) => t + g.total, 0) / r.length) : '—'); })() },
   ];
   const elK = document.getElementById('tp-kpis');
   if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.8;font-weight:700">${k.l}</div>${k.s ? `<div style="font-size:10px;opacity:.65;margin-top:2px">${k.s}</div>` : ''}</div>`).join('');
@@ -10486,6 +10499,7 @@ function _dispCalcFrota() {
     if (r.e >= A && r.e < B) { g.ocorr++; if (r.tipo === 'C') g.ocorrC++; else g.ocorrP++; }
     const hr = _dispHorasReg(r, A, B);
     g.h += hr; if (r.tipo === 'C') g.hC += hr; else g.hP += hr;
+    { const ic = !!g.cavalo && _normPlaca(r.placa) === _normPlaca(g.cavalo), kh = ic ? 'hCav' : 'hReb', ko = ic ? 'ocCav' : 'ocReb'; g[kh] = (g[kh] || 0) + hr; if (r.e >= A && r.e < B) g[ko] = (g[ko] || 0) + 1; }
     if (r.aberto) {
       g.aberto = true;
       // guarda QUAL placa está parada (cavalo ou reboque) para mostrar nas telas
@@ -10578,7 +10592,7 @@ function _dispVer(v) {
   renderDisp();
 }
 
-function _dispKpi(v, l, bg) { return `<div style="background:${bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:20px;font-weight:800">${v}</div><div style="font-size:10px;font-weight:700;opacity:.85;margin-top:2px">${l}</div></div>`; }
+function _dispKpi(v, l, bg, sub) { return `<div style="background:${bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:20px;font-weight:800">${v}</div><div style="font-size:10px;font-weight:700;opacity:.85;margin-top:2px">${l}</div>${sub ? `<div style="font-size:10px;opacity:.7;margin-top:2px">${sub}</div>` : ''}</div>`; }
 const _dispTh = 'padding:10px 8px;text-align:center;white-space:nowrap;position:sticky;top:0;background:#0f172a;color:#fff;font-size:11px;z-index:2';
 const _dispTd = 'padding:8px 8px;text-align:center;border-top:1px solid #e2e8f0;font-size:12px';
 function _dispSit(disp, meta) { return disp >= meta ? '<span style="background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">✅ ATENDE</span>' : '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">⚠️ ABAIXO</span>'; }
@@ -10625,9 +10639,9 @@ function renderDisp() {
     if (!F.lista.length) { kp.innerHTML = ''; corpo.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhuma placa no 📋 Checklist Preventiva. Abra a aba Checklist Preventiva para carregar os veículos.</div>'; nota.textContent = ''; _dispUltimo = null; return; }
     const crit = F.lista.length ? F.lista[F.lista.length - 1].placa : '-';
     kp.innerHTML = [
-      _dispKpi(F.lista.length, 'VEÍCULOS', '#0f172a'), _dispKpi(F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA', '#15803d'),
-      _dispKpi(_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS', '#7f1d1d'), _dispKpi(tot.o, 'Nº OCORRÊNCIAS', '#1D4ED8'),
-      _dispKpi(tot.o ? _dispHfmt(tot.h / tot.o) : '-', 'MTTR (H/OCORRÊNCIA)', '#7C3AED'), _dispKpi(tot.ag, 'EM MANUTENÇÃO AGORA', '#DC2626'),
+      _dispKpi(F.lista.length, 'VEÍCULOS', '#0f172a', _splitCR(F.lista.filter(g => g.cavalo).length, F.lista.reduce((t, g) => t + String(g.reboque || '').split(' / ').filter(Boolean).length, 0))), _dispKpi(F.lista.length ? _dispPct(tot.d / F.lista.length) : '-', 'DISPONIBILIDADE MÉDIA', '#15803d'),
+      _dispKpi(_dispHfmt(tot.h), 'HORAS INDISPONÍVEIS', '#7f1d1d', 'cavalos ' + _dispHfmt(F.lista.reduce((t, g) => t + (g.hCav || 0), 0)) + ' · reboques ' + _dispHfmt(F.lista.reduce((t, g) => t + (g.hReb || 0), 0))), _dispKpi(tot.o, 'Nº OCORRÊNCIAS', '#1D4ED8', _splitCR(F.lista.reduce((t, g) => t + (g.ocCav || 0), 0), F.lista.reduce((t, g) => t + (g.ocReb || 0), 0))),
+      _dispKpi(tot.o ? _dispHfmt(tot.h / tot.o) : '-', 'MTTR (H/OCORRÊNCIA)', '#7C3AED'), _dispKpi(tot.ag, 'EM MANUTENÇÃO AGORA', '#DC2626', _splitCR(F.lista.reduce((t, g) => t + (g.abertos || []).filter(x => x.papel === 'Cavalo').length, 0), F.lista.reduce((t, g) => t + (g.abertos || []).filter(x => x.papel === 'Reboque').length, 0))),
       _dispKpi(esc(crit), 'VEÍCULO CRÍTICO', '#B45309'), _dispKpi(_dispPct(meta), 'META', '#0f766e'),
       _dispKpi(_dispHfmt(tot.hC), 'HORAS CORRETIVAS', '#9A3412'), _dispKpi(_dispHfmt(tot.hP), 'HORAS PREVENTIVAS', '#1E40AF'),
       _dispKpi((tot.hC + tot.hP) ? _dispPct(tot.hP / (tot.hC + tot.hP)) : '-', '% HORAS PREVENTIVAS', '#4338CA')].join('');
@@ -11007,6 +11021,7 @@ function renderTiposManut() {
 
   const porPlaca = {};
   let totC = 0, totP = 0, abertasC = 0, abertasP = 0;
+  const papeis = _papelMapa(), nCR = { totC: [0, 0], totP: [0, 0], pl: [0, 0] }; // [cavalos, reboques]
   // Só placas do CHECKLIST PREVENTIVA (cavalo/placa e reboque). Se o Checklist ainda estiver vazio (carregando), não filtra.
   const ativas = new Set((typeof CHECKLIST !== 'undefined' ? CHECKLIST : []).flatMap(c => c ? [_normPlaca(c.cavalo || c.placa || ''), _normPlaca(c.reboque || '')] : []).filter(Boolean));
   _tpRegistros().forEach(r => {
@@ -11021,8 +11036,9 @@ function renderTiposManut() {
     const prev = String(r.tipoManut || 'CORRETIVA').toUpperCase() === 'PREVENTIVA';
     const g = porPlaca[key] || (porPlaca[key] = { key, placa: r.placa, c: 0, p: 0, ac: 0, ap: 0, abertas: [] });
     if (r._aberto) g.abertas.push(r);
-    if (prev) { g.p++; totP++; if (r._aberto) { g.ap++; abertasP++; } }
-    else      { g.c++; totC++; if (r._aberto) { g.ac++; abertasC++; } }
+    const ir = papeis[key] === 'REBOQUE' ? 1 : 0;
+    if (prev) { g.p++; totP++; nCR.totP[ir]++; if (r._aberto) { g.ap++; abertasP++; } }
+    else      { g.c++; totC++; nCR.totC[ir]++; if (r._aberto) { g.ac++; abertasC++; } }
   });
 
   const lista = Object.values(porPlaca);
@@ -11039,13 +11055,13 @@ function renderTiposManut() {
   const total = totC + totP;
   const pct = n => total ? Math.round(n / total * 100) + '%' : '0%';
   const kpis = [
-    { v: total, l: 'TOTAL DE MANUTENÇÕES', bg: '#0f172a' },
-    { v: totC, l: 'CORRETIVAS · ' + pct(totC), bg: '#DC2626' },
-    { v: totP, l: 'PREVENTIVAS · ' + pct(totP), bg: '#16A34A' },
-    { v: lista.length, l: 'PLACAS ATENDIDAS', bg: '#1D4ED8' },
+    { v: total, l: 'TOTAL DE MANUTENÇÕES', bg: '#0f172a', s: _splitCR(nCR.totC[0] + nCR.totP[0], nCR.totC[1] + nCR.totP[1]) },
+    { v: totC, l: 'CORRETIVAS · ' + pct(totC), bg: '#DC2626', s: _splitCR(nCR.totC[0], nCR.totC[1]) },
+    { v: totP, l: 'PREVENTIVAS · ' + pct(totP), bg: '#16A34A', s: _splitCR(nCR.totP[0], nCR.totP[1]) },
+    { v: lista.length, l: 'PLACAS ATENDIDAS', bg: '#1D4ED8', s: _splitCR(lista.filter(g => papeis[g.key] !== 'REBOQUE').length, lista.filter(g => papeis[g.key] === 'REBOQUE').length) },
   ];
   const elK = document.getElementById('tm-kpis');
-  if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.85;margin-top:2px">${k.l}</div></div>`).join('');
+  if (elK) elK.innerHTML = kpis.map(k => `<div style="background:${k.bg};color:#fff;border-radius:14px;padding:12px 14px;text-align:center"><div style="font-size:22px;font-weight:800">${k.v}</div><div style="font-size:10px;opacity:.85;margin-top:2px">${k.l}</div>${k.s ? `<div style="font-size:10px;opacity:.7;margin-top:2px">${k.s}</div>` : ''}</div>`).join('');
 
   if (!lista.length) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px;color:#94a3b8">Nenhuma manutenção encontrada para esse filtro.</td></tr>';

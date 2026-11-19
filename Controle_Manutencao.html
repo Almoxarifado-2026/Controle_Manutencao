@@ -2446,7 +2446,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="modal" style="max-width:640px;max-height:80vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <span style="font-size:20px">🔍</span>
-      <input type="text" id="busca-global-input" placeholder="Digite a placa... (ex: QXD7713)"
+      <input type="text" id="busca-global-input" placeholder="Digite a placa... (ex: ABC1D23)"
         autocomplete="off" spellcheck="false"
         style="flex:1;padding:13px 16px;border:1px solid #dbe4f0;border-radius:14px;font-size:15px;background:#f8fafc;text-transform:uppercase;font-weight:700;letter-spacing:.5px"
         oninput="executarBuscaGlobal(this.value)">
@@ -3783,11 +3783,11 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="fg">
       <div>
         <label>Placa</label>
-        <input type="text" id="indisp-placa" placeholder="Ex: OPC6694 ou 1234" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        <input type="text" id="indisp-placa" placeholder="Ex: ABC1D23 ou 1234" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
       </div>
       <div>
         <label>Reboque (opcional)</label>
-        <input type="text" id="indisp-reboque" placeholder="Ex: RMM6I15" style="text-transform:uppercase">
+        <input type="text" id="indisp-reboque" placeholder="Ex: XYZ4E56" style="text-transform:uppercase">
       </div>
       <div>
         <label>Nº da OS</label>
@@ -4085,7 +4085,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <input type="hidden" id="reb-caminhao-hidden">
     <div style="margin-bottom:18px">
       <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">PLACA DO REBOQUE</label>
-      <input type="text" id="reb-placa-input" maxlength="8" placeholder="Ex: OQK8969" style="width:100%;padding:12px 14px;border:2px solid #2563eb;border-radius:12px;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:2px;text-align:center" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')salvarReboqueDoc()">
+      <input type="text" id="reb-placa-input" maxlength="8" placeholder="Ex: QWE1R23" style="width:100%;padding:12px 14px;border:2px solid #2563eb;border-radius:12px;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:2px;text-align:center" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')salvarReboqueDoc()">
     </div>
     <div class="modal-btns">
       <button onclick="document.getElementById('overlay-editar-reboque').classList.remove('open')" style="background:#f1f5f9;color:#64748b;border:none;border-radius:12px;padding:10px 20px;font-weight:700;cursor:pointer">Cancelar</button>

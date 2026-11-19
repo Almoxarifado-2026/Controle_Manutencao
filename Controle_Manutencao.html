@@ -10683,7 +10683,7 @@ function renderDisp() {
   }
 
   // Escala
-  const linhas = M.linhas.filter(l => !busca || String(l.placa).toUpperCase().includes(busca) || String(l.motorista).toUpperCase().includes(busca));
+  const linhas = M.linhas.filter(l => !busca || String(l.placa).toUpperCase().includes(busca) || String(l.motorista).toUpperCase().includes(busca)).sort((x, y) => ((y.agora ? 1 : 0) - (x.agora ? 1 : 0)) || ((y.h || 0) - (x.h || 0))); // 1º quem está em manutenção agora; depois, por Horas Indisp. (maior primeiro)
   kp.innerHTML = '';
   const placas = [...new Set(F.lista.map(g => g.placa))].sort();
   const mots = [...new Set(ESCALA.map(e => e.motorista).filter(Boolean))].sort();

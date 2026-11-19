@@ -10631,9 +10631,9 @@ function renderDisp() {
       nota.textContent = 'Disponibilidade = (horas do mês − horas indisponíveis) ÷ horas do mês. Horas contadas até agora se o mês estiver em andamento. Meta editável acima. Só entram as placas do 📋 CHECKLIST PREVENTIVA: cada linha é o cavalo com o seu reboque. Parada do cavalo OU do reboque conta para o conjunto (tempo simultâneo conta uma vez só).';
     } else {
       const hd = ['Placa', 'Modelo', 'Motorista'];
-      let th = `<th style="${_dispTh};left:0;min-width:104px">Placa</th><th style="${_dispTh}">Motorista atual</th>`;
-      for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 3px;min-width:40px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
-      th += ['Ocorr.', 'Horas Indisp.', 'Disp.', 'Status'].map(c => `<th style="${_dispTh}">${c}</th>`).join('');
+      let th = `<th style="${_dispTh};left:0;width:112px">Placa</th><th style="${_dispTh};width:150px">Motorista atual</th>`;
+      for (let d = 0; d < F.dias; d++) { const dt = new Date(F.a.getFullYear(), F.a.getMonth(), d + 1); th += `<th style="${_dispTh};padding:6px 1px;${[0, 6].includes(dt.getDay()) ? 'background:#334155' : ''}">${d + 1}<br><span style="font-weight:400;font-size:9px">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dt.getDay()]}</span></th>`; }
+      th += [['Ocorr.', 46], ['Horas Indisp.', 82], ['Disp.', 64], ['Status', 112]].map(c => `<th style="${_dispTh};width:${c[1]}px;white-space:normal;padding:6px 3px">${c[0]}</th>`).join('');
       // Cavalo e reboque(s) em linhas SEPARADAS — assim dá para ver (e lançar) paradas só do reboque.
       // O ranking/KPIs continuam por conjunto (parada de qualquer um dos dois conta para o conjunto).
       let linhasHtml = '';
@@ -10646,20 +10646,20 @@ function renderDisp() {
           const X = _dispPorPlaca(F, g, pl.placa), ehReb = pl.papel === 'Reboque';
           let tds = '';
           X.dias.forEach((c, ci) => {
-            if (c.h <= 0) { tds += `<td onclick="_apAbrir(null,'${esc(pl.placa)}',${ci + 1})" title="Clique para lançar uma parada neste dia" style="${_dispTd};padding:4px 2px;color:#cbd5e1;cursor:pointer">·</td>`; return; }
+            if (c.h <= 0) { tds += `<td onclick="_apAbrir(null,'${esc(pl.placa)}',${ci + 1})" title="Clique para lançar uma parada neste dia" style="${_dispTd};padding:4px 0;color:#cbd5e1;cursor:pointer">·</td>`; return; }
             const corr = c.C >= c.P; const bg = corr ? '#FECACA' : '#BFDBFE', fg = corr ? '#991B1B' : '#1E40AF';
-            tds += `<td onclick="_apAbrir(null,'${esc(pl.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:10px;cursor:help;white-space:nowrap">${c.h >= 23.99 ? '24h' : _dispHM(c.h)}</td>`;
+            tds += `<td onclick="_apAbrir(null,'${esc(pl.placa)}',${ci + 1})" title="${esc(c.txt.join('\n'))}" style="${_dispTd};padding:4px 2px;background:${bg};color:${fg};font-weight:800;font-size:clamp(8px,.55vw,10px);cursor:help;white-space:nowrap;overflow:hidden">${c.h >= 23.99 ? '24h' : _dispHM(c.h)}</td>`;
           });
           const topo = pi === 0 ? 'border-top:2px solid #94a3b8;' : '';
           const tag = ehReb
             ? `<span style="background:#EDE9FE;color:#6D28D9;border-radius:6px;padding:1px 6px;font-size:9px;font-weight:800">REBOQUE</span>${g.cavalo ? `<span style="font-size:9px;color:#94a3b8;font-weight:700"> · ${esc(g.cavalo)}</span>` : ''}`
             : `<span style="background:#DBEAFE;color:#1D4ED8;border-radius:6px;padding:1px 6px;font-size:9px;font-weight:800">CAVALO</span>`;
-          const motoTd = pi === 0 ? `<td rowspan="${pls.length}" style="${_dispTd};${topo}white-space:nowrap;cursor:pointer;color:#1D4ED8;font-weight:700;background:${bgG}" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>` : '';
+          const motoTd = pi === 0 ? `<td rowspan="${pls.length}" style="${_dispTd};${topo}cursor:pointer;word-break:break-word;color:#1D4ED8;font-weight:700;background:${bgG}" title="Clique para vincular/trocar o motorista" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>` : '';
           linhasHtml += `<tr style="background:${bgG}"><td style="${_dispTd};${topo}position:sticky;left:0;min-width:104px;white-space:nowrap;text-align:left;background:${bgG};${ehReb ? 'border-left:4px solid #7C3AED;padding-left:12px' : 'border-left:4px solid #1D4ED8'}"><div style="font-weight:800">${esc(pl.placa)}</div><div>${tag}</div></td>${motoTd}${tds}
-        <td style="${_dispTd};${topo}">${X.ocorr}</td><td style="${_dispTd};${topo}font-weight:700;color:#B91C1C;white-space:nowrap">${_dispHM(X.h)}</td><td style="${_dispTd};${topo}font-weight:800;white-space:nowrap;color:${X.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(X.disp)}</td><td style="${_dispTd};${topo}white-space:nowrap">${X.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
+        <td style="${_dispTd};${topo}">${X.ocorr}</td><td style="${_dispTd};${topo}font-weight:700;color:#B91C1C;white-space:nowrap">${_dispHM(X.h)}</td><td style="${_dispTd};${topo}font-weight:800;white-space:nowrap;color:${X.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(X.disp)}</td><td style="${_dispTd};${topo}font-size:11px">${X.aberto ? '🔴 Em manutenção' : 'Operando'}</td></tr>`;
         });
       });
-      corpo.innerHTML = `<table style="border-collapse:collapse;width:max-content;min-width:100%"><thead><tr>${th}</tr></thead><tbody>` + linhasHtml + '</tbody></table>' + _apListaHtml(F);
+      corpo.innerHTML = `<table style="border-collapse:collapse;table-layout:fixed;width:100%;min-width:${112 + 150 + F.dias * 27 + 46 + 82 + 64 + 112}px"><thead><tr>${th}</tr></thead><tbody>` + linhasHtml + '</tbody></table>' + _apListaHtml(F);
       _dispUltimo = null;
       nota.innerHTML = '<b>Clique em qualquer dia</b> para lançar uma parada (placa, dia e hora de entrada/saída). Cada célula mostra o <b>tempo parado naquele dia</b> em horas e minutos (24h = dia inteiro). <span style="background:#FECACA;color:#991B1B;padding:1px 6px;border-radius:6px;font-weight:700">vermelho = corretiva</span> <span style="background:#BFDBFE;color:#1E40AF;padding:1px 6px;border-radius:6px;font-weight:700">azul = preventiva</span>. Passe o mouse (ou toque) para ver entrada → saída. <b>Cavalo e reboque ficam em linhas separadas</b> (o ranking da frota continua somando os dois como um conjunto).';
     }

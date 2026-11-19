@@ -3163,6 +3163,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="edit-only" onclick="abrirModalDoc()" style="background:#16A34A;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer">➕ Adicionar Documento</button>
     <button onclick="abrirGerenciarPlacas()" class="edit-only" style="background:#7C3AED;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer">🚛 Gerenciar Placas</button>
     <button onclick="exportarDocumentosExcel()" style="background:#166534;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer">📥 Excel</button>
+    <button onclick="gerarPDFDocumentosVencidos()" title="PDF com todas as placas que têm documento vencido" style="background:#B91C1C;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer">📕 PDF Vencidos</button>
     <span id="doc-contador" style="font-size:11px;color:#64748b;font-weight:600"></span>
   </div>
 </div>
@@ -23057,6 +23058,74 @@ function excluirPlacaGP(placa, fonte) {
 }
 
 // ── Exportar Excel ──
+// ── PDF: placas com documentos VENCIDOS (CRLV, CIV, CIPP e Laudo de Opacidade — os mesmos da tela) ──
+function gerarPDFDocumentosVencidos() {
+  if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF não carregado. Aguarde e tente novamente.'); return; }
+  const porPlaca = {};
+  Object.values(DOCUMENTOS || {}).forEach(doc => {
+    if (!doc || !doc.placa || !DOC_TIPOS.includes(doc.tipo)) return;
+    if (statusDoc(doc.vencimento) !== 'vencido') return;
+    const dias = -(diasParaVencer(doc.vencimento) || 0);
+    (porPlaca[doc.placa] = porPlaca[doc.placa] || []).push({ tipo: doc.tipo, venc: doc.vencimento, dias, numero: doc.numero || '' });
+  });
+  const grupos = Object.keys(porPlaca).map(p => {
+    const docs = porPlaca[p].sort((a, b) => b.dias - a.dias);
+    const v = (VEICULOS || []).find(x => x.placa === p) || (PLACAS_DOC_EXTRA && PLACAS_DOC_EXTRA[p]) || {};
+    return { placa: p, tipoVeic: v.tipo || '', docs, max: docs[0].dias };
+  }).sort((a, b) => b.max - a.max || a.placa.localeCompare(b.placa));
+  if (!grupos.length) { alert('✅ Nenhuma placa com documento vencido.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const PW = 297, PH = 210, ML = 10, TW = PW - 20;
+  const cols = [['Placa', 32], ['Tipo de veículo', 62], ['Documento', 50], ['Nº do documento', 56], ['Vencimento', 34], ['Dias vencido', 43]];
+  const totalDocs = grupos.reduce((s, g) => s + g.docs.length, 0);
+  const porTipo = {}; grupos.forEach(g => g.docs.forEach(d => { porTipo[d.tipo] = (porTipo[d.tipo] || 0) + 1; }));
+  const quando = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  let y = 0;
+  const cab = () => {
+    doc.setFillColor(15, 23, 42); doc.rect(0, 0, PW, 22, 'F');
+    doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+    doc.text('Documentos Vencidos — Relatório por Placa', ML, 10);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(grupos.length + ' placa(s) · ' + totalDocs + ' documento(s) vencido(s) · gerado em ' + quando, ML, 17);
+    y = 27;
+  };
+  const cabTab = () => {
+    doc.setFillColor(30, 58, 138); doc.rect(ML, y, TW, 7, 'F');
+    doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    let x = ML; cols.forEach(c => { doc.text(c[0], x + 2, y + 4.8); x += c[1]; });
+    y += 7;
+  };
+  cab();
+  doc.setTextColor(51, 65, 85); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Resumo: ' + Object.keys(porTipo).map(t => (DOC_LABELS[t] || t) + ' ' + porTipo[t]).join('  ·  '), ML, y); y += 6;
+  cabTab();
+  let zebra = 0;
+  grupos.forEach(g => {
+    g.docs.forEach((d, i) => {
+      if (y + 7 > PH - 12) { doc.addPage(); cab(); cabTab(); }
+      if (zebra % 2) { doc.setFillColor(241, 245, 249); doc.rect(ML, y, TW, 7, 'F'); }
+      zebra++;
+      if (i === 0) { doc.setDrawColor(148, 163, 184); doc.line(ML, y, ML + TW, y); }
+      doc.setFontSize(9);
+      let x = ML;
+      const cel = (txt, w, opt) => { opt = opt || {}; doc.setFont('helvetica', opt.bold ? 'bold' : 'normal'); doc.setTextColor(...(opt.cor || [30, 41, 59])); doc.text(String(txt == null ? '' : txt), x + 2, y + 4.8); x += w; };
+      cel(i === 0 ? g.placa : '', cols[0][1], { bold: true });
+      cel(i === 0 ? String(g.tipoVeic).slice(0, 30) : '', cols[1][1]);
+      cel(DOC_LABELS[d.tipo] || d.tipo, cols[2][1], { bold: true });
+      cel(String(d.numero).slice(0, 28), cols[3][1]);
+      cel(formatarData(d.venc), cols[4][1], { cor: [185, 28, 28], bold: true });
+      cel(d.dias + (d.dias === 1 ? ' dia' : ' dias'), cols[5][1], { cor: [185, 28, 28], bold: true });
+      y += 7;
+    });
+  });
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100); doc.text('Página ' + p + ' de ' + n, PW - ML, PH - 5, { align: 'right' }); }
+  doc.save('Documentos_Vencidos_' + todayBrasilia() + '.pdf');
+  mostrarIndicador('✅ PDF de documentos vencidos gerado!', '#86efac');
+}
+
 function exportarDocumentosExcel() {
   const wb = XLSX.utils.book_new();
   const dataHoje = todayBrasilia();

@@ -10668,7 +10668,9 @@ function renderDisp() {
 
   const M = _dispCalcMotoristas(F);
   if (_dispVista === 'motoristas') {
-    const lista = M.lista.filter(m => !busca || m.motorista.toUpperCase().includes(busca));
+    const lista = M.lista.filter(m => !busca || m.motorista.toUpperCase().includes(busca))
+      .sort((x, y) => ((y.agora ? 1 : 0) - (x.agora ? 1 : 0)) || ((y.h || 0) - (x.h || 0)))
+      .map((m, i) => Object.assign({}, m, { pos: i + 1 })); // 1º quem está em manutenção agora; depois por Horas Indisp. (maior primeiro); Pos. segue essa ordem
     const sem = F.lista.filter(g => g.motorista === 'Não atribuído').length;
     const T = M.lista.reduce((s, m) => ({ h: s.h + m.h, o: s.o + m.ocorr, hC: s.hC + m.hC, hP: s.hP + m.hP, ag: s.ag + m.agora }), { h: 0, o: 0, hC: 0, hP: 0, ag: 0 });
     kp.innerHTML = [_dispKpi(M.lista.length, 'MOTORISTAS COM ESCALA', '#0f172a'), _dispKpi(sem, 'VEÍCULOS SEM MOTORISTA', '#B45309'), _dispKpi(_dispHfmt(T.h), 'HORAS INDISPONÍVEIS', '#7f1d1d'), _dispKpi(T.o, 'Nº OCORRÊNCIAS', '#1D4ED8'),

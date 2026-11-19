@@ -2321,6 +2321,11 @@ input, select, textarea { max-width: 100%; }
 /* Captura "Print para WhatsApp" (capturarTelaIndisp): layout fixo de 1600px, não deve ser alterado */
 #captura-indisp, #captura-indisp * { min-width: auto; }
 </style>
+<style>
+/* Placa em manutenção agora (aplicada automaticamente em todas as abas por _pintarPlacasParadas) */
+.plc-parada{background:#FEE2E2;color:#B91C1C !important;border-radius:6px;padding:1px 6px;font-weight:800}
+html.dark-mode .plc-parada{background:#7f1d1d;color:#fecaca !important}
+</style>
 </head>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -10623,7 +10628,7 @@ function renderDisp() {
         const tp = g.hC + g.hP;
         // Placa que está parada AGORA (cavalo ou reboque) fica em vermelho
         const _vm = 'background:#FEE2E2;color:#B91C1C;border-radius:6px;padding:2px 8px';
-        const _pl = (p, corNormal) => { const ab = g.aberto && _dispPorPlaca(F, g, p).aberto; return ab ? `<span style="${_vm}" title="Em manutenção agora">${esc(p)}</span>` : `<span style="${corNormal}">${esc(p)}</span>`; };
+        const _pl = (p, corNormal) => { const ab = g.aberto && _dispPorPlaca(F, g, p).aberto; return ab ? `<span class="plc-parada" style="${_vm}" title="Em manutenção agora">${esc(p)}</span>` : `<span style="${corNormal}">${esc(p)}</span>`; };
         const _cavHtml = g.cavalo ? _pl(g.cavalo, '') : '—';
         const _rebHtml = g.reboque ? String(g.reboque).split(' / ').map(p => p.trim()).filter(Boolean).map(p => _pl(p, 'color:#1B3A6D')).join(' / ') : '—';
         return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${_cavHtml}</td><td style="${_dispTd};font-weight:800">${_rebHtml}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
@@ -27400,6 +27405,82 @@ window.addEventListener('resize', () => {
     var kd = document.getElementById('doc-kpis'); if (kd) ro.observe(kd);
   }
   setTimeout(medir, 400);
+})();
+</script>
+<script>
+/* ── Placas em manutenção agora ficam em VERMELHO em todas as abas ──
+   Fonte: registros de INDISPONIVEIS ainda sem saída (placa do veículo e reboque).
+   Roda sozinho depois de qualquer re-render (MutationObserver com debounce), em todas as abas
+   exceto "Em Aberto" (onde todas já estão paradas) e "Histórico" (paradas já encerradas). */
+(function () {
+  var PLACA_RE = /\b[A-Z]{3}[0-9][A-Z0-9][0-9]{2}\b/g;
+  var RAIZES = ['pag-oleo', 'pag-checklist', 'pag-dashboard', 'pag-combustivel', 'pag-documentos', 'pag-tipos-manut', 'pag-tempo-parado', 'pag-disp'];
+  var PULAR = { INPUT: 1, TEXTAREA: 1, SELECT: 1, OPTION: 1, SCRIPT: 1, STYLE: 1, DATALIST: 1, TH: 1, BUTTON: 1 };
+  var norm = function (p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+  function paradas() {
+    var set = {}, n = 0;
+    try {
+      (typeof INDISPONIVEIS !== 'undefined' ? INDISPONIVEIS : []).forEach(function (r) {
+        if (!r || (typeof _saidaValida === 'function' && _saidaValida(r.saida))) return;
+        [r.placa].concat(String(r.reboque || '').split(/[\/,]+/)).forEach(function (p) { p = norm(p); if (p.length === 7) { set[p] = 1; n++; } });
+      });
+    } catch (e) {}
+    return n ? set : null;
+  }
+  function pintar() {
+    var set = paradas();
+    document.querySelectorAll('span.plc-auto').forEach(function (sp) {
+      if (!set || !set[norm(sp.textContent)]) { sp.replaceWith(document.createTextNode(sp.textContent)); }
+    });
+    if (!set) return;
+    RAIZES.forEach(function (id) {
+      var raiz = document.getElementById(id);
+      if (!raiz || raiz.offsetParent === null) return;
+      var w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT, {
+        acceptNode: function (t) {
+          if (t.nodeValue.length < 7 || !/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/.test(t.nodeValue)) return NodeFilter.FILTER_REJECT;
+          var p = t.parentElement;
+          if (!p || PULAR[p.tagName] || p.closest('.plc-parada, [contenteditable="true"], .overlay, [id^="overlay-"], [id^="modal-"]')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      var nos = [], t;
+      while ((t = w.nextNode())) nos.push(t);
+      nos.forEach(function (t) {
+        var txt = t.nodeValue, ach = false, m;
+        PLACA_RE.lastIndex = 0;
+        while ((m = PLACA_RE.exec(txt))) { if (set[m[0]]) { ach = true; break; } }
+        if (!ach) return;
+        var frag = document.createDocumentFragment(), ult = 0;
+        PLACA_RE.lastIndex = 0;
+        while ((m = PLACA_RE.exec(txt))) {
+          if (!set[m[0]]) continue;
+          frag.appendChild(document.createTextNode(txt.slice(ult, m.index)));
+          var sp = document.createElement('span'); sp.className = 'plc-parada plc-auto'; sp.title = 'Em manutenção agora'; sp.textContent = m[0];
+          frag.appendChild(sp); ult = m.index + m[0].length;
+        }
+        frag.appendChild(document.createTextNode(txt.slice(ult)));
+        t.parentNode.replaceChild(frag, t);
+      });
+    });
+  }
+  var timer = null;
+  function agendar() { clearTimeout(timer); timer = setTimeout(function () { try { pintar(); } catch (e) {} }, 250); }
+  function nosso(n) { return n.nodeType === 3 || (n.nodeType === 1 && n.classList && n.classList.contains('plc-auto')); }
+  function iniciar() {
+    new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var m = muts[i];
+        if (m.type !== 'childList') continue;
+        var so = true;
+        m.addedNodes.forEach(function (n) { if (!nosso(n)) so = false; });
+        m.removedNodes.forEach(function (n) { if (!nosso(n)) so = false; });
+        if (!so || (m.target.nodeType === 1 && m.target.tagName !== 'TD' && m.target.tagName !== 'SPAN' && m.target.tagName !== 'DIV')) { agendar(); return; }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+    agendar();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
 </script>
 </body>

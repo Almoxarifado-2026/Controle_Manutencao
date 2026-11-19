@@ -10621,7 +10621,12 @@ function renderDisp() {
       const cols = ['Pos.', 'Cavalo', 'Reboque', 'Tipo de veículo', 'Motorista atual', 'Nº Ocorr.', 'Horas Indisp.', 'Horas Disp.', 'Disponibilidade', 'Status atual', 'Situação x Meta', 'Ocorr. Corret.', 'Ocorr. Prev.', 'Horas Corret.', 'Horas Prev.', '% Horas Prev.'];
       corpo.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}</tr></thead><tbody>` + lista.map((g, i) => {
         const tp = g.hC + g.hP;
-        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${esc(g.cavalo || '—')}</td><td style="${_dispTd};font-weight:800;color:#1B3A6D">${esc(g.reboque || '—')}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
+        // Placa que está parada AGORA (cavalo ou reboque) fica em vermelho
+        const _vm = 'background:#FEE2E2;color:#B91C1C;border-radius:6px;padding:2px 8px';
+        const _pl = (p, corNormal) => { const ab = g.aberto && _dispPorPlaca(F, g, p).aberto; return ab ? `<span style="${_vm}" title="Em manutenção agora">${esc(p)}</span>` : `<span style="${corNormal}">${esc(p)}</span>`; };
+        const _cavHtml = g.cavalo ? _pl(g.cavalo, '') : '—';
+        const _rebHtml = g.reboque ? String(g.reboque).split(' / ').map(p => p.trim()).filter(Boolean).map(p => _pl(p, 'color:#1B3A6D')).join(' / ') : '—';
+        return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${g.pos}º</td><td style="${_dispTd};font-weight:800">${_cavHtml}</td><td style="${_dispTd};font-weight:800">${_rebHtml}</td><td style="${_dispTd}">${esc(g.modelo)}</td><td style="${_dispTd};cursor:pointer;color:${g.motorista === 'Não atribuído' ? '#B45309' : '#1D4ED8'};font-weight:700" title="Clique para vincular/trocar o motorista desta placa" onclick="_vincAbrir('${esc(g.placa)}')">${esc(g.motorista)} 🔗</td>
         <td style="${_dispTd}">${g.ocorr}</td><td style="${_dispTd};color:#B91C1C;font-weight:700">${_dispHfmt(g.h)}</td><td style="${_dispTd}">${_dispHfmt(F.horasMes - g.h)}</td>
         <td style="${_dispTd};font-weight:800;color:${g.disp >= meta ? '#166534' : '#B91C1C'}">${_dispPct(g.disp)}</td>
         <td style="${_dispTd}">${g.aberto ? '<span style="background:#FEE2E2;color:#B91C1C;border-radius:20px;padding:2px 9px;font-weight:800;font-size:10px">🔴 EM MANUTENÇÃO</span>' : '<span style="color:#166534;font-weight:700">Operando</span>'}</td>

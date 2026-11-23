@@ -3516,6 +3516,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="indisp-subtab-btn" data-v="quadro" onclick="_dispVer('quadro')">📅 Quadro Mensal</button>
       <button class="indisp-subtab-btn" data-v="motoristas" onclick="_dispVer('motoristas')">👷 Ranking Motoristas</button>
       <button class="indisp-subtab-btn" data-v="escala" onclick="_dispVer('escala')">🗓️ Escala Motoristas</button>
+      <button class="indisp-subtab-btn" data-v="equipe" onclick="_dispVer('equipe')">🛠️ Produtividade Equipe</button>
     </div>
     <button class="edit-only" onclick="_vincAbrir()" style="margin-left:auto;background:#1D4ED8;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔗 Vincular motorista</button>
     <button class="edit-only" onclick="_apAbrir()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">➕ Lançar parada</button>
@@ -10600,6 +10601,53 @@ function _dispPorPlaca(F, g, placa) {
   return { dias, h, ocorr, aberto, disp: F.horasMes > 0 ? (F.horasMes - h) / F.horasMes : 1 };
 }
 
+// ── Produtividade da equipe (dados enviados pelo Sistema OS ao concluir cada OS: /manutencao/equipe_os) ──
+// Horas = tempo LÍQUIDO da OS (sem pausas) dividido igualmente entre executante e ajudantes.
+let _equipeCache = { t: 0, d: null };
+async function _equipeCarregar(forcar) {
+  if (!forcar && _equipeCache.d && Date.now() - _equipeCache.t < 60000) return _equipeCache.d;
+  const d = await fbGet('/manutencao/equipe_os.json', 15000);
+  const lista = d && typeof d === 'object' ? Object.values(d).filter(x => x && x.executante && x.saida) : [];
+  if (d !== null || !_equipeCache.d) _equipeCache = { t: Date.now(), d: lista };
+  return _equipeCache.d;
+}
+function _equipeAgrupar(regs) {
+  const P = {}, T = { os: regs.length, min: 0, ter: 0 };
+  const get = (nome, ter) => { const k = String(nome).toUpperCase().replace(/^TERCEIRO:\s*/, ''); return P[k] || (P[k] = { nome: k, ter: !!ter, exec: 0, aj: 0, min: 0, tipos: {} }); };
+  regs.forEach(r => {
+    const aj = Array.isArray(r.ajudantes) ? r.ajudantes : (r.ajudantes ? Object.values(r.ajudantes) : []);
+    const n = 1 + aj.length, parte = (Number(r.min) || 0) / n;
+    T.min += Number(r.min) || 0; if (r.terceiro) T.ter++;
+    const e = get(r.executante, r.terceiro); e.exec++; e.min += parte; e.tipos[r.tipo || '-'] = (e.tipos[r.tipo || '-'] || 0) + 1;
+    aj.forEach(nm => { const p = get(nm, false); p.aj++; p.min += parte; p.tipos[r.tipo || '-'] = (p.tipos[r.tipo || '-'] || 0) + 1; });
+  });
+  return { lista: Object.values(P), T };
+}
+async function _dispRenderEquipe(F, busca, corpo, kp, nota) {
+  corpo.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8">⏳ Carregando produtividade da equipe…</div>';
+  kp.innerHTML = '';
+  const todas = await _equipeCarregar(false);
+  if (_dispVista !== 'equipe') return; // trocou de aba enquanto carregava
+  const A = +F.a, B = +F.b;
+  const regs = (todas || []).filter(r => { const t = +new Date(r.saida); return t >= A && t < B; });
+  const G = _equipeAgrupar(regs);
+  const lista = G.lista.filter(p => !busca || p.nome.includes(busca)).sort((x, y) => y.min - x.min || (y.exec + y.aj) - (x.exec + x.aj));
+  const hf = m => _dispHfmt(m / 60);
+  const nomesTipo = { corretiva: 'Corretiva', preventiva: 'Preventiva', solda: 'Solda', eletrico: 'Elétrico', hidraulico: 'Hidráulico' };
+  const tipoTop = p => { const e = Object.entries(p.tipos).sort((a, b) => b[1] - a[1])[0]; return e ? (nomesTipo[e[0]] || e[0]) : '-'; };
+  const top = G.lista.slice().sort((x, y) => y.min - x.min)[0];
+  kp.innerHTML = [_dispKpi(G.lista.length, 'PESSOAS NA EQUIPE', '#0f172a'), _dispKpi(G.T.os, 'OS CONCLUÍDAS NO MÊS', '#1D4ED8'), _dispKpi(hf(G.T.min), 'HORAS TRABALHADAS (OS)', '#15803d'),
+    _dispKpi(G.T.os ? hf(G.T.min / G.T.os) : '-', 'TEMPO MÉDIO POR OS', '#7C3AED'), _dispKpi(G.T.ter, 'OS DE TERCEIROS', '#B45309'), _dispKpi(top ? escapeHtml(top.nome) : '-', 'MAIS HORAS NO MÊS', '#0f766e')].join('');
+  const maxMin = Math.max(1, ...lista.map(p => p.min));
+  const cols = ['Pos.', 'Pessoa', 'OS executante', 'OS ajudante', 'Horas (divididas)', 'Tempo médio por OS', 'Serviço mais frequente'];
+  corpo.innerHTML = lista.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>${cols.map(c => `<th style="${_dispTh}">${c}</th>`).join('')}<th style="${_dispTh}">Horas</th></tr></thead><tbody>` + lista.map((p, i) => {
+    const nos = p.exec + p.aj;
+    return `<tr style="${i % 2 ? 'background:#f8fafc' : ''}"><td style="${_dispTd};font-weight:800">${i + 1}º</td><td style="${_dispTd};text-align:left;font-weight:700">${escapeHtml(p.nome)}${p.ter ? ' <span style="background:#FEF3C7;color:#92400E;border-radius:6px;padding:1px 6px;font-size:9px;font-weight:800">TERCEIRO</span>' : ''}</td><td style="${_dispTd}">${p.exec}</td><td style="${_dispTd}">${p.aj}</td><td style="${_dispTd};font-weight:800;color:#166534">${hf(p.min)}</td><td style="${_dispTd}">${nos ? hf(p.min / nos) : '-'}</td><td style="${_dispTd}">${escapeHtml(tipoTop(p))}</td><td style="${_dispTd};min-width:140px;text-align:left"><div style="background:#e2e8f0;border-radius:6px;height:10px"><div style="background:#16A34A;height:10px;border-radius:6px;width:${Math.max(2, Math.round(p.min / maxMin * 100))}%"></div></div></td></tr>`;
+  }).join('') + '</tbody></table>' : '<div style="padding:28px;text-align:center;color:#94a3b8">Nenhuma OS concluída neste mês chegou do Sistema OS. As OS concluídas <b>a partir da atualização</b> passam a aparecer aqui.</div>';
+  _dispUltimo = lista.length ? { titulo: 'Produtividade da Equipe', cols, rows: lista.map((p, i) => [(i + 1) + 'º', p.nome + (p.ter ? ' (terceiro)' : ''), p.exec, p.aj, hf(p.min), (p.exec + p.aj) ? hf(p.min / (p.exec + p.aj)) : '-', tipoTop(p)]) } : null;
+  nota.innerHTML = 'Dados enviados pelo <b>Sistema OS</b> quando cada OS é concluída (só OS concluídas depois da atualização). O tempo é o <b>tempo líquido da OS, sem as pausas</b>, dividido igualmente entre o executante e os ajudantes; por isso a soma das horas das pessoas fecha com o tempo real das OS.';
+}
+
 function renderDisp() {
   _dispPopularMeses();
   const corpo = document.getElementById('disp-corpo'); if (!corpo) return;
@@ -10609,6 +10657,8 @@ function renderDisp() {
   const nota = document.getElementById('disp-nota'), kp = document.getElementById('disp-kpis');
   const tot = F.lista.reduce((s, g) => ({ h: s.h + g.h, o: s.o + g.ocorr, hC: s.hC + g.hC, hP: s.hP + g.hP, ag: s.ag + (g.aberto ? 1 : 0), d: s.d + g.disp }), { h: 0, o: 0, hC: 0, hP: 0, ag: 0, d: 0 });
   const esc = escapeHtml;
+
+  if (_dispVista === 'equipe') { _dispRenderEquipe(F, busca, corpo, kp, nota); return; }
 
   if (_dispVista === 'frota' || _dispVista === 'quadro') {
     const lista = F.lista.filter(g => !busca || (g.key.includes(_normPlaca(busca)) || _normPlaca(g.reboque).includes(_normPlaca(busca)) || String(g.motorista).toUpperCase().includes(busca)))

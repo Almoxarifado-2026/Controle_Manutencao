@@ -3820,6 +3820,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <select id="indisp-tipo-manut" style="width:100%;padding:11px 14px;border:1px solid #dbe4f0;border-radius:14px;font-size:13px;background:#f8fafc">
           <option value="CORRETIVA">CORRETIVA</option>
           <option value="PREVENTIVA">PREVENTIVA</option>
+          <option value="SOLDA">SOLDA</option>
+          <option value="ELÉTRICO">ELÉTRICO</option>
+          <option value="HIDRÁULICO">HIDRÁULICO</option>
         </select>
       </div>
       <div>
@@ -10155,7 +10158,7 @@ function _tpCalcular() {
     if (fPapel && (papeis[key] || {}).papel !== fPapel) return;
     const serv = String(r.servico || '').toLowerCase();
     if (fServ && serv !== fServ) return;
-    if (fTipo && String(r.tipoManut || 'CORRETIVA').toUpperCase() !== fTipo) return;
+    if (fTipo && (String(r.tipoManut || 'CORRETIVA').toUpperCase().startsWith('P') ? 'PREVENTIVA' : 'CORRETIVA') !== fTipo) return;
     let ini = new Date(r.entrada), fim = r._aberto ? agora : new Date(r.saida);
     if (isNaN(ini) || isNaN(fim)) return;
     if (ini0 && ini < ini0) ini = ini0;
